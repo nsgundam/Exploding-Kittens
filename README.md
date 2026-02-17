@@ -1,5 +1,9 @@
-# Exploding Kittens Backend
-more info dbms table:(https://drive.google.com/file/d/1jyOiu9N-F2sFwjkSKchcrgCUB82eFbdc/view?usp=sharing)
+# 🐈‍⬛ Exploding Kittens Backend 🐈
+
+> more info dbms table: [Google Drive](https://drive.google.com/file/d/1jyOiu9N-F2sFwjkSKchcrgCUB82eFbdc/view?usp=sharing)
+
+---
+
 ## 📦 Tech Stack
 
 - Node.js (v18+ recommended)
@@ -8,31 +12,40 @@ more info dbms table:(https://drive.google.com/file/d/1jyOiu9N-F2sFwjkSKchcrgCUB
 - Prisma Client: 7.x
 - TypeScript
 - ts-node
+
 ---
-**use in project**
+
+## 📌 Versions Used in This Project
+
+| Tool | Version |
+|---|---|
+| Node.js | v25.6.1 |
+| TypeScript | 5.9.3 |
+| PostgreSQL | 15.15 (Homebrew) |
+| Prisma CLI | 7.4.0 |
+| Prisma Client | 7.4.0 |
+| @prisma/adapter-pg | 7.4.0 |
 ```
-- Node: v25.6.1
-- TypeScript: Version 5.9.3
-- PostgreSQL: psql (PostgreSQL) 15.15 (Homebrew)
-- Prisma schema loaded from prisma/schema.prisma.
-- Prisma CLI: prisma  : 7.4.0
 backend@1.0.0 /Users/patchanan/Exploding-Kittens/backend
 ├── @prisma/adapter-pg@7.4.0
 ├─┬ @prisma/client@7.4.0
 │ └── prisma@7.4.0 deduped
 └── prisma@7.4.0
 ```
+
 ---
-## 🫵🏻 How to check version 
-```
+
+## 🫵🏻 How to Check Versions
+```bash
 echo "Node: $(node -v)" && \
 echo "TypeScript: $(npx tsc -v)" && \
-echo "PostgreSQL: $(psql --version)" && \ 
+echo "PostgreSQL: $(psql --version)" && \
 echo "Prisma CLI: $(npx prisma -v | head -1)" && \
 npm list @prisma/client @prisma/adapter-pg prisma
-Node: v25.6.1
 ```
+
 ---
+
 ## 🚀 Initial Setup (First Time Only)
 
 ### 1️⃣ Install PostgreSQL (macOS - Homebrew)
@@ -174,8 +187,6 @@ const prisma = new PrismaClient({
 ```
 
 ### `package.json`
-
-Make sure you have:
 ```json
 "scripts": {
   "seed": "ts-node prisma/seed.ts"
@@ -198,8 +209,6 @@ Seed completed successfully.
 ---
 
 ## 🔍 Verify Seed Data
-
-Open PostgreSQL:
 ```bash
 psql -U <your_os_username> -d exploding_kittens_db
 ```
@@ -224,8 +233,6 @@ Disable pager permanently:
 ---
 
 ## 🔁 If VSCode Shows Red Error on `process`
-
-Install Node types:
 ```bash
 npm install -D @types/node
 ```
@@ -247,8 +254,6 @@ Open `tsconfig.json` and ensure:
 ---
 
 ## 🧱 Development Workflow Summary
-
-When updating schema:
 ```bash
 # 1. Edit schema.prisma, then:
 npx prisma migrate dev --name <migration_name>
@@ -264,49 +269,123 @@ npm run seed
 
 ## 🧠 Architecture Notes (Prisma v7)
 
-Prisma v7 separates:
-- Schema definition
-- Connection configuration
-- Runtime adapter
-
+Prisma v7 separates schema definition, connection configuration, and runtime adapter.
 Connection must use `@prisma/adapter-pg`. Unlike Prisma v4/v5, `datasources` inside schema is no longer supported.
 
 ---
 
 ## 🧪 Useful Debug Commands
-
-Check environment variable:
 ```bash
+# Check environment variable
 node -r dotenv/config -e "console.log(process.env.DATABASE_URL)"
 ```
-
-List tables:
 ```
+# List tables
 \dt
-```
 
-Check table structure:
-```
+# Check table structure
 \d "Room"
 ```
 
 ---
 
-## 📌 Current Versions Used
 
-| Tool | Version |
-|---|---|
-| Prisma CLI | 7.x |
-| Prisma Client | 7.x |
-| PostgreSQL | 15.x (Homebrew) |
-| Node.js | 18+ recommended |
+## 🔌 Setup Socket.io (Backend Only)
+
+โปรเจกต์นี้ใช้ **Socket.io (Server)** สำหรับระบบ Real-time เช่น:
+- Join Room
+- Broadcast Player Update
+- Game Events
+- Sync Game State
+
+> ⚠️ Backend ใช้ `socket.io` เท่านั้น  
+> ห้ามใช้ `socket.io-client` ใน backend
 
 ---
 
-## ✅ Project Status
+## 📦 ติดตั้ง Socket.io (Server)
 
-- [x] Database connected
-- [x] Migration applied
-- [x] Seed working
-- [x] Adapter configured
-- [x] Case-sensitive tables verified
+ในโฟลเดอร์ `backend/` รัน:
+```bash
+npm install socket.io
+```
+
+ตรวจสอบว่าใน `package.json` ไม่มี `socket.io-client`
+
+---
+
+## 🧠 โครงสร้างไฟล์ Backend
+```
+backend/
+ ├── prisma/
+ ├── src/
+ │    ├── server.ts
+ │    ├── index.ts (optional)
+ │    └── ...
+ ├── prisma.config.ts
+ ├── .env
+ └── package.json
+```
+
+---
+
+## 🚀 สร้าง Socket Server (`src/server.ts`)
+```ts
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+
+const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*", // แก้เป็น frontend URL ตอน production
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join-room", (roomId: string) => {
+    socket.join(roomId);
+    console.log(`${socket.id} joined room ${roomId}`);
+  });
+
+  socket.on("leave-room", (roomId: string) => {
+    socket.leave(roomId);
+    console.log(`${socket.id} left room ${roomId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+const PORT = 4000;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+```
+
+---
+
+## ▶️ รัน Backend Server
+
+เพิ่มใน `package.json`:
+```json
+"scripts": {
+  "dev": "ts-node src/server.ts",
+  "seed": "ts-node prisma/seed.ts"
+}
+```
+
+รัน:
+```bash
+npm run dev
+```
+
+Expected output:✅
+```
+Server running at http://localhost:4000
+```
