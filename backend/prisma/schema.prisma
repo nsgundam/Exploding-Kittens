@@ -1,0 +1,169 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////
+// ROOM
+//////////////////////
+
+model Room {
+  room_id         String   @id @default(uuid())
+  room_name       String
+  host_session_id String
+  status          String
+  max_players     Int
+  current_players Int
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  players         Player[]
+  deck_config     DeckConfig?
+  game_sessions   GameSession[]
+}
+
+//////////////////////
+// PLAYER
+//////////////////////
+
+model Player {
+  player_id      String   @id @default(uuid())
+  session_id     String   @unique
+  display_name   String
+  profile_picture String?
+  room_id        String
+  seat_number    Int?
+  role           String
+  is_alive       Boolean  @default(true)
+  is_active      Boolean  @default(true)
+  afk_count      Int      @default(0)
+  joined_at      DateTime @default(now())
+  last_active    DateTime @default(now())
+
+  room           Room     @relation(fields: [room_id], references: [room_id])
+  hands          CardHand[]
+
+  @@index([room_id])
+}
+
+//////////////////////
+// GAME SESSION
+//////////////////////
+
+model GameSession {
+  session_id              String   @id @default(uuid())
+  room_id                 String
+  current_turn_session_id String?
+  turn_number             Int      @default(1)
+  start_time              DateTime @default(now())
+  end_time                DateTime?
+  status                  String
+  winner_session_id       String?
+
+  room        Room        @relation(fields: [room_id], references: [room_id])
+  deck_state  DeckState?
+  logs        GameLog[]
+  hands       CardHand[]
+
+  @@index([room_id])
+}
+
+//////////////////////
+// DECK CONFIG
+//////////////////////
+
+model DeckConfig {
+  config_id     String   @id @default(uuid())
+  room_id       String   @unique
+  card_version  String
+  expansions    Json
+  last_modified DateTime @default(now())
+
+  room          Room     @relation(fields: [room_id], references: [room_id])
+}
+
+//////////////////////
+// DECK STATE
+//////////////////////
+
+model DeckState {
+  deck_state_id  String   @id @default(uuid())
+  session_id     String   @unique
+  deck_order     Json
+  discard_pile   Json
+  cards_remaining Int
+  last_updated   DateTime @default(now())
+
+  session        GameSession @relation(fields: [session_id], references: [session_id])
+}
+
+//////////////////////
+// GAME LOG
+//////////////////////
+
+model GameLog {
+  log_id              String   @id @default(uuid())
+  session_id          String
+  player_session_id   String
+  player_display_name String
+  action_type         String
+  action_details      Json
+  is_noped            Boolean  @default(false)
+  timestamp           DateTime @default(now())
+  turn_number         Int
+
+  session             GameSession @relation(fields: [session_id], references: [session_id])
+
+  @@index([session_id])
+  @@index([turn_number])
+}
+
+//////////////////////
+// CARD HAND
+//////////////////////
+
+model CardHand {
+  hand_id     String   @id @default(uuid())
+  player_id   String
+  session_id  String
+  cards       Json
+  card_count  Int
+  updated_at  DateTime @default(now())
+
+  player      Player      @relation(fields: [player_id], references: [player_id])
+  session     GameSession @relation(fields: [session_id], references: [session_id])
+
+  @@unique([player_id, session_id])
+}
+
+//////////////////////
+// CARD MASTER (REFERENCE TABLE)
+//////////////////////
+
+model CardMaster {
+  card_id          Int      @id @default(autoincrement())
+  card_code        String   @unique
+  name             String
+  type             String
+  category         String
+  description      String
+  effect_details   Json
+  image_url        String
+  thumbnail_url    String
+  quantity_in_deck Int
+  is_playable      Boolean
+  is_stackable     Boolean
+  expansion_pack   String?
+  display_order    Int
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
