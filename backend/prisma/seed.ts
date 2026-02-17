@@ -10,20 +10,9 @@ const prisma = new PrismaClient({
   adapter,
 });
 
-console.log("DATABASE_URL =", process.env.DATABASE_URL);
 
 async function main() {
   console.log("Seeding database...");
-
-  // ลบข้อมูลเรียงจากลูกไปพ่อ (สำคัญมาก)
-  await prisma.gameLog.deleteMany();
-  await prisma.cardHand.deleteMany();
-  await prisma.deckState.deleteMany();
-  await prisma.deckConfig.deleteMany();
-  await prisma.gameSession.deleteMany();
-  await prisma.player.deleteMany();
-  await prisma.room.deleteMany();
-  await prisma.cardMaster.deleteMany();
 
   // 1️⃣ Create Room
   const room = await prisma.room.create({
