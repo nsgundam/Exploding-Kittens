@@ -51,3 +51,4 @@ next-env.d.ts
 
 dist/
 prisma/migrations/
+/generated/prisma
