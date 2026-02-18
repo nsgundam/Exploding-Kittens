@@ -42,7 +42,7 @@ jobs:
   # Job 2: ตรวจ Backend
   # ---------------------------------------------------
   backend-check:
-    name: 🔙 Backend Check
+    name: Backend Check
     runs-on: ubuntu-latest
     defaults:
       run:
