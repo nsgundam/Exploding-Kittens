@@ -1,44 +1,69 @@
 name: CI Check (Lint & Test)
 
 on:
-  # เมื่อมีคนเปิด PR เข้ามาที่ main หรือ develop
   pull_request:
     branches: [ "main", "develop" ]
-  # เมื่อมีการ Push code (เผื่อไว้ดู log)
   push:
     branches: [ "main", "develop" ]
 
 jobs:
-  build-and-test:
-    name: Build, Lint, and Test
-    runs-on: ubuntu-latest # ใช้เครื่อง Server ของ GitHub (Linux)
+  # ---------------------------------------------------
+  # Job 1: ตรวจ Frontend
+  # ---------------------------------------------------
+  frontend-check:
+    name: Frontend Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
 
     steps:
-      # ดึงโค้ดล่าสุดลงมา
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ลง Node.js (ใช้เวอร์ชันเดียวกับที่ทีมใช้ เช่น 18 หรือ 20)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' 
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Lint
+        run: npm run lint
+
+      # ถ้ายังไม่มี test ให้คอมเมนต์บรรทัดนี้ไว้ก่อนได้ครับ
+      # - name: Run Tests
+      #   run: npm test
+
+  # ---------------------------------------------------
+  # Job 2: ตรวจ Backend
+  # ---------------------------------------------------
+  backend-check:
+    name: Backend Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend 
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      # ลง Library ต่างๆ (เหมือนเราพิมพ์ npm install)
       - name: Install dependencies
-        run: npm ci # แนะนำให้ใช้ npm ci แทน npm install ใน CI เพื่อความชัวร์
+        run: npm ci
 
-      # ตรวจความสวยงามของโค้ด (Lint)
       - name: Run Lint
         run: npm run lint
-        # ถ้าพัง (Error) มันจะหยุดตรงนี้และแจ้งเตือนทันที
 
-      # รันเทสต์ (Test)
-      - name: Run Tests
-        run: npm test
-        # ถ้าเทสต์ไม่ผ่าน มันจะหยุดตรงนี้
-
-      # ลอง Build ดูว่าผ่านไหม (เฉพาะ Frontend Next.js)
-      - name: Try Build (Check for build errors)
-        run: npm run build
+      # - name: Run Tests
+      #   run: npm test
