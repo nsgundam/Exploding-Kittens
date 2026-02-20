@@ -1,47 +1,32 @@
-# 🐈‍⬛ Exploding Kittens Backend 🐈
+# 🐈 Exploding Kittens Backend
 
-> more info dbms table: [Google Drive](https://drive.google.com/file/d/1jyOiu9N-F2sFwjkSKchcrgCUB82eFbdc/view?usp=sharing)
+Backend service สำหรับเกม Exploding Kittens  
+พัฒนาโดยใช้ **Node.js + TypeScript + PostgreSQL + Prisma ORM**
+
+> 📐 Database schema reference: [Google Drive](https://drive.google.com/file/d/1jyOiu9N-F2sFwjkSKchcrgCUB82eFbdc/view?usp=sharing)
 
 ---
 
 ## 📦 Tech Stack
 
-- Node.js (v18+ recommended)
-- PostgreSQL (local via Homebrew)
-- Prisma CLI: 7.x
-- Prisma Client: 7.x
-- TypeScript
-- ts-node
-
----
-
-## 📌 Versions Used in This Project
-
 | Tool | Version |
-|---|---|
-| Node.js | v25.6.1 |
+|------|---------|
+| Node.js | v25.6.1 (v18+ recommended) |
 | TypeScript | 5.9.3 |
-| PostgreSQL | 15.15 (Homebrew) |
-| Prisma CLI | 7.4.0 |
-| Prisma Client | 7.4.0 |
-| @prisma/adapter-pg | 7.4.0 |
-```
-backend@1.0.0 /Users/patchanan/Exploding-Kittens/backend
-├── @prisma/adapter-pg@7.4.0
-├─┬ @prisma/client@7.4.0
-│ └── prisma@7.4.0 deduped
-└── prisma@7.4.0
-```
+| PostgreSQL | 15.15 |
+| Prisma CLI | 6.19.2 |
+| Prisma Client | 6.19.2 |
+| Express | latest |
+| Socket.io (Server only) | latest |
 
----
+ตรวจสอบเวอร์ชัน:
 
-## 🫵🏻 How to Check Versions
 ```bash
-echo "Node: $(node -v)" && \
-echo "TypeScript: $(npx tsc -v)" && \
-echo "PostgreSQL: $(psql --version)" && \
-echo "Prisma CLI: $(npx prisma -v | head -1)" && \
-npm list @prisma/client @prisma/adapter-pg prisma
+echo "Node: $(node -v)"
+echo "TypeScript: $(npx tsc -v)"
+echo "PostgreSQL: $(psql --version)"
+echo "Prisma CLI: $(npx prisma -v | head -1)"
+npm list @prisma/client prisma
 ```
 
 ---
@@ -49,29 +34,34 @@ npm list @prisma/client @prisma/adapter-pg prisma
 ## 🚀 Initial Setup (First Time Only)
 
 ### 1️⃣ Install PostgreSQL (macOS - Homebrew)
+
 ```bash
 brew install postgresql
 brew services start postgresql
 ```
 
-Create database:
+สร้าง database:
+
 ```bash
 createdb exploding_kittens_db
 ```
 
-Check connection:
+ทดสอบ connection:
+
 ```bash
 psql -U <your_os_username> -d exploding_kittens_db
 ```
 
-Exit with:
-```
+ออกจาก psql:
+
+```bash
 \q
 ```
 
 ---
 
 ### 2️⃣ Clone Project
+
 ```bash
 git clone <repo-url>
 cd Exploding-Kittens/backend
@@ -80,46 +70,48 @@ cd Exploding-Kittens/backend
 ---
 
 ### 3️⃣ Install Dependencies
+
 ```bash
 npm install
 ```
 
----
+ตรวจสอบเวอร์ชัน Prisma ให้ถูกต้อง:
 
-### 4️⃣ Install Required Packages (Prisma v7)
-
-Prisma v7 requires adapter-based connection.
 ```bash
-npm install @prisma/adapter-pg pg
+npm install prisma@6.19.2 @prisma/client@6.19.2
 npm install -D @types/node
 ```
+
+> ⚠️ ตรวจสอบว่า **ไม่มี** `@prisma/adapter-pg` ติดตั้งอยู่
 
 ---
 
 ## ⚙️ Environment Setup
 
-Create a file named `.env` inside `backend/` and add:
+สร้างไฟล์ `.env` ใน `backend/`:
+
 ```env
 DATABASE_URL="postgresql://<your_os_username>@localhost:5432/exploding_kittens_db"
 ```
 
-**Example:**
+ตัวอย่าง:
+
 ```env
 DATABASE_URL="postgresql://patchanan@localhost:5432/exploding_kittens_db"
 ```
 
-> ⚠️ If you did not set a PostgreSQL password, do **NOT** include `:password`
+> ⚠️ หากไม่ได้ตั้งรหัสผ่าน PostgreSQL **ห้ามใส่ `:password`**
 
 ---
 
-## 🧠 Important: Prisma v7 Configuration
+## 🧠 Prisma Configuration (Prisma v6 Standard Mode)
 
-Prisma v7 does **NOT** allow `url = env("DATABASE_URL")` inside `schema.prisma` — you must remove it.
+**`prisma/schema.prisma`**
 
-### `prisma/schema.prisma`
 ```prisma
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -127,24 +119,14 @@ generator client {
 }
 ```
 
-### `prisma.config.ts` (Required in Prisma v7)
-
-Create this file in the `backend` root:
-```ts
-import { defineConfig } from "prisma/config";
-
-export default defineConfig({
-  datasource: {
-    url: process.env.DATABASE_URL!,
-  },
-});
-```
+> ✅ Prisma v6 ใช้ `url = env("DATABASE_URL")` ตามปกติ  
+> ❌ ไม่ต้องใช้ `prisma.config.ts`  
+> ❌ ไม่ต้องใช้ adapter
 
 ---
 
 ## 🛠 Generate Prisma Client
 
-After editing schema:
 ```bash
 npx prisma generate
 ```
@@ -152,16 +134,18 @@ npx prisma generate
 ---
 
 ## 🗄 Run Migration (Create Tables)
+
 ```bash
 npx prisma migrate dev --name init
 ```
 
-This will:
-- Create migration file
-- Apply SQL to database
+สิ่งที่จะเกิดขึ้น:
+- สร้าง migration file
+- Apply SQL ไปยัง database
 - Generate Prisma Client
 
-Verify tables exist:
+ตรวจสอบ table:
+
 ```bash
 psql -U <your_os_username> -d exploding_kittens_db
 \dt
@@ -171,37 +155,36 @@ psql -U <your_os_username> -d exploding_kittens_db
 
 ## 🌱 Seed Configuration
 
-### `seed.ts` (Prisma v7 with Adapter)
+ไฟล์ seed อยู่ที่: `src/seed.ts`
+
+ตัวอย่างโครงสร้างพื้นฐาน:
+
 ```ts
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-});
-
-const prisma = new PrismaClient({
-  adapter,
-});
+const prisma = new PrismaClient();
 ```
 
-### `package.json`
+**`package.json`**
+
 ```json
 "scripts": {
-  "seed": "ts-node prisma/seed.ts"
+  "dev": "ts-node src/server.ts",
+  "seed": "ts-node src/seed.ts"
 }
 ```
 
----
+### รัน Seed
 
-## 🌱 Run Seed
 ```bash
 npm run seed
 ```
 
 Expected output:
+
 ```
+Resetting data...
 Seeding database...
 Seed completed successfully.
 ```
@@ -209,127 +192,58 @@ Seed completed successfully.
 ---
 
 ## 🔍 Verify Seed Data
+
 ```bash
 psql -U <your_os_username> -d exploding_kittens_db
 ```
 
-Because Prisma creates case-sensitive table names, use quotes:
+Query:
+
 ```sql
 SELECT * FROM "Room";
 SELECT * FROM "Player";
 SELECT * FROM "GameSession";
 ```
 
-To exit pager view:
-```
-q
-```
+ปิด pager:
 
-Disable pager permanently:
-```
+```bash
 \pset pager off
 ```
 
 ---
 
-## 🔁 If VSCode Shows Red Error on `process`
-```bash
-npm install -D @types/node
+## 🧱 Project Structure
+
 ```
-
-Open `tsconfig.json` and ensure:
-```json
-{
-  "compilerOptions": {
-    "types": ["node"],
-    "moduleResolution": "node"
-  }
-}
-```
-
-**Restart TypeScript Server** in VSCode:
-- `Cmd + Shift + P`
-- Type: `TypeScript: Restart TS Server`
-
----
-
-## 🧱 Development Workflow Summary
-```bash
-# 1. Edit schema.prisma, then:
-npx prisma migrate dev --name <migration_name>
-
-# 2. Regenerate client
-npx prisma generate
-
-# 3. Re-seed if needed
-npm run seed
+backend/
+ ├── prisma/
+ │    ├── schema.prisma
+ │    └── migrations/
+ ├── src/
+ │    ├── server.ts
+ │    ├── seed.ts
+ │    └── ...
+ ├── .env
+ ├── package.json
+ └── tsconfig.json
 ```
 
 ---
-
-## 🧠 Architecture Notes (Prisma v7)
-
-Prisma v7 separates schema definition, connection configuration, and runtime adapter.
-Connection must use `@prisma/adapter-pg`. Unlike Prisma v4/v5, `datasources` inside schema is no longer supported.
-
----
-
-## 🧪 Useful Debug Commands
-```bash
-# Check environment variable
-node -r dotenv/config -e "console.log(process.env.DATABASE_URL)"
-```
-```
-# List tables
-\dt
-
-# Check table structure
-\d "Room"
-```
-
----
-
 
 ## 🔌 Setup Socket.io (Backend Only)
 
-โปรเจกต์นี้ใช้ **Socket.io (Server)** สำหรับระบบ Real-time เช่น:
-- Join Room
-- Broadcast Player Update
-- Game Events
-- Sync Game State
+ติดตั้ง:
 
-> ⚠️ Backend ใช้ `socket.io` เท่านั้น  
-> ห้ามใช้ `socket.io-client` ใน backend
-
----
-
-## 📦 ติดตั้ง Socket.io (Server)
-
-ในโฟลเดอร์ `backend/` รัน:
 ```bash
 npm install socket.io
 ```
 
-ตรวจสอบว่าใน `package.json` ไม่มี `socket.io-client`
+> ⚠️ Backend ใช้เฉพาะ `socket.io`  
+> **ห้ามติดตั้ง** `socket.io-client`
 
----
+### Example Socket Server (`src/server.ts`)
 
-## 🧠 โครงสร้างไฟล์ Backend
-```
-backend/
- ├── prisma/
- ├── src/
- │    ├── server.ts
- │    ├── index.ts (optional)
- │    └── ...
- ├── prisma.config.ts
- ├── .env
- └── package.json
-```
-
----
-
-## 🚀 สร้าง Socket Server (`src/server.ts`)
 ```ts
 import express from "express";
 import http from "http";
@@ -340,7 +254,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // แก้เป็น frontend URL ตอน production
+    origin: "*",
   },
 });
 
@@ -349,12 +263,10 @@ io.on("connection", (socket) => {
 
   socket.on("join-room", (roomId: string) => {
     socket.join(roomId);
-    console.log(`${socket.id} joined room ${roomId}`);
   });
 
   socket.on("leave-room", (roomId: string) => {
     socket.leave(roomId);
-    console.log(`${socket.id} left room ${roomId}`);
   });
 
   socket.on("disconnect", () => {
@@ -370,22 +282,65 @@ server.listen(PORT, () => {
 
 ---
 
-## ▶️ รัน Backend Server
+## ▶️ Run Development Server
 
-เพิ่มใน `package.json`:
-```json
-"scripts": {
-  "dev": "ts-node src/server.ts",
-  "seed": "ts-node prisma/seed.ts"
-}
-```
-
-รัน:
 ```bash
 npm run dev
 ```
 
-Expected output:✅
+Expected output:
+
 ```
 Server running at http://localhost:4000
 ```
+
+---
+
+## 🔄 Development Workflow
+
+```bash
+# 1. แก้ไข schema.prisma
+# 2. รัน migration
+npx prisma migrate dev --name <migration_name>
+
+# 3. Generate Prisma Client
+npx prisma generate
+
+# 4. (optional) Seed ข้อมูล
+npm run seed
+
+# 5. Start dev server
+npm run dev
+```
+
+---
+
+## 🧪 Useful Debug Commands
+
+ตรวจสอบ environment variable:
+
+```bash
+node -r dotenv/config -e "console.log(process.env.DATABASE_URL)"
+```
+
+ตรวจสอบโครงสร้าง table:
+
+```bash
+\dt
+\d "Room"
+```
+
+---
+
+## 🏗 Architecture
+
+Backend แบ่งออกเป็น 3 Layer:
+
+```
+Route Layer     →   Express routes / controllers
+Service Layer   →   Business logic
+Data Layer      →   Prisma ORM
+```
+
+> 💡 Multi-step database mutation ควรใช้ `prisma.$transaction()` เสมอ  
+> 💡 Game logic ไม่ควรเขียนไว้ใน route โดยตรง
