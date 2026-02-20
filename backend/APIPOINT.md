@@ -1,7 +1,7 @@
 
 ---
 
-  Room Endpoints
+  ##Room Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|------------|

@@ -36,7 +36,7 @@ async function main() {
       role: "host",
     },
   });
-
+git status
   const player2 = await prisma.player.create({
     data: {
       session_id: "player-session-2",
