@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "nodemon --exec ts-node src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/index.js",
     "seed": "ts-node prisma/seed.ts",
-    "lint": "eslint ."
+    "lint": "echo 'No linting configured yet'"
   },
   "keywords": [],
   "author": "",

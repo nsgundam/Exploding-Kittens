@@ -1,0 +1,165 @@
+.roomCard {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  border: 3px solid #fff;
+  border-radius: 15px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: slideIn 0.5s ease-out;
+  min-height: 100px;
+}
+
+.roomCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(255, 170, 0, 0.4);
+  animation: glow 2s infinite;
+}
+
+.roomCard.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(50%);
+}
+
+.roomCard.disabled:hover {
+  transform: none;
+  box-shadow: none;
+  animation: none;
+}
+
+.cardAddon {
+  background: linear-gradient(135deg, #ff8800 0%, #ff6600 100%);
+  border: 3px solid #000;
+  border-radius: 10px;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.cardIcon {
+  font-size: 2em;
+}
+
+.cardText {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: #000;
+}
+
+.roomNameContainer {
+  background: #f0f0f0;
+  border: 3px solid #000;
+  border-radius: 25px;
+  padding: 12px 30px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.roomName {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #000;
+  text-align: center;
+  word-break: break-word;
+}
+
+.playerCount {
+  background: #2c3e50;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.count {
+  font-size: 1.3em;
+  font-weight: bold;
+}
+
+.explosion {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 1.5em;
+  animation: float 2s ease-in-out infinite;
+}
+
+.statusButton {
+  background: linear-gradient(135deg, #ff6600 0%, #ff4400 100%);
+  border: 3px solid #000;
+  border-radius: 10px;
+  padding: 15px 30px;
+  min-width: 150px;
+  text-align: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.statusButton.playing {
+  background: linear-gradient(135deg, #ff8800 0%, #ff6600 100%);
+}
+
+.statusText {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #000;
+  font-style: italic;
+}
+
+.star {
+  position: absolute;
+  font-size: 1.5em;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.starTop {
+  top: -5px;
+  left: 10px;
+}
+
+.starBottom {
+  bottom: -5px;
+  right: 10px;
+}
+
+@media (max-width: 1024px) {
+  .roomCard {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .cardAddon,
+  .roomNameContainer,
+  .statusButton {
+    flex: 1 1 45%;
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .roomCard {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .cardAddon,
+  .roomNameContainer,
+  .statusButton {
+    width: 100%;
+  }
+}
