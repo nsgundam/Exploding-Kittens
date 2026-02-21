@@ -31,7 +31,7 @@ export default function RoomCard({
     <div 
       className={`${styles.roomCard} ${!isClickable ? styles.disabled : ''}`}
       onClick={isClickable ? onClick : undefined}
-      style={{ animationDelay: `${Math.random() * 0.3}s` }}
+      style={{ cursor: isClickable ? 'pointer' : 'not-allowed' }}
     >
       <div className={styles.cardAddon}>
         <span className={styles.cardIcon}>🎴</span>

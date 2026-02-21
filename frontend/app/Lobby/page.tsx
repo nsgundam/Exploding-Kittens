@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import RoomCard from '../components/RoomCard';
 import JoinModal from '../components/JoinModal';
 import CreateRoomModal from '../components/CreateRoomModal';
-import styles from '/page.module.css';
+import styles from '../page.module.css';
 
 interface Room {
   id: string;
