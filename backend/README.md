@@ -110,35 +110,6 @@ DATABASE_URL="postgresql://patchanan@localhost:5432/exploding_kittens_db"
 
 > ⚠️ If you did not set a PostgreSQL password, do **NOT** include `:password`
 
----
-
-## 🧠 Important: Prisma v7 Configuration
-
-Prisma v7 does **NOT** allow `url = env("DATABASE_URL")` inside `schema.prisma` — you must remove it.
-
-### `prisma/schema.prisma`
-```prisma
-datasource db {
-  provider = "postgresql"
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-```
-
-### `prisma.config.ts` (Required in Prisma v7)
-
-Create this file in the `backend` root:
-```ts
-import { defineConfig } from "prisma/config";
-
-export default defineConfig({
-  datasource: {
-    url: process.env.DATABASE_URL!,
-  },
-});
-```
 
 ---
 
@@ -165,32 +136,6 @@ Verify tables exist:
 ```bash
 psql -U <your_os_username> -d exploding_kittens_db
 \dt
-```
-
----
-
-## 🌱 Seed Configuration
-
-### `seed.ts` (Prisma v7 with Adapter)
-```ts
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import "dotenv/config";
-
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-});
-
-const prisma = new PrismaClient({
-  adapter,
-});
-```
-
-### `package.json`
-```json
-"scripts": {
-  "seed": "ts-node prisma/seed.ts"
-}
 ```
 
 ---

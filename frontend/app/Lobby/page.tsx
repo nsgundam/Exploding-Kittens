@@ -52,6 +52,7 @@ export default function LobbyPage() {
   // Filter rooms based on search query
   useEffect(() => {
     if (searchQuery.trim() === '') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilteredRooms(rooms);
     } else {
       const query = searchQuery.toLowerCase();
@@ -194,7 +195,7 @@ export default function LobbyPage() {
             
             {filteredRooms.length === 0 && searchQuery && (
               <div className={styles.noResults}>
-                ไม่พบห้องที่ค้นหา "{searchQuery}" 😿
+                ไม่พบห้องที่ค้นหา {searchQuery} 😿
               </div>
             )}
             
