@@ -1,6 +1,7 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import { prisma } from "./config/prisma";
 
 const app = express();
 const server = http.createServer(app);
@@ -22,6 +23,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
+});
+
+app.get('/health', async (req, res) => {
+  const room = await prisma.room.count();
+  res.json({ status: 'ok', rooms: room });
 });
 
 const PORT = 4000;
