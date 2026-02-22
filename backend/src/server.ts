@@ -2,35 +2,45 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 
+import roomRoutes from "./routes/room.routes";
+import { registerRoomSocket } from "./socket/room.socket";
+
 const app = express();
+
+// Middleware
 app.use(express.json());
+
+// HTTP Server
 const server = http.createServer(app);
 
+// Socket.IO
 const io = new Server(server, {
   cors: {
     origin: "*",
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+// Routes
+app.use("/api/rooms", roomRoutes);
 
-  socket.on("join-room", (roomId: string) => {
-    socket.join(roomId);
-    console.log(`${socket.id} joined ${roomId}`);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-});
-//route for test api
-app.get("/test",(req, res)=>{
-  res.status(200).json({message:"api is ok"});
+// Health endpoint (for deploy environments)
+app.get("/", (_, res) => {
+  res.status(200).send("Exploding Kittens server running");
 });
 
-const PORT = 4000;
+// Register socket logic
+registerRoomSocket(io);
+
+// Global error handler (important for production)
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({
+    message: err.message || "Internal Server Error",
+  });
+});
+
+const PORT = process.env.PORT || 4000;
 
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
