@@ -3,6 +3,7 @@ import http from "http";
 import { Server } from "socket.io";
 
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -22,6 +23,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
+});
+//route for test api
+app.get("/test",(req, res)=>{
+  res.status(200).json({message:"api is ok"});
 });
 
 const PORT = 4000;
