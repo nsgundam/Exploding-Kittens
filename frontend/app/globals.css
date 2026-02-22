@@ -20,6 +20,7 @@ body {
   font-family: 'Bungee', cursive;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
   min-height: 100vh;
+  width: 100vw;        /* เพิ่มบรรทัดนี้ */
   color: white;
   overflow-x: hidden;
 }
@@ -82,3 +83,4 @@ body {
     transform: translateY(-10px);
   }
 }
+
