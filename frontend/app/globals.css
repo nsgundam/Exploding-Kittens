@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Press+Start+2P&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 * {
   margin: 0;
   padding: 0;
@@ -20,7 +24,7 @@ body {
   font-family: 'Bungee', cursive;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
   min-height: 100vh;
-  width: 100vw;        /* เพิ่มบรรทัดนี้ */
+  width: 100vw;
   color: white;
   overflow-x: hidden;
 }
@@ -47,40 +51,21 @@ body {
 
 /* Animations */
 @keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(255, 215, 0, 0.8);
-  }
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+  50%       { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
 }
 
 @keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.05); }
 }
 
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
 }
-
