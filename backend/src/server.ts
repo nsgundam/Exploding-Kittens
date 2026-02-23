@@ -3,7 +3,12 @@ import http from "http";
 import { Server } from "socket.io";
 import { prisma } from "./config/prisma";
 
+import roomRoutes from "./routes/room.route";
+import { registerRoomSocket } from "./socket/room.socket";
+
+
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 
 const io = new Server(server, {

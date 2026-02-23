@@ -13,18 +13,39 @@ datasource db {
 }
 
 //////////////////////
+// ENUMS
+//////////////////////
+
+enum PlayerRole {
+  SPECTATOR
+  PLAYER
+}
+
+enum RoomStatus {
+  WAITING
+  PLAYING
+  FINISHED
+}
+
+enum GameSessionStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+//////////////////////
 // ROOM
 //////////////////////
 
 model Room {
-  room_id         String   @id @default(uuid())
+  room_id         String       @id @default(uuid())
   room_name       String
   host_session_id String
-  status          String
+  status          RoomStatus   @default(WAITING)
   max_players     Int
-  current_players Int
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  current_players Int          @default(0)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
 
   players         Player[]
   deck_config     DeckConfig?
@@ -37,12 +58,12 @@ model Room {
 
 model Player {
   player_id      String   @id @default(uuid())
-  session_id     String   @unique
+  session_id     String   
   display_name   String
   profile_picture String?
   room_id        String
   seat_number    Int?
-  role           String
+  role           PlayerRole   @default(SPECTATOR)
   is_alive       Boolean  @default(true)
   is_active      Boolean  @default(true)
   afk_count      Int      @default(0)
@@ -53,6 +74,8 @@ model Player {
   hands          CardHand[]
 
   @@index([room_id])
+  @@index([session_id])
+  @@unique([session_id, room_id])
 }
 
 //////////////////////
@@ -66,7 +89,7 @@ model GameSession {
   turn_number             Int      @default(1)
   start_time              DateTime @default(now())
   end_time                DateTime?
-  status                  String
+  status                  GameSessionStatus  @default(WAITING)
   winner_session_id       String?
 
   room        Room        @relation(fields: [room_id], references: [room_id])
@@ -146,7 +169,7 @@ model CardHand {
 }
 
 //////////////////////
-// CARD MASTER (REFERENCE TABLE)
+// CARD MASTER 
 //////////////////////
 
 model CardMaster {
