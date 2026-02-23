@@ -17,25 +17,25 @@ const io = new Server(server, {
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+app.use("/api/rooms", roomRoutes);
 
-  socket.on("join-room", (roomId: string) => {
-    socket.join(roomId);
-    console.log(`${socket.id} joined ${roomId}`);
-  });
+registerRoomSocket(io);
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({
+    message: err.message || "Internal Server Error",
   });
 });
+
+
 
 app.get('/health', async (req, res) => {
   const room = await prisma.room.count();
   res.json({ status: 'ok', rooms: room });
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
