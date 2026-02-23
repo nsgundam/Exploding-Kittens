@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 const AVATARS = [
-  { id: 1, emoji: "👩🏽" },
-  { id: 2, emoji: "🕶️"  },
-  { id: 3, emoji: "👴🏽" },
-  { id: 4, emoji: "🐸"  },
-  { id: 5, emoji: "🧑🏿" },
-  { id: 6, emoji: "👦🏼" },
-  { id: 7, emoji: "🐱"  },
+  { id: 1, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=cat" },
+  { id: 2, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=bomb" },
+  { id: 3, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=kitten" },
+  { id: 4, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=fire" },
+  { id: 5, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=explode" },
+  { id: 6, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=nyan" },
+  { id: 7, url: "https://api.dicebear.com/7.x/adventurer/svg?seed=meow" },
 ] as const;
 
 type AvatarId = (typeof AVATARS)[number]["id"];
@@ -20,6 +20,7 @@ type AvatarId = (typeof AVATARS)[number]["id"];
 interface PlayerData {
   name: string;
   avatarId: AvatarId;
+  avatarUrl: string;
   timestamp: number;
 }
 
@@ -30,7 +31,6 @@ const MAX_NAME_LENGTH = 10;
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
-// อนุญาตเฉพาะ a-z A-Z 0-9 ภาษาไทย และเว้นวรรค
 const sanitizeName = (value: string): string =>
   value.replace(/[^a-zA-Z0-9ก-๙\s]/g, "").slice(0, MAX_NAME_LENGTH);
 
@@ -38,13 +38,15 @@ const sanitizeName = (value: string): string =>
 
 export default function LoginPage() {
   const [name, setName]                     = useState<string>("");
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarId>(5);
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarId>(1);
   const [focused, setFocused]               = useState<boolean>(false);
   const router = useRouter();
 
-  const canSubmit: boolean = name.trim().length > 0;
-  const charCount: number  = name.length;
+  const canSubmit: boolean   = name.trim().length > 0;
+  const charCount: number    = name.length;
   const isNearLimit: boolean = charCount >= MAX_NAME_LENGTH - 2;
+
+  const selectedUrl = AVATARS.find((a) => a.id === selectedAvatar)?.url ?? "";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setName(sanitizeName(e.target.value));
@@ -55,13 +57,12 @@ export default function LoginPage() {
     const data: PlayerData = {
       name: name.trim(),
       avatarId: selectedAvatar,
+      avatarUrl: selectedUrl,
       timestamp: Date.now(),
     };
     localStorage.setItem("explodingKittensPlayer", JSON.stringify(data));
     router.push("/Lobby");
   };
-
-  const selectedEmoji = AVATARS.find((a) => a.id === selectedAvatar)?.emoji ?? "❓";
 
   return (
     <div
@@ -139,7 +140,7 @@ export default function LoginPage() {
         .bomb-ray       { animation: flicker-ray 4s infinite 0.2s; }
         .avatar-preview { animation: glow-avatar 2.5s ease-in-out infinite; }
         .avatar-btn     { transition: transform 0.12s ease; }
-        .avatar-btn:hover  { transform: scale(1.15); }
+        .avatar-btn:hover  { transform: scale(1.12); }
         .avatar-btn:active { transform: scale(0.95); }
       `}</style>
 
@@ -214,11 +215,14 @@ export default function LoginPage() {
             borderRadius: "50%",
             border: "3px solid #ff5020",
             background: "radial-gradient(circle, #1a0500 40%, #000 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "3rem",
+            overflow: "hidden",
           }}
         >
-          {selectedEmoji}
+          <img
+            src={selectedUrl}
+            alt="selected avatar"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
         </div>
 
         {/* Avatar picker */}
@@ -236,13 +240,17 @@ export default function LoginPage() {
                   borderRadius: "50%",
                   border: isSelected ? "3px solid #ff4500" : "2px solid rgba(100,30,0,0.5)",
                   boxShadow: isSelected ? "0 0 14px #ff4500, 0 0 30px #ff220055" : "none",
-                  background: isSelected ? "#1a0500" : "#120200",
-                  fontSize: "1.7rem",
+                  background: "#120200",
+                  padding: 0,
                   cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden",
                 }}
               >
-                {av.emoji}
+                <img
+                  src={av.url}
+                  alt={`avatar-${av.id}`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </button>
             );
           })}
@@ -278,8 +286,6 @@ export default function LoginPage() {
               boxSizing: "border-box",
             }}
           />
-
-          {/* Character counter */}
           <span
             style={{
               fontSize: "0.75rem",
