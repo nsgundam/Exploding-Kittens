@@ -13,50 +13,64 @@ interface RoomCardProps {
   onClick: () => void;
 }
 
-export default function RoomCard({ id, name, deck, addon, players, maxPlayers, status, onClick }: RoomCardProps) {
+export default function RoomCard({
+  id, name, deck, addon, players, maxPlayers, status, onClick
+}: RoomCardProps) {
   const isClickable = status === 'waiting';
 
   return (
-    <div 
-      className={`
-        bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] border-[3px] border-white rounded-[15px] p-5 flex items-center gap-5 transition-all duration-300 min-h-[100px]
-        ${!isClickable ? 'opacity-50 cursor-not-allowed grayscale-[50%]' : 'cursor-pointer hover:-translate-y-[3px] hover:shadow-[0_8px_20px_rgba(255,170,0,0.4)] animate-[slideIn_0.5s_ease-out]'}
-      `}
+    <div
+      className={[
+        'bg-linear-to-br from-[#2a2a2a] to-[#1a1a1a]',
+        'border-[3px] border-white rounded-2xl',
+        'px-4 py-4 flex items-center gap-4 shrink-0',
+        'transition-all duration-300 animate-slide-in',
+        'shadow-[0_0_12px_rgba(255,215,0,0.25)]',
+        isClickable
+          ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(255,170,0,0.5)] hover:border-[#FFD700]'
+          : 'opacity-50 cursor-not-allowed grayscale-50',
+      ].join(' ')}
       onClick={isClickable ? onClick : undefined}
     >
-      {/* Card Addon Box */}
-      <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#ff8800] to-[#ff6600] border-[3px] border-black rounded-[10px] p-4 min-w-[200px] shrink-0">
-        <span className="text-[2em]">🎴</span>
-        <span className="font-bold text-[1.1em] text-black">
-          สำรับ {deck}{addon ? ' + Add-on' : ''}
-        </span>
+      {/* Deck badge */}
+      <div className="bg-linear-to-br from-[#d97706] to-[#ea580c] border-2 border-black rounded-xl flex flex-col items-center justify-center gap-0.5 w-[76px] h-[76px] shrink-0 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,_#ff0000_0%,_transparent_70%)]" />
+        <span className="text-2xl relative z-10">🎴</span>
+        <span className="font-bold text-[9px] text-black leading-tight relative z-10">สำรับ {deck}</span>
+        {addon
+          ? <span className="font-bold text-[8px] text-black leading-tight relative z-10">+ADD-ON</span>
+          : <span className="text-[7px] text-black/50 leading-tight relative z-10">ไม่ADD-ON</span>
+        }
       </div>
 
-      {/* Room Name Container */}
-      <div className="flex-1 flex items-center justify-center bg-[#f0f0f0] border-[3px] border-black rounded-[25px] py-3 px-[30px]">
-        <span className="text-[1.2em] font-bold text-black text-center break-all uppercase">
+      {/* Room name */}
+      <div className="bg-linear-to-r from-gray-200 to-gray-300 border-2 border-black rounded-[20px] px-5 py-4 flex-1 flex items-center justify-center relative shadow-inner min-w-0">
+        <span className="absolute left-2 top-1 text-xs opacity-20">🐾</span>
+        <span className="absolute right-2 bottom-1 text-xs opacity-20">🐾</span>
+        <span className="text-sm font-bold text-black text-center truncate">
           ❄ {id}.{name} ❄
         </span>
       </div>
 
-      {/* Player Count */}
-      <div className="relative w-[70px] h-[70px] flex flex-col items-center justify-center bg-[#2c3e50] border-[3px] border-white rounded-full text-white shrink-0">
-        <span className="absolute -top-2.5 -right-2.5 text-[1.5em] animate-[float_2s_ease-in-out_infinite]">💥</span>
-        <span className="text-[1.3em] font-bold">{players}/{maxPlayers}</span>
+      {/* Players circle */}
+      <div className="bg-linear-to-br from-[#2c3e50] to-[#34495e] border-2 border-white rounded-full w-[70px] h-[70px] flex flex-col items-center justify-center text-white relative shrink-0">
+        <span className="absolute -top-1.5 -right-1.5 text-sm animate-float">💥</span>
+        <span className="text-[8px] font-bold opacity-70 uppercase">Players</span>
+        <span className="text-base font-bold">{players}/{maxPlayers}</span>
       </div>
 
-      {/* Status Button */}
-      <div className={`
-        min-w-[150px] py-[15px] px-[30px] border-[3px] border-black rounded-[10px] text-center font-bold italic text-black shrink-0
-        ${status === 'waiting' ? 'bg-gradient-to-br from-[#ff6600] to-[#ff4400]' : 'bg-gradient-to-br from-[#ff8800] to-[#ff6600]'}
-      `}>
-        {status.toUpperCase()}
+      {/* Status */}
+      <div className={[
+        status === 'waiting' ? 'bg-linear-to-br from-[#ea580c] to-[#dc2626]' : 'bg-linear-to-br from-[#d97706] to-[#a16207]',
+        'border-2 border-black rounded-xl px-4 w-[110px] h-[76px] flex items-center justify-center relative shrink-0',
+        status === 'waiting' ? 'animate-pulse-custom' : '',
+      ].join(' ')}>
+        <span className="absolute -top-1.5 left-2 text-sm text-yellow-300 animate-pulse-custom">★</span>
+        <span className="text-xs font-bold text-black italic uppercase tracking-wide">
+          {status === 'waiting' ? 'WAITING' : 'PLAYING'}
+        </span>
+        <span className="absolute -bottom-1.5 right-2 text-sm text-yellow-300 animate-pulse-custom">★</span>
       </div>
-
-      <style jsx>{`
-        @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-      `}</style>
     </div>
   );
 }
