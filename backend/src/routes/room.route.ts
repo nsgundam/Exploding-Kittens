@@ -1,9 +1,13 @@
 import { Router } from "express";
-import { createRoom, getAllRooms, joinRoom, selectSeat } from "../controllers/room.controller";
+import *as  roomControllers from "../controllers/room.controllers";
+
 const router = Router();
 
-router.post("/", createRoom);
-router.get("/", getAllRooms);
-router.post("/:roomId/join", joinRoom);
-router.post("/:roomId/seat", selectSeat);
+router.get("/", roomControllers.getAllRooms);
+router.get("/:roomId", roomControllers.getRoom);
+
+router.post("/", roomControllers.createRoom);
+
+router.post("/:roomId/join", roomControllers.joinRoom);
+router.post("/:roomId/seat", roomControllers.selectSeat);
 export default router;
