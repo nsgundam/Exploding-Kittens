@@ -15,33 +15,6 @@ interface Room {
   status: "waiting" | "playing";
 }
 
-const generateMockRooms = (startId: number, count: number): Room[] => {
-  const rooms: Room[] = [];
-  const names = [
-    "Adventure",
-    "Epic",
-    "Legends",
-    "Warriors",
-    "Dragons",
-    "Phoenix",
-    "Thunder",
-    "Mystic",
-  ];
-  for (let i = 0; i < count; i++) {
-    const id = (startId + i).toString();
-    rooms.push({
-      id,
-      name: names[Math.floor(Math.random() * names.length)],
-      deck: Math.random() > 0.5 ? 1 : 2,
-      addon: Math.random() > 0.5,
-      players: Math.floor(Math.random() * 5) + 1,
-      maxPlayers: 5,
-      status: Math.random() > 0.3 ? "waiting" : "playing",
-    });
-  }
-  return rooms;
-};
-
 type ApiRoom = {
   room_id: string;
   room_name: string;
@@ -72,7 +45,6 @@ export default function LobbyPage() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const nextId = useRef(1234 + 20);
 
 useEffect(() => {
   const fetchRooms = async () => {
@@ -121,7 +93,7 @@ useEffect(() => {
     setSelectedRoom(null);
   };
 
-  const handleCreateRoom = async (name: string, deck: number, addon: boolean) => {
+  const handleCreateRoom = async (name: string) => {
   try {
     // ตัวอย่าง hostSessionId (ชั่วคราว)
     // แนะนำ: เก็บ session ไว้ใน localStorage หรือใช้ login จริง
