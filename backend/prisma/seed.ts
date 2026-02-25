@@ -35,7 +35,7 @@ async function main() {
       data: {
         room_name: "Test Room",
         host_session_id: "host-session-1",
-        status: "waiting",
+        status: "WAITING",
         max_players: 4,
         current_players: 2,
       },
@@ -48,7 +48,7 @@ async function main() {
         profile_picture: null,
         room_id: room.room_id,
         seat_number: 1,
-        role: "host",
+        role: "PLAYER",
       },
     });
 
@@ -59,7 +59,7 @@ async function main() {
         profile_picture: null,
         room_id: room.room_id,
         seat_number: 2,
-        role: "player",
+        role: "PLAYER",
       },
     });
 
@@ -68,7 +68,7 @@ async function main() {
         room_id: room.room_id,
         current_turn_session_id: player1.session_id,
         turn_number: 1,
-        status: "active",
+        status: "IN_PROGRESS",
       },
     });
 

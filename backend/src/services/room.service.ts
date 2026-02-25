@@ -1,7 +1,5 @@
-import { PrismaClient, RoomStatus, PlayerRole } from "@prisma/client";
-
-const prisma = new PrismaClient();
-
+import { RoomStatus, PlayerRole } from "@prisma/client";
+import { prisma } from "../config/prisma";
 export const roomService = {
 
   async createRoom(roomName: string, hostSessionId: string, maxPlayers: number) {
