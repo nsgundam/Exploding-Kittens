@@ -19,29 +19,32 @@ export default function JoinModal({ isOpen, roomId, roomName, onConfirm, onClose
       onClick={onClose}
     >
       <div
-        className="bg-linear-to-br from-[#2a2a2a] to-[#1a1a1a] border-[5px] border-white rounded-3xl p-10 max-w-[500px] w-[90%] text-center text-white animate-scale-in"
+        className="bg-linear-to-br from-[#2a2a2a] to-[#1a1a1a] border-[5px] border-white rounded-3xl max-w-[500px] w-[90%] min-h-[350px] flex flex-col justify-center items-center text-center text-white animate-scale-in gap-6 px-16 py-12"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-4xl mb-5 text-[#ffaa00] drop-shadow-[2px_2px_4px_rgba(0,0,0,0.5)]">
+        {/* Title */}
+        <div className="text-4xl text-[#ffaa00] drop-shadow-[2px_2px_4px_rgba(0,0,0,0.5)]">
           ⚠️ ยืนยันการเข้าห้อง
         </div>
 
-        <div className="text-xl mb-8 leading-relaxed">
-          คุณต้องการเข้าร่วมห้อง<br />
-          <strong className="text-[#ffaa00] text-2xl">{roomId}.{roomName}</strong><br />
-          ใช่หรือไม่?
+        {/* Body */}
+        <div className="flex flex-col gap-2 text-xl leading-relaxed">
+          <span>คุณต้องการเข้าร่วมห้อง</span>
+          <strong className="text-[#ffaa00] text-2xl">{roomId}.{roomName}</strong>
+          <span>ใช่หรือไม่?</span>
         </div>
 
-        <div className="flex gap-5 justify-center">
+        {/* Buttons */}
+        <div className="flex gap-6 justify-center mt-2">
           <button
-            className="bg-linear-to-br from-[#ff6600] to-[#ff4400] border-[3px] border-black rounded-xl px-10 py-4 text-xl font-bold text-black font-bungee transition-all hover:scale-110 hover:shadow-[0_5px_20px_rgba(255,102,0,0.5)] cursor-pointer"
+            className="bg-linear-to-br from-[#ff6600] to-[#ff4400] border-[2px] border-black rounded-xl w-[160px] min-h-[60px] text-xl font-bold text-black font-bungee transition-all hover:scale-105 hover:shadow-[0_5px_20px_rgba(255,102,0,0.5)] cursor-pointer"
             onClick={onConfirm}
           >
             YES
           </button>
 
           <button
-            className="bg-linear-to-br from-[#888] to-[#666] border-[3px] border-black rounded-xl px-10 py-4 text-xl font-bold text-black font-bungee transition-all hover:scale-110 hover:shadow-[0_5px_20px_rgba(136,136,136,0.5)] cursor-pointer"
+            className="bg-linear-to-br from-[#888] to-[#666] border-[2px] border-black rounded-xl w-[160px] min-h-[60px] text-xl font-bold text-black font-bungee transition-all hover:scale-105 hover:shadow-[0_5px_20px_rgba(136,136,136,0.5)] cursor-pointer"
             onClick={onClose}
           >
             NO

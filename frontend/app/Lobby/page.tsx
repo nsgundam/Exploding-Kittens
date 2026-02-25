@@ -99,7 +99,7 @@ export default function LobbyPage() {
         <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none" />
         <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
         <span className="absolute top-3 right-5 text-4xl animate-float" style={{ animationDelay: '1s' }}>🐱</span>
-        <h1 className="relative z-10 text-5xl text-[#FFD700] font-bungee animate-pulse-custom tracking-wider drop-shadow-[4px_4px_0_#000,_-2px_-2px_0_#000,_2px_-2px_0_#000,_-2px_2px_0_#000,_6px_6px_15px_rgba(255,102,0,0.8)]">
+        <h1 className="relative z-10 text-5xl text-[#FFD700] font-bungee animate-pulse-custom tracking-wider drop-shadow-[6px_6px_15px_rgba(255,102,0,0.8)]">
           <span className="inline-block animate-float mx-2">🎮</span>
           EXPLODING KITTENS LOBBY
           <span className="inline-block animate-float mx-2">🎮</span>

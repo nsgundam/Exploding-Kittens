@@ -33,7 +33,7 @@ export default function RoomCard({
       onClick={isClickable ? onClick : undefined}
     >
       {/* Deck badge */}
-      <div className="bg-linear-to-br from-[#d97706] to-[#ea580c] border-2 border-black rounded-xl flex flex-col items-center justify-center gap-0.5 w-[76px] h-[76px] shrink-0 relative overflow-hidden">
+      <div className="bg-linear-to-br from-[#d97706] to-[#ea580c] border-2 border-black rounded-xl flex flex-col items-center justify-center gap-0.5 w-[100px] h-[100px] shrink-0 relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,_#ff0000_0%,_transparent_70%)]" />
         <span className="text-2xl relative z-10">🎴</span>
         <span className="font-bold text-[9px] text-black leading-tight relative z-10">สำรับ {deck}</span>
@@ -44,7 +44,7 @@ export default function RoomCard({
       </div>
 
       {/* Room name */}
-      <div className="bg-linear-to-r from-gray-200 to-gray-300 border-2 border-black rounded-[20px] px-5 py-4 flex-1 flex items-center justify-center relative shadow-inner min-w-0">
+      <div className="bg-linear-to-r from-gray-200 to-gray-300 border-2 border-black rounded-[20px] px-5 h-[60px] flex-1 flex items-center justify-center relative shadow-inner min-w-0">
         <span className="absolute left-2 top-1 text-xs opacity-20">🐾</span>
         <span className="absolute right-2 bottom-1 text-xs opacity-20">🐾</span>
         <span className="text-sm font-bold text-black text-center truncate">
