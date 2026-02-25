@@ -1,4 +1,54 @@
-@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Press+Start+2P&display=swap');
+/* Font loaded via next/font/google in layout.tsx */
+@import "tailwindcss";
+
+@theme {
+  --color-neon-yellow: #FFD700;
+  --color-neon-orange: #FF6600;
+  --color-deep-orange: #FF4400;
+  --color-dark-bg: #0a0a0a;
+  --color-card-bg: #1a1a1a;
+
+  --font-bungee: 'Bungee', cursive;
+  --font-press-start: 'Press Start 2P', cursive;
+
+  --animate-glow: glow 2s ease-in-out infinite;
+  --animate-pulse-custom: pulse-custom 3s ease-in-out infinite;
+  --animate-float: float 2s ease-in-out infinite;
+  --animate-spin-slow: spin 2s linear infinite;
+  --animate-slide-in: slideIn 0.5s ease-out;
+  --animate-fade-in: fadeIn 0.3s ease-out;
+  --animate-scale-in: scaleIn 0.3s ease-out;
+  --animate-shine: shine 3s infinite;
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+    50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+  }
+  @keyframes pulse-custom {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scaleIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes shine {
+    0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+    100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+  }
+}
 
 * {
   margin: 0;
@@ -6,22 +56,17 @@
   box-sizing: border-box;
 }
 
-:root {
-  --neon-yellow: #FFD700;
-  --neon-orange: #FF6600;
-  --deep-orange: #FF4400;
-  --dark-bg: #0a0a0a;
-  --card-bg: #1a1a1a;
-  --border-white: #ffffff;
-  --text-dark: #000000;
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  font-family: 'Bungee', cursive;
+  font-family: var(--font-bungee), 'Bungee', cursive;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
-  min-height: 100vh;
   color: white;
-  overflow-x: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 /* Custom scrollbar */
@@ -30,55 +75,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--dark-bg);
-  border: 2px solid var(--neon-yellow);
+  background: #0a0a0a;
+  border: 2px solid #FFD700;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, var(--neon-yellow) 0%, var(--neon-orange) 100%);
+  background: linear-gradient(135deg, #FFD700 0%, #FF6600 100%);
   border-radius: 6px;
-  border: 2px solid var(--text-dark);
+  border: 2px solid #000;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, var(--neon-orange) 0%, var(--deep-orange) 100%);
-}
-
-/* Animations */
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(255, 215, 0, 0.8);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  background: linear-gradient(135deg, #FF6600 0%, #FF4400 100%);
 }
