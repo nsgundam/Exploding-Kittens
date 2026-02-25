@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import RoomCard from "../components/RoomCard";
 import JoinModal from "../components/JoinModal";
 import CreateRoomModal from "../components/CreateRoomModal";
@@ -15,41 +15,54 @@ interface Room {
   status: "waiting" | "playing";
 }
 
-const generateMockRooms = (startId: number, count: number): Room[] => {
-  const rooms: Room[] = [];
-  const names = [
-    "Adventure",
-    "Epic",
-    "Legends",
-    "Warriors",
-    "Dragons",
-    "Phoenix",
-    "Thunder",
-    "Mystic",
-  ];
-  for (let i = 0; i < count; i++) {
-    const id = (startId + i).toString();
-    rooms.push({
-      id,
-      name: names[Math.floor(Math.random() * names.length)],
-      deck: Math.random() > 0.5 ? 1 : 2,
-      addon: Math.random() > 0.5,
-      players: Math.floor(Math.random() * 5) + 1,
-      maxPlayers: 5,
-      status: Math.random() > 0.3 ? "waiting" : "playing",
-    });
-  }
-  return rooms;
+type ApiRoom = {
+  room_id: string;
+  room_name: string;
+  status: "WAITING" | "PLAYING" | "FINISHED";
+  max_players: number;
+  players?: Array<{ role: "SPECTATOR" | "PLAYER" }>;
+  deck_config?: { expansions?: { imploding?: boolean } };
+};
+
+const mapApiRoomToUi = (r: ApiRoom): Room => {
+  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
+
+  return {
+    id: r.room_id,
+    name: r.room_name,
+    deck: 1, // backend ยังไม่มี field deck ชัด ๆ เอา default ก่อน
+    addon: Boolean(r.deck_config?.expansions?.imploding),
+    players: playerCount,
+    maxPlayers: r.max_players,
+    status: r.status === "PLAYING" ? "playing" : "waiting",
+  };
 };
 
 export default function LobbyPage() {
-  const [rooms] = useState<Room[]>(() => generateMockRooms(1234, 20));
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const nextId = useRef(1234 + 20);
+
+useEffect(() => {
+  const fetchRooms = async () => {
+    try {
+      const res = await fetch("/api/rooms");
+      if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
+
+      const data: ApiRoom[] = await res.json();
+      const uiRooms = data.map(mapApiRoomToUi);
+
+      setRooms(uiRooms);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchRooms();
+}, []);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -80,21 +93,46 @@ export default function LobbyPage() {
     setSelectedRoom(null);
   };
 
-  const handleCreateRoom = (name: string, deck: number, addon: boolean) => {
-    const newId = (nextId.current++).toString();
-    const newRoom: Room = {
-      id: newId,
-      name,
-      deck,
-      addon,
-      players: 1,
-      maxPlayers: 5,
-      status: "waiting",
-    };
-    setFilteredRooms((prev) => [newRoom, ...prev]);
+  const handleCreateRoom = async (name: string) => {
+  try {
+    // ตัวอย่าง hostSessionId (ชั่วคราว)
+    // แนะนำ: เก็บ session ไว้ใน localStorage หรือใช้ login จริง
+    const hostSessionId =
+      localStorage.getItem("session_id") ||
+      (() => {
+        const id = crypto.randomUUID();
+        localStorage.setItem("session_id", id);
+        return id;
+      })();
+
+    const maxPlayers = 4; 
+
+    const res = await fetch("/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomName: name,
+        hostSessionId,
+        maxPlayers,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.message || `Create room failed: ${res.status}`);
+    }
+
+    const createdRoom = await res.json();
+
+    alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
+    window.location.reload();
+  } catch (e: any) {
+    alert(e.message || "สร้างห้องไม่สำเร็จ");
+    console.error(e);
+  } finally {
     setIsCreateModalOpen(false);
-    alert(`สร้างห้อง "${name}" สำเร็จ!`);
-  };
+  }
+};
 
   const handleBack = () => {
     if (confirm("คุณต้องการกลับไปหน้า Login หรือไม่?"))
