@@ -1,20 +1,19 @@
+import "dotenv/config";
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { prisma } from "./config/prisma";
-
 import roomRoutes from "./routes/room.route";
 import { registerRoomSocket } from "./socket/room.socket";
 
+const app = express();            // ✅ สร้างก่อน
+app.use(express.json());          // ✅ middleware ก่อน
+app.use("/api/rooms", roomRoutes); // ✅ mount route หลังสร้าง app
 
-const app = express();
-app.use(express.json());
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
+  cors: { origin: "*" },
 });
 
 app.use("/api/rooms", roomRoutes);
@@ -32,7 +31,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 app.get('/health', async (req, res) => {
   const room = await prisma.room.count();
-  res.json({ status: 'ok', rooms: room });
+  res.json({ status: "ok", rooms: room });
 });
 
 const PORT = process.env.PORT || 4000;

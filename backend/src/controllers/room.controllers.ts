@@ -3,21 +3,19 @@ import { roomService } from "../services/room.service";
 //
 export const createRoom = async (req: Request, res: Response) => {
   try {
-    console.log("BODY:", req.body);  // ← อยู่ตรงนี้เท่านั้น
+    console.log("BODY:", req.body);
 
-    const { roomName, maxPlayers } = req.body || {};
+    const { roomName, displayName, maxPlayers } = req.body || {};
 
-    if (!roomName || !maxPlayers) {
+    if (!roomName || !displayName || !maxPlayers) {
       return res.status(400).json({
-        message: "roomName and maxPlayers are required",
+        message: "roomName, displayName and maxPlayers are required",
       });
     }
 
-    const hostSessionId = "sess_host_1";
-
     const room = await roomService.createRoom(
       roomName,
-      hostSessionId,
+      displayName,
       Number(maxPlayers)
     );
 
@@ -29,6 +27,7 @@ export const createRoom = async (req: Request, res: Response) => {
     });
   }
 };
+
 export const getAllRooms = async (req: Request, res: Response) => {
   try {
     const rooms = await roomService.getAllRooms();
@@ -41,7 +40,8 @@ export const getAllRooms = async (req: Request, res: Response) => {
 // 
 export const joinRoom = async (req: Request, res: Response) => {
   try {
-const roomId = req.params.roomId as string;    const { displayName } = req.body || {};
+const roomId = req.params.roomId as string;    
+const { displayName } = req.body || {};
 
     if (!displayName) {
       return res.status(400).json({
@@ -94,5 +94,18 @@ export const selectSeat = async (req: Request, res: Response) => {
     return res.status(400).json({
       message: error.message,
     });
+  }
+};
+//roomID = string นะจ๊ะ
+export const getRoom = async (req: Request<{ roomId: string }>, res: Response) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await roomService.getRoomById(roomId);
+
+    res.status(200).json(room);
+
+  } catch (error: any) {
+    res.status(404).json({ message: error.message });
   }
 };

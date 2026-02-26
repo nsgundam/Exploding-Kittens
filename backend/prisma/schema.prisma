@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,7 +18,6 @@ enum PlayerRole {
 enum RoomStatus {
   WAITING
   PLAYING
-  FINISHED
 }
 
 enum GameSessionStatus {
@@ -38,18 +31,21 @@ enum GameSessionStatus {
 //////////////////////
 
 model Room {
-  room_id         String       @id @default(uuid())
-  room_name       String
-  host_session_id String
-  status          RoomStatus   @default(WAITING)
-  max_players     Int
-  current_players Int          @default(0)
-  created_at      DateTime     @default(now())
-  updated_at      DateTime     @updatedAt
+  room_id   String @id @default(uuid())
+  room_name String
 
-  players         Player[]
-  deck_config     DeckConfig?
-  game_sessions   GameSession[]
+  host_session_id String? 
+
+  status               RoomStatus @default(WAITING)
+  max_players          Int
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+  restart_available_at DateTime?
+
+  players Player[] @relation("RoomPlayers")
+
+  deck_config   DeckConfig?
+  game_sessions GameSession[]
 }
 
 //////////////////////
@@ -57,25 +53,26 @@ model Room {
 //////////////////////
 
 model Player {
-  player_id      String   @id @default(uuid())
-  session_id     String   
-  display_name   String
+  player_id       String     @id @default(uuid())
+  session_id      String     @unique
+  display_name    String
   profile_picture String?
-  room_id        String
-  seat_number    Int?
-  role           PlayerRole   @default(SPECTATOR)
-  is_alive       Boolean  @default(true)
-  is_active      Boolean  @default(true)
-  afk_count      Int      @default(0)
-  joined_at      DateTime @default(now())
-  last_active    DateTime @default(now())
+  room_id         String
+  seat_number     Int?
+  role            PlayerRole @default(SPECTATOR)
+  is_alive        Boolean    @default(true)
+  is_active       Boolean    @default(true)
+  afk_count       Int        @default(0)
+  joined_at       DateTime   @default(now())
+  last_active     DateTime   @default(now())
 
-  room           Room     @relation(fields: [room_id], references: [room_id])
-  hands          CardHand[]
+  room Room @relation("RoomPlayers", fields: [room_id], references: [room_id], onDelete: Cascade)
 
+  hands CardHand[]
+
+  @@unique([room_id, seat_number])
   @@index([room_id])
   @@index([session_id])
-  @@unique([session_id, room_id])
 }
 
 //////////////////////
@@ -83,19 +80,20 @@ model Player {
 //////////////////////
 
 model GameSession {
-  session_id              String   @id @default(uuid())
+  session_id              String  @id @default(uuid())
   room_id                 String
   current_turn_session_id String?
-  turn_number             Int      @default(1)
-  start_time              DateTime @default(now())
-  end_time                DateTime?
-  status                  GameSessionStatus  @default(WAITING)
-  winner_session_id       String?
+  turn_number             Int     @default(1)
 
-  room        Room        @relation(fields: [room_id], references: [room_id])
-  deck_state  DeckState?
-  logs        GameLog[]
-  hands       CardHand[]
+  start_time        DateTime?
+  end_time          DateTime?
+  status            GameSessionStatus @default(WAITING)
+  winner_session_id String?
+
+  room       Room       @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
+  deck_state DeckState?
+  logs       GameLog[]
+  hands      CardHand[]
 
   @@index([room_id])
 }
@@ -111,7 +109,7 @@ model DeckConfig {
   expansions    Json
   last_modified DateTime @default(now())
 
-  room          Room     @relation(fields: [room_id], references: [room_id])
+  room Room @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
 }
 
 //////////////////////
@@ -119,14 +117,14 @@ model DeckConfig {
 //////////////////////
 
 model DeckState {
-  deck_state_id  String   @id @default(uuid())
-  session_id     String   @unique
-  deck_order     Json
-  discard_pile   Json
+  deck_state_id   String   @id @default(uuid())
+  session_id      String   @unique
+  deck_order      Json
+  discard_pile    Json
   cards_remaining Int
-  last_updated   DateTime @default(now())
+  last_updated    DateTime @default(now())
 
-  session        GameSession @relation(fields: [session_id], references: [session_id])
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 }
 
 //////////////////////
@@ -144,7 +142,7 @@ model GameLog {
   timestamp           DateTime @default(now())
   turn_number         Int
 
-  session             GameSession @relation(fields: [session_id], references: [session_id])
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
   @@index([session_id])
   @@index([turn_number])
@@ -155,21 +153,21 @@ model GameLog {
 //////////////////////
 
 model CardHand {
-  hand_id     String   @id @default(uuid())
-  player_id   String
-  session_id  String
-  cards       Json
-  card_count  Int
-  updated_at  DateTime @default(now())
+  hand_id    String   @id @default(uuid())
+  player_id  String
+  session_id String
+  cards      Json
+  card_count Int
+  updated_at DateTime @default(now())
 
-  player      Player      @relation(fields: [player_id], references: [player_id])
-  session     GameSession @relation(fields: [session_id], references: [session_id])
+  player  Player      @relation(fields: [player_id], references: [player_id], onDelete: Cascade)
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
   @@unique([player_id, session_id])
 }
 
 //////////////////////
-// CARD MASTER 
+// CARD MASTER
 //////////////////////
 
 model CardMaster {

@@ -2,31 +2,43 @@ import { RoomStatus, PlayerRole } from "@prisma/client";
 import { prisma } from "../config/prisma";
 export const roomService = {
 
-  async createRoom(roomName: string, hostSessionId: string, maxPlayers: number) {
+  // ✅ แทนที่ createRoom เดิมด้วยอันนี้
+  async createRoom(room_name: string, displayName: string, maxPlayers: number) {
+    return await prisma.$transaction(async (tx) => {
+      const sessionId = uuidv4();
 
-    if (!roomName || roomName.trim().length === 0) {
-      throw new Error("Room name is required");
-    }
+      const room = await tx.room.create({
+        data: {
+          room_name,
+          max_players: maxPlayers,
+          status: RoomStatus.WAITING
+        }
+      });
 
-    if (maxPlayers < 2) {
-      throw new Error("Room must allow at least 2 players");
-    }
+      await tx.player.create({
+        data: {
+          session_id: sessionId,
+          display_name: displayName,
+          room_id: room.room_id,
+          seat_number: 1,
+          role: PlayerRole.PLAYER
+        }
+      });
 
-    return await prisma.room.create({
-      data: {
-        room_name: roomName.trim(),
-        host_session_id: hostSessionId,
-        max_players: maxPlayers,
-        status: RoomStatus.WAITING
-      }
+      const updatedRoom = await tx.room.update({
+        where: { room_id: room.room_id },
+        data: { host_session_id: sessionId }
+      });
+
+      return updatedRoom;
     });
   },
 
+  // ...ฟังก์ชันอื่นๆ ที่เหลือเหมือนเดิม
+
   async getAllRooms() {
     return await prisma.room.findMany({
-      include: {
-        players: true
-      }
+      include: { players: true }
     });
   },
 
@@ -55,12 +67,7 @@ export const roomService = {
     if (!room) throw new Error("Room not found");
 
     const existing = await prisma.player.findUnique({
-      where: {
-        session_id_room_id: {
-          session_id: sessionId,
-          room_id: roomId
-        }
-      }
+      where: { session_id: sessionId }
     });
 
     if (existing) return existing;
@@ -104,6 +111,8 @@ export const roomService = {
         throw new Error("Room is full");
       }
 
+      // ไม่จำเป็นต้องเช็ค seat ซ้ำก็ได้ เพราะ DB มี @@unique
+      // แต่เก็บไว้เพื่อ UX ที่ดี
       const existingSeat = await tx.player.findFirst({
         where: {
           room_id: roomId,
@@ -118,10 +127,7 @@ export const roomService = {
 
       const updatedPlayer = await tx.player.update({
         where: {
-          session_id_room_id: {
-            session_id: sessionId,
-            room_id: roomId
-          }
+          session_id: sessionId
         },
         data: {
           seat_number: seatNumber,
@@ -134,61 +140,54 @@ export const roomService = {
   },
 
   async leaveRoom(roomId: string, sessionId: string) {
-
     return await prisma.$transaction(async (tx) => {
-
       const player = await tx.player.findUnique({
-        where: {
-          session_id_room_id: {
-            session_id: sessionId,
-            room_id: roomId
-          }
-        }
+        where: { session_id: sessionId }
       });
 
-      if (!player) return;
+      if (!player) return null;
 
       await tx.player.delete({
-        where: {
-          session_id_room_id: {
-            session_id: sessionId,
-            room_id: roomId
-          }
-        }
+        where: { session_id: sessionId }
       });
 
+      return await tx.room.findUnique({
+        where: { room_id: roomId },
+        include: { players: true }
+      });
     });
   },
 
-async startGame(roomId: string) {
+  async startGame(roomId: string) {
 
-  return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
 
-    const room = await tx.room.findUnique({
-      where: { room_id: roomId }
-    });
+      const room = await tx.room.findUnique({
+        where: { room_id: roomId }
+      });
 
-    if (!room) throw new Error("Room not found");
+      if (!room) throw new Error("Room not found");
 
-    if (room.status !== RoomStatus.WAITING) {
-      throw new Error("Game already started");
-    }
-
-    const playerCount = await tx.player.count({
-      where: {
-        room_id: roomId,
-        role: PlayerRole.PLAYER
+      if (room.status !== RoomStatus.WAITING) {
+        throw new Error("Game already started");
       }
+
+      const playerCount = await tx.player.count({
+        where: {
+          room_id: roomId,
+          role: PlayerRole.PLAYER
+        }
+      });
+
+      if (playerCount < 2) {
+        throw new Error("Not enough players");
+      }
+
+      return await tx.room.update({
+        where: { room_id: roomId },
+        data: { status: RoomStatus.PLAYING }
+      });
+
     });
-
-    if (playerCount < 2) {
-      throw new Error("Not enough players");
-    }
-
-    return await tx.room.update({
-      where: { room_id: roomId },
-      data: { status: RoomStatus.PLAYING }
-    });
-
-  });
-}}
+  }
+};
