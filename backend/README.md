@@ -86,21 +86,13 @@ npm install
 
 ---
 
-### 4️⃣ Install Required Packages (Prisma v7)
-
-Prisma v7 requires adapter-based connection.
-```bash
-npm install @prisma/adapter-pg pg
-npm install -D @types/node
-```
-
----
 
 ## ⚙️ Environment Setup
 
 Create a file named `.env` inside `backend/` and add:
 ```env
 DATABASE_URL="postgresql://<your_os_username>@localhost:5432/exploding_kittens_db"
+PORT=4000
 ```
 
 **Example:**
@@ -142,7 +134,7 @@ psql -U <your_os_username> -d exploding_kittens_db
 
 ## 🌱 Run Seed
 ```bash
-npm run seed
+npm run db:seed
 ```
 
 Expected output:
@@ -151,88 +143,6 @@ Seeding database...
 Seed completed successfully.
 ```
 
----
-
-## 🔍 Verify Seed Data
-```bash
-psql -U <your_os_username> -d exploding_kittens_db
-```
-
-Because Prisma creates case-sensitive table names, use quotes:
-```sql
-SELECT * FROM "Room";
-SELECT * FROM "Player";
-SELECT * FROM "GameSession";
-```
-
-To exit pager view:
-```
-q
-```
-
-Disable pager permanently:
-```
-\pset pager off
-```
-
----
-
-## 🔁 If VSCode Shows Red Error on `process`
-```bash
-npm install -D @types/node
-```
-
-Open `tsconfig.json` and ensure:
-```json
-{
-  "compilerOptions": {
-    "types": ["node"],
-    "moduleResolution": "node"
-  }
-}
-```
-
-**Restart TypeScript Server** in VSCode:
-- `Cmd + Shift + P`
-- Type: `TypeScript: Restart TS Server`
-
----
-
-## 🧱 Development Workflow Summary
-```bash
-# 1. Edit schema.prisma, then:
-npx prisma migrate dev --name <migration_name>
-
-# 2. Regenerate client
-npx prisma generate
-
-# 3. Re-seed if needed
-npm run seed
-```
-
----
-
-## 🧠 Architecture Notes (Prisma v7)
-
-Prisma v7 separates schema definition, connection configuration, and runtime adapter.
-Connection must use `@prisma/adapter-pg`. Unlike Prisma v4/v5, `datasources` inside schema is no longer supported.
-
----
-
-## 🧪 Useful Debug Commands
-```bash
-# Check environment variable
-node -r dotenv/config -e "console.log(process.env.DATABASE_URL)"
-```
-```
-# List tables
-\dt
-
-# Check table structure
-\d "Room"
-```
-
----
 
 
 ## 🔌 Setup Socket.io (Backend Only)

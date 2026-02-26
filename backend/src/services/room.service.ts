@@ -1,9 +1,5 @@
-import { PrismaClient, RoomStatus, PlayerRole } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { RoomStatus, PlayerRole } from "@prisma/client";
 import { prisma } from "../config/prisma";
-import { v4 as uuidv4 } from "uuid";
-console.log("DATABASE_URL =>", process.env.DATABASE_URL);
-
 export const roomService = {
 
   // ✅ แทนที่ createRoom เดิมด้วยอันนี้

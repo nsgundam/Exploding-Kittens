@@ -1,10 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import RoomCard from '../components/RoomCard';
-import JoinModal from '../components/JoinModal';
-import CreateRoomModal from '../components/CreateRoomModal';
-import styles from '../page.module.css';
+import React, { useState, useEffect } from "react";
+import RoomCard from "../components/RoomCard";
+import JoinModal from "../components/JoinModal";
+import CreateRoomModal from "../components/CreateRoomModal";
 
 interface Room {
   id: string;
@@ -13,101 +12,74 @@ interface Room {
   addon: boolean;
   players: number;
   maxPlayers: number;
-  status: 'waiting' | 'playing';
+  status: "waiting" | "playing";
 }
 
-// Mock function to generate more rooms (simulating API call)
-const generateMockRooms = (startId: number, count: number): Room[] => {
-  const rooms: Room[] = [];
-  const names = ['Adventure', 'Epic', 'Legends', 'Warriors', 'Dragons', 'Phoenix', 'Thunder', 'Mystic'];
-  
-  for (let i = 0; i < count; i++) {
-    const id = (startId + i).toString();
-    rooms.push({
-      id,
-      name: names[Math.floor(Math.random() * names.length)],
-      deck: Math.random() > 0.5 ? 1 : 2,
-      addon: Math.random() > 0.5,
-      players: Math.floor(Math.random() * 5) + 1,
-      maxPlayers: 5,
-      status: Math.random() > 0.3 ? 'waiting' : 'playing',
-    });
-  }
-  return rooms;
+type ApiRoom = {
+  room_id: string;
+  room_name: string;
+  status: "WAITING" | "PLAYING" | "FINISHED";
+  max_players: number;
+  players?: Array<{ role: "SPECTATOR" | "PLAYER" }>;
+  deck_config?: { expansions?: { imploding?: boolean } };
+};
+
+const mapApiRoomToUi = (r: ApiRoom): Room => {
+  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
+
+  return {
+    id: r.room_id,
+    name: r.room_name,
+    deck: 1, // backend ยังไม่มี field deck ชัด ๆ เอา default ก่อน
+    addon: Boolean(r.deck_config?.expansions?.imploding),
+    players: playerCount,
+    maxPlayers: r.max_players,
+    status: r.status === "PLAYING" ? "playing" : "waiting",
+  };
 };
 
 export default function LobbyPage() {
-  const [rooms, setRooms] = useState<Room[]>(generateMockRooms(1234, 20));
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  
-  const observerTarget = useRef<HTMLDivElement>(null);
-  const nextId = useRef(1234 + 20);
 
-  // Filter rooms based on search query
+useEffect(() => {
+  const fetchRooms = async () => {
+    try {
+      const res = await fetch("/api/rooms");
+      if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
+
+      const data: ApiRoom[] = await res.json();
+      const uiRooms = data.map(mapApiRoomToUi);
+
+      setRooms(uiRooms);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchRooms();
+}, []);
+
   useEffect(() => {
-    if (searchQuery.trim() === '') {
+    if (searchQuery.trim() === "") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilteredRooms(rooms);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = rooms.filter(
-        (room) =>
-          room.name.toLowerCase().includes(query) ||
-          room.id.includes(query) ||
-          `${room.id}.${room.name}`.toLowerCase().includes(query)
+      setFilteredRooms(
+        rooms.filter(
+          (room) =>
+            room.name.toLowerCase().includes(query) ||
+            room.id.includes(query) ||
+            `${room.id}.${room.name}`.toLowerCase().includes(query),
+        ),
       );
-      setFilteredRooms(filtered);
     }
   }, [searchQuery, rooms]);
-
-  // Infinite scroll - load more rooms
-  const loadMoreRooms = useCallback(() => {
-    if (isLoading || !hasMore) return;
-    
-    setIsLoading(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      const newRooms = generateMockRooms(nextId.current, 10);
-      setRooms((prev) => [...prev, ...newRooms]);
-      nextId.current += 10;
-      setIsLoading(false);
-      
-      // Stop loading after 100 rooms (demo purposes)
-      if (nextId.current > 1334) {
-        setHasMore(false);
-      }
-    }, 500);
-  }, [isLoading, hasMore]);
-
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading) {
-          loadMoreRooms();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    const currentTarget = observerTarget.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget);
-      }
-    };
-  }, [loadMoreRooms, hasMore, isLoading]);
 
   const handleRoomClick = (room: Room) => {
     setSelectedRoom(room);
@@ -115,134 +87,215 @@ export default function LobbyPage() {
   };
 
   const handleJoinConfirm = () => {
-    if (selectedRoom) {
-      console.log('Joining room:', selectedRoom.id);
+    if (selectedRoom)
       alert(`กำลังเข้าร่วมห้อง ${selectedRoom.id}.${selectedRoom.name}...`);
-      // Here you would redirect to the game page
-      // router.push(`/game/${selectedRoom.id}`);
-    }
     setIsJoinModalOpen(false);
     setSelectedRoom(null);
   };
 
-  const handleCreateRoom = (name: string, deck: number, addon: boolean) => {
-    const newId = (nextId.current++).toString();
-    const newRoom: Room = {
-      id: newId,
-      name,
-      deck,
-      addon,
-      players: 1,
-      maxPlayers: 5,
-      status: 'waiting',
-    };
+  const handleCreateRoom = async (name: string) => {
+  try {
+    // ตัวอย่าง hostSessionId (ชั่วคราว)
+    // แนะนำ: เก็บ session ไว้ใน localStorage หรือใช้ login จริง
+    const hostSessionId =
+      localStorage.getItem("session_id") ||
+      (() => {
+        const id = crypto.randomUUID();
+        localStorage.setItem("session_id", id);
+        return id;
+      })();
 
-    setRooms((prev) => [newRoom, ...prev]);
+    const maxPlayers = 4; 
+
+    const res = await fetch("/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomName: name,
+        hostSessionId,
+        maxPlayers,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.message || `Create room failed: ${res.status}`);
+    }
+
+    const createdRoom = await res.json();
+
+    alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
+    window.location.reload();
+  } catch (e: any) {
+    alert(e.message || "สร้างห้องไม่สำเร็จ");
+    console.error(e);
+  } finally {
     setIsCreateModalOpen(false);
-    alert(`สร้างห้อง "${name}" สำเร็จ!`);
-    
-    // Auto-join the created room
-    // handleRoomClick(newRoom);
-  };
+  }
+};
 
   const handleBack = () => {
-    if (confirm('คุณต้องการกลับไปหน้า Login หรือไม่?')) {
-      console.log('Going back to login...');
-      alert('กำลังกลับไปหน้า Login...');
-      // router.push('/login');
-    }
+    if (confirm("คุณต้องการกลับไปหน้า Login หรือไม่?"))
+      alert("กำลังกลับไปหน้า Login...");
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>
-          <span className={styles.titleIcon}>🎮</span>
+    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-387.5 w-full mx-auto overflow-hidden">
+      {/* Background Decoration */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <span
+          className="absolute top-10 left-10 text-6xl opacity-10 animate-float"
+          style={{ animationDelay: "0s" }}
+        >
+          🐱
+        </span>
+        <span
+          className="absolute top-20 right-20 text-5xl opacity-10 animate-float"
+          style={{ animationDelay: "1s" }}
+        >
+          🐈
+        </span>
+        <span
+          className="absolute bottom-20 left-20 text-7xl opacity-10 animate-float"
+          style={{ animationDelay: "2s" }}
+        >
+          😸
+        </span>
+        <span
+          className="absolute bottom-10 right-10 text-6xl opacity-10 animate-float"
+          style={{ animationDelay: "1.5s" }}
+        >
+          😺
+        </span>
+        <span
+          className="absolute top-1/2 left-1/4 text-4xl opacity-10 animate-float"
+          style={{ animationDelay: "0.5s" }}
+        >
+          💣
+        </span>
+        <span
+          className="absolute top-1/3 right-1/3 text-4xl opacity-10 animate-float"
+          style={{ animationDelay: "2.5s" }}
+        >
+          💥
+        </span>
+      </div>
+
+      {/* ═══ HEADER ═══ */}
+      <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-linear-to-r from-amber-900/40 via-orange-900/40 to-amber-900/40 border-[5px] border-white rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(255,215,0,0.4)] z-10 shrink-0">
+        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none" />
+        <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
+        <span
+          className="absolute top-3 right-5 text-4xl animate-float"
+          style={{ animationDelay: "1s" }}
+        >
+          🐱
+        </span>
+        <h1 className="relative z-10 text-5xl text-neon-yellow font-bungee animate-pulse-custom tracking-wider drop-shadow-[6px_6px_15px_rgba(255,102,0,0.8)]">
+          <span className="inline-block animate-float mx-2">🎮</span>
           EXPLODING KITTENS LOBBY
-          <span className={styles.titleIcon}>🎮</span>
+          <span className="inline-block animate-float mx-2">🎮</span>
         </h1>
       </div>
 
-      <div className={styles.lobbyFrame}>
-        <div className={styles.roomListContainer}>
-          <div className={styles.roomList}>
-            {filteredRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                id={room.id}
-                name={room.name}
-                deck={room.deck}
-                addon={room.addon}
-                players={room.players}
-                maxPlayers={room.maxPlayers}
-                status={room.status}
-                onClick={() => handleRoomClick(room)}
-              />
-            ))}
-            
-            {isLoading && (
-              <div className={styles.loading}>
-                <div className={styles.spinner}>🎴</div>
-                <span>กำลังโหลดห้องเพิ่มเติม...</span>
-              </div>
-            )}
-            
-            {!hasMore && filteredRooms.length > 0 && (
-              <div className={styles.endMessage}>
-                ไม่มีห้องเพิ่มเติมแล้ว 🎴
-              </div>
-            )}
-            
-            {filteredRooms.length === 0 && searchQuery && (
-              <div className={styles.noResults}>
-                ไม่พบห้องที่ค้นหา {searchQuery} 😿
-              </div>
-            )}
-            
-            <div ref={observerTarget} className={styles.observer} />
-          </div>
+      {/* ═══ LOBBY FRAME ═══ */}
+      <div className="relative bg-linear-to-br from-black/60 to-black/40 border-[6px] border-neon-yellow rounded-3xl shadow-[0_0_40px_rgba(255,215,0,0.5),inset_0_0_40px_rgba(255,215,0,0.15)] z-10 flex-1 min-h-0 overflow-hidden">
+        <div className="absolute inset-0 border-[3px] border-neon-orange rounded-[22px] pointer-events-none m-0.75 z-10" />
+        <span className="absolute top-3 left-3 text-xl opacity-50 z-20">
+          😼
+        </span>
+        <span className="absolute top-3 right-3 text-xl opacity-50 z-20">
+          😼
+        </span>
+        <span className="absolute bottom-3 left-3 text-xl opacity-50 z-20">
+          😼
+        </span>
+        <span className="absolute bottom-3 right-3 text-xl opacity-50 z-20">
+          😼
+        </span>
+
+        {/* Scrollable room list — padded on all 4 sides */}
+        <div className="absolute inset-0 overflow-y-auto overflow-x-hidden px-8 py-5 flex flex-col gap-3">
+          {filteredRooms.map((room) => (
+            <RoomCard
+              key={room.id}
+              id={room.id}
+              name={room.name}
+              deck={room.deck}
+              addon={room.addon}
+              players={room.players}
+              maxPlayers={room.maxPlayers}
+              status={room.status}
+              onClick={() => handleRoomClick(room)}
+            />
+          ))}
+          {filteredRooms.length === 0 && searchQuery && (
+            <div className="text-center p-12 text-neon-yellow text-2xl font-bold">
+              😿 ไม่พบห้องที่ค้นหา &quot;{searchQuery}&quot;
+            </div>
+          )}
         </div>
       </div>
 
-      <div className={styles.controls}>
-        <button className={styles.backButton} onClick={handleBack}>
-          <span className={styles.arrow}>◄</span> BACK
+      {/* ═══ CONTROLS ═══ */}
+      <div className="relative flex gap-4 items-center px-8 py-8 bg-linear-to-r from-black/60 via-black/50 to-black/60 border-[5px] border-white rounded-3xl shadow-[0_8px_30px_rgba(255,215,0,0.3)] z-10 shrink-0">
+        <span className="absolute -top-3 left-1/4 text-2xl animate-float">
+          💣
+        </span>
+        <span
+          className="absolute -top-3 right-1/4 text-2xl animate-float"
+          style={{ animationDelay: "1s" }}
+        >
+          💣
+        </span>
+
+        <button
+          onClick={handleBack}
+          className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(255,170,0,0.6)] hover:border-neon-orange relative overflow-hidden group cursor-pointer"
+        >
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <span className="relative z-10">◄ BACK</span>
         </button>
 
-        <div className={styles.searchContainer}>
-          <span className={styles.searchIcon}>🔍</span>
+        <div className="flex-1 flex items-center bg-white border-4 border-black rounded-[30px] px-5 min-h-13.75 shadow-[0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_8px_rgba(0,0,0,0.1)]">
+          <span className="text-2xl mr-3">🔍</span>
           <input
             type="text"
-            className={styles.searchInput}
-            placeholder="search"
+            className="flex-1 border-none text-xl outline-none italic font-bungee bg-transparent placeholder:text-gray-400 text-black"
+            placeholder="SEARCH"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           {searchQuery && (
             <span
-              className={styles.clearSearch}
-              onClick={() => setSearchQuery('')}
+              className="cursor-pointer text-2xl text-gray-500 hover:text-black hover:scale-125 transition-all"
+              onClick={() => setSearchQuery("")}
             >
               ✕
             </span>
           )}
         </div>
 
-        <button className={styles.createButton} onClick={() => setIsCreateModalOpen(true)}>
-          Create
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(255,170,0,0.6)] hover:border-neon-orange relative overflow-hidden group cursor-pointer"
+        >
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <span className="relative z-10">CREATE</span>
         </button>
 
-        <button className={styles.helpButton}>?</button>
+        <button className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-full w-17 h-17 flex items-center justify-center text-2xl font-bold text-black font-bungee shrink-0 shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:rotate-360 hover:scale-110 duration-500 cursor-pointer">
+          ?
+        </button>
       </div>
 
       <JoinModal
         isOpen={isJoinModalOpen}
-        roomId={selectedRoom?.id || ''}
-        roomName={selectedRoom?.name || ''}
+        roomId={selectedRoom?.id || ""}
+        roomName={selectedRoom?.name || ""}
         onConfirm={handleJoinConfirm}
         onClose={() => setIsJoinModalOpen(false)}
       />
-
       <CreateRoomModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
