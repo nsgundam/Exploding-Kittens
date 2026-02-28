@@ -6,9 +6,9 @@ import { prisma } from "./config/prisma";
 import roomRoutes from "./routes/room.route";
 import { registerRoomSocket } from "./socket/room.socket";
 
-const app = express();            // ✅ สร้างก่อน
-app.use(express.json());          // ✅ middleware ก่อน
-app.use("/api/rooms", roomRoutes); // ✅ mount route หลังสร้าง app
+const app = express();            
+app.use(express.json());          
+app.use("/api/rooms", roomRoutes); 
 
 const server = http.createServer(app);
 

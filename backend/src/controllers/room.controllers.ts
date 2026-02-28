@@ -105,3 +105,30 @@ export const getRoom = async (req: Request<{ roomId: string }>, res: Response) =
     res.status(404).json({ message: error.message });
   }
 };
+
+export const leaveRoom = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req); 
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    const room = await roomService.leaveRoom(roomId, playerToken);
+    return res.status(200).json(room);
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export const startGame = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    
+    const room = await roomService.startGame(roomId);
+    return res.status(200).json(room);
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+};

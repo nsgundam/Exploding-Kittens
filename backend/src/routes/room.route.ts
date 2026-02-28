@@ -1,5 +1,5 @@
 import { Router } from "express";
-import *as  roomControllers from "../controllers/room.controllers";
+import * as roomControllers from "../controllers/room.controllers"; 
 
 const router = Router();
 
@@ -13,4 +13,10 @@ router.post("/", roomControllers.createRoom);
 router.post("/:roomId/join", roomControllers.joinRoom);
 // POST /api/rooms/:roomId/seat
 router.post("/:roomId/seat", roomControllers.selectSeat);
+
+// POST /api/rooms/:roomId/leave
+router.post("/:roomId/leave", roomControllers.leaveRoom);
+// POST /api/rooms/:roomId/start
+router.post("/:roomId/start", roomControllers.startGame);
+
 export default router;
