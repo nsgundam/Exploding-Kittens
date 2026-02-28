@@ -1,62 +1,64 @@
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
 
 export const registerRoomSocket = (io: Server) => {
 
-  io.on("connection", (socket) => {
-
+  io.on("connection", (socket: Socket) => {
     console.log("Connected:", socket.id);
-// join room
-    socket.on("joinRoom", async ({ roomId, displayName }) => {
-      try {
 
-        // 1️⃣ validate + update state ก่อน
-        const room = await roomService.joinRoomAsSpectator(
+    // Join Room
+    socket.on("joinRoom", async ({ roomId, playerToken, displayName }) => {
+      try {
+        await roomService.joinRoom(
           roomId,
-          socket.id,
+          playerToken,
           displayName
         );
 
-        // 2️⃣ join หลัง validation สำเร็จ
+        socket.data.playerToken = playerToken;
+        socket.data.roomId = roomId;
+
         socket.join(roomId);
 
-        // 3️⃣ broadcast state ที่ service return มาเลย
-        io.to(roomId).emit("roomUpdated", room);
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
 
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Join failed");
       }
     });
-// select seat
-    socket.on("selectSeat", async ({ roomId, seatNumber }) => {
-      try {
 
-        const room = await roomService.selectSeat(
+    // Select Seat
+    socket.on("selectSeat", async ({ roomId, playerToken, seatNumber }) => {
+      try {
+        await roomService.selectSeat(
           roomId,
-          socket.id,
+          playerToken,
           seatNumber
         );
 
-        io.to(roomId).emit("roomUpdated", room);
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
 
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Seat selection failed");
       }
     });
-//leave room  = disconnect
+
+    // Leave Room = Disconnect 
     socket.on("disconnect", async () => {
+      console.log("Disconnected:", socket.id);
       try {
+        const { roomId, playerToken } = socket.data;
 
-        const joinedRooms = [...socket.rooms].filter(r => r !== socket.id);
-
-        for (const roomId of joinedRooms) {
-
-          const updatedRoom = await roomService.leaveRoom(
-            roomId,
-            socket.id
-          );
-
-          io.to(roomId).emit("roomUpdated", updatedRoom);
+        if (roomId && playerToken) {
+          await roomService.leaveRoom(roomId, playerToken);
+          
+          try {
+             const updatedRoom = await roomService.getRoomById(roomId);
+             io.to(roomId).emit("roomUpdated", updatedRoom);
+          } catch(e) {
+          }
         }
 
       } catch (err) {
@@ -65,5 +67,4 @@ export const registerRoomSocket = (io: Server) => {
     });
 
   });
-
 };
