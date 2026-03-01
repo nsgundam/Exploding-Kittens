@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import RoomCard from "../components/RoomCard";
 import JoinModal from "../components/JoinModal";
-import CreateRoomModal from "../components/CreateRoomModal";
+import CreateRoomModal, {
+  RoomCreatePayload,
+} from "../components/CreateRoomModal";
 
 interface Room {
   id: string;
@@ -25,7 +27,9 @@ type ApiRoom = {
 };
 
 const mapApiRoomToUi = (r: ApiRoom): Room => {
-  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
+  const playerCount = (r.players ?? []).filter(
+    (p) => p.role === "PLAYER",
+  ).length;
 
   return {
     id: r.room_id,
@@ -46,27 +50,26 @@ export default function LobbyPage() {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      const res = await fetch("/api/rooms");
-      if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const res = await fetch("/api/rooms");
+        if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
 
-      const data: ApiRoom[] = await res.json();
-      const uiRooms = data.map(mapApiRoomToUi);
+        const data: ApiRoom[] = await res.json();
+        const uiRooms = data.map(mapApiRoomToUi);
 
-      setRooms(uiRooms);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+        setRooms(uiRooms);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-  fetchRooms();
-}, []);
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilteredRooms(rooms);
     } else {
       const query = searchQuery.toLowerCase();
@@ -93,46 +96,50 @@ useEffect(() => {
     setSelectedRoom(null);
   };
 
-  const handleCreateRoom = async (name: string) => {
-  try {
-    // ตัวอย่าง hostSessionId (ชั่วคราว)
-    // แนะนำ: เก็บ session ไว้ใน localStorage หรือใช้ login จริง
-    const hostSessionId =
-      localStorage.getItem("session_id") ||
-      (() => {
-        const id = crypto.randomUUID();
-        localStorage.setItem("session_id", id);
-        return id;
-      })();
+  const handleCreateRoom = async (payload: RoomCreatePayload) => {
+    try {
+      const { name, cardVersion, expansions } = payload;
+      const playerToken =
+        localStorage.getItem("player_token") ||
+        (() => {
+          const id = crypto.randomUUID();
+          localStorage.setItem("player_token", id);
+          return id;
+        })();
+      const maxPlayers = 4;
+      const hostName = "Player_" + Math.floor(Math.random() * 1000);
 
-    const maxPlayers = 4; 
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-player-token": playerToken,
+        },
+        body: JSON.stringify({
+          roomName: name,
+          hostName,
+          maxPlayers,
+          cardVersion: cardVersion,
+          expansions: expansions,
+        }),
+      });
 
-    const res = await fetch("/api/rooms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        roomName: name,
-        hostSessionId,
-        maxPlayers,
-      }),
-    });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || `Create room failed: ${res.status}`);
+      }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.message || `Create room failed: ${res.status}`);
+      const createdRoom = await res.json();
+      alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
+
+      window.location.href = `/room/${createdRoom.room_id}`;
+    } catch (e) {
+      alert(e || "สร้างห้องไม่สำเร็จ");
+      console.error(e);
+    } finally {
+      setIsCreateModalOpen(false);
     }
-
-    const createdRoom = await res.json();
-
-    alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
-    window.location.reload();
-  } catch (e: any) {
-    alert(e.message || "สร้างห้องไม่สำเร็จ");
-    console.error(e);
-  } finally {
-    setIsCreateModalOpen(false);
-  }
-};
+  };
 
   const handleBack = () => {
     if (confirm("คุณต้องการกลับไปหน้า Login หรือไม่?"))

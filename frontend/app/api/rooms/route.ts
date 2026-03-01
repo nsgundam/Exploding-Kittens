@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import dotenv from "dotenv";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
+dotenv.config();
+
+const BACKEND_URL = process.env.BACKEND_URL ;
 
 export async function GET() {
   try {
@@ -19,9 +22,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    const playerToken = req.headers.get("x-player-token");
+
+    const headersToForward: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    if (playerToken) {
+      headersToForward["x-player-token"] = playerToken;
+    }
+
     const res = await fetch(`${BACKEND_URL}/api/rooms`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headersToForward,
       body: JSON.stringify(body),
     });
 
