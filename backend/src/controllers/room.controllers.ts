@@ -116,7 +116,7 @@ export const leaveRoom = async (req: Request, res: Response) => {
     }
 
     const room = await roomService.leaveRoom(roomId, playerToken);
-    return res.status(200).json(room);
+    return res.status(200).json(room || { deleted: true });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

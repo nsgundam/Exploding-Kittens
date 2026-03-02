@@ -52,12 +52,12 @@ export const registerRoomSocket = (io: Server) => {
         const { roomId, playerToken } = socket.data;
 
         if (roomId && playerToken) {
-          await roomService.leaveRoom(roomId, playerToken);
+          const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
           
-          try {
-             const updatedRoom = await roomService.getRoomById(roomId);
+          if (updatedRoom) {
              io.to(roomId).emit("roomUpdated", updatedRoom);
-          } catch(e) {
+          } else {
+             io.to(roomId).emit("roomDeleted");
           }
         }
 

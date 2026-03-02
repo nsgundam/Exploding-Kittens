@@ -179,6 +179,29 @@ export const roomService = {
         }
       });
 
+      const remainingPlayers = await tx.player.findMany({
+        where: { room_id: roomId },
+        orderBy: { joined_at: 'asc' }
+      });
+
+      if (remainingPlayers.length === 0) {
+        await tx.room.delete({
+          where: { room_id: roomId }
+        });
+        return null;
+      }
+
+      const room = await tx.room.findUnique({
+        where: { room_id: roomId }
+      });
+
+      if (room && room.host_token === playerToken) {
+        await tx.room.update({
+          where: { room_id: roomId },
+          data: { host_token: remainingPlayers[0]!.player_token }
+        });
+      }
+
       return await tx.room.findUnique({
         where: { room_id: roomId },
         include: { players: true }
