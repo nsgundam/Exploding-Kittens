@@ -90,8 +90,9 @@ export default function LobbyPage() {
   };
 
   const handleJoinConfirm = () => {
-    if (selectedRoom)
-      alert(`กำลังเข้าร่วมห้อง ${selectedRoom.id}.${selectedRoom.name}...`);
+    if (selectedRoom) {
+      window.location.href = `/room/${selectedRoom.id}`;
+    }
     setIsJoinModalOpen(false);
     setSelectedRoom(null);
   };
