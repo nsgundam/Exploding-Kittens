@@ -21,11 +21,11 @@ export default function JoinModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/85 flex items-center justify-center z-1000 animate-fade-in"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-1000 animate-fade-in backdrop-blur-md"
       onClick={onClose}
     >
       <div
-        className="bg-linear-to-br from-[#2a2a2a] to-card-bg border-[5px] border-white rounded-3xl max-w-125 w-[90%] min-h-87.5 flex flex-col justify-center items-center text-center text-white animate-scale-in gap-6 px-16 py-12"
+        className="bg-white/10 backdrop-blur-3xl border border-white/30 rounded-3xl max-w-125 w-[90%] min-h-87.5 flex flex-col justify-center items-center text-center text-white shadow-[0_16px_40px_rgba(0,0,0,0.5)] animate-scale-in gap-6 px-16 py-12"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Title */}

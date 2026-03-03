@@ -28,20 +28,20 @@ export default function RoomCard({
   return (
     <div
       className={[
-        "bg-linear-to-br from-[#2a2a2a] to-card-bg",
-        "border-[3px] border-white rounded-2xl",
+        "bg-white/10 backdrop-blur-2xl",
+        "border border-white/20 rounded-3xl",
         "px-4 py-4 flex items-center gap-4 shrink-0",
         "transition-all duration-300 animate-slide-in",
-        "shadow-[0_0_12px_rgba(255,215,0,0.25)]",
+        "shadow-[0_8px_32px_rgba(0,0,0,0.3)]",
         isClickable
-          ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(255,170,0,0.5)] hover:border-neon-yellow"
-          : "opacity-50 cursor-not-allowed grayscale-50",
+          ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_32px_rgba(255,170,0,0.5)] hover:border-orange-400/50"
+          : "opacity-60 cursor-not-allowed grayscale-[50%]",
       ].join(" ")}
       onClick={isClickable ? onClick : undefined}
     >
       {/* Deck badge */}
-      <div className="bg-linear-to-br from-[#d97706] to-[#ea580c] border-2 border-black rounded-xl flex flex-col items-center justify-center gap-0.5 w-25 h-25 shrink-0 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,#ff0000_0%,transparent_70%)]" />
+      <div className="bg-gradient-to-br from-orange-400 to-red-600 border border-white/30 rounded-2xl flex flex-col items-center justify-center gap-0.5 w-25 h-25 shrink-0 relative overflow-hidden shadow-inner">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,#ffffff_0%,transparent_70%)]" />
         <span className="text-2xl relative z-10">🎴</span>
         <span className="font-bold text-[9px] text-black leading-tight relative z-10">
           สำรับ {deck}

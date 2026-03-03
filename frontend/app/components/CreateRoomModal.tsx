@@ -53,13 +53,13 @@ export default function CreateRoomModal({
     >
       <div
         style={{ width: "560px", padding: "0" }}
-        className="bg-card-bg border-[5px] border-white rounded-2xl text-white animate-scale-in"
+        className="bg-zinc-900/60 backdrop-blur-3xl border border-white/30 rounded-3xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.6)] animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Title */}
         <div
           style={{ padding: "32px 48px 24px 48px" }}
-          className="flex items-center justify-center gap-3 border-b border-white/10"
+          className="flex items-center justify-center gap-3 border-b border-white/20"
         >
           <span className="text-3xl">🎴</span>
           <h2 className="text-2xl font-bold text-white font-bungee">
