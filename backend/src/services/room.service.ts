@@ -12,10 +12,23 @@ function generateRoomCode(length = 6): string {
 }
 
 export const roomService = {
-  
+
   async createRoom(payload: CreateRoomInput) {
     const { playerToken, roomName, hostName, maxPlayers, cardVersion, expansions } = payload;
-    const newRoomCode = generateRoomCode();
+
+    // Generate room code with DB loop check to avoid collision
+    let newRoomCode = '';
+    let isUnique = false;
+
+    while (!isUnique) {
+      newRoomCode = generateRoomCode();
+      const existingRoom = await prisma.room.findUnique({
+        where: { room_id: newRoomCode }
+      });
+      if (!existingRoom) {
+        isUnique = true;
+      }
+    }
 
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
@@ -38,7 +51,7 @@ export const roomService = {
         data: {
           room_id: room.room_id,
           card_version: cardVersion,
-          expansions: expansions 
+          expansions: expansions
         }
       });
 
@@ -47,7 +60,7 @@ export const roomService = {
           player_token: playerToken,
           display_name: hostName,
           room_id: room.room_id,
-          seat_number: 1, 
+          seat_number: 1,
           role: PlayerRole.PLAYER
         }
       });
@@ -96,11 +109,11 @@ export const roomService = {
       });
 
       const existing = await tx.player.findUnique({
-        where: { 
-          player_token_room_id: { 
-            player_token: playerToken, 
-            room_id: roomId 
-          } 
+        where: {
+          player_token_room_id: {
+            player_token: playerToken,
+            room_id: roomId
+          }
         }
       });
 
@@ -130,17 +143,23 @@ export const roomService = {
       if (!room) throw new Error("Room not found");
       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
 
-      const currentPlayerCount = await tx.player.count({
-        where: { room_id: roomId, role: PlayerRole.PLAYER }
-      });
-
-      if (currentPlayerCount >= room.max_players) throw new Error("Room is full");
-
       const existingSeat = await tx.player.findFirst({
         where: { room_id: roomId, seat_number: seatNumber, role: PlayerRole.PLAYER }
       });
 
-      if (existingSeat) throw new Error("Seat already taken");
+      if (existingSeat) {
+        if (existingSeat.player_token === playerToken) {
+          return existingSeat; // Already sitting here
+        }
+        throw new Error("Seat already taken");
+      }
+
+      // If the player is changing seats, we don't count them as a new player
+      const currentPlayerCount = await tx.player.count({
+        where: { room_id: roomId, role: PlayerRole.PLAYER, player_token: { not: playerToken } }
+      });
+
+      if (currentPlayerCount >= room.max_players) throw new Error("Room is full");
 
       return await tx.player.update({
         where: {
@@ -152,6 +171,30 @@ export const roomService = {
         data: {
           seat_number: seatNumber,
           role: PlayerRole.PLAYER
+        }
+      });
+    });
+  },
+
+  async unseatPlayer(roomId: string, playerToken: string) {
+    return await prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUnique({
+        where: { room_id: roomId }
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
+
+      return await tx.player.update({
+        where: {
+          player_token_room_id: {
+            player_token: playerToken,
+            room_id: roomId
+          }
+        },
+        data: {
+          seat_number: null,
+          role: PlayerRole.SPECTATOR
         }
       });
     });
@@ -196,10 +239,14 @@ export const roomService = {
       });
 
       if (room && room.host_token === playerToken) {
-        await tx.room.update({
-          where: { room_id: roomId },
-          data: { host_token: remainingPlayers[0]!.player_token }
-        });
+        // Prefer promoting a seated player to host
+        const candidateHost = remainingPlayers.find(p => p.role === PlayerRole.PLAYER) || remainingPlayers[0];
+        if (candidateHost) {
+          await tx.room.update({
+            where: { room_id: roomId },
+            data: { host_token: candidateHost.player_token }
+          });
+        }
       }
 
       return await tx.room.findUnique({
@@ -209,13 +256,14 @@ export const roomService = {
     });
   },
 
-  async startGame(roomId: string) {
+  async startGame(roomId: string, playerToken: string) {
     return await prisma.$transaction(async (tx) => {
       const room = await tx.room.findUnique({
         where: { room_id: roomId }
       });
 
       if (!room) throw new Error("Room not found");
+      if (room.host_token !== playerToken) throw new Error("Only the host can start the game");
       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
 
       const playerCount = await tx.player.count({

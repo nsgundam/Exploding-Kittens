@@ -30,15 +30,24 @@ export default function RoomPage() {
       </div>
 
       <div className="mt-5 flex gap-2">
-        {[1, 2, 3, 4].map((seat) => (
-          <button 
-            key={seat}
-            onClick={() => selectSeat(seat)}
-            className="bg-orange-500 p-2 rounded"
-          >
-            นั่งที่ {seat}
-          </button>
-        ))}
+        {Array.from({ length: roomData.max_players }, (_, i) => i + 1).map((seat) => {
+          const isOccupied = roomData.players.some((p: any) => p.seat_number === seat && p.role === "PLAYER");
+          return (
+            <button 
+              key={seat}
+              onClick={() => selectSeat(seat)}
+              className={`${isOccupied ? "bg-red-500" : "bg-orange-500"} p-2 rounded`}
+            >
+              ที่นั่ง {seat} {isOccupied ? "(ไม่ว่าง)" : ""}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mt-5">
+         <button onClick={() => selectSeat(-1)} className="bg-gray-500 p-2 rounded">
+            ลุกจากที่นั่ง
+         </button>
       </div>
     </div>
   );

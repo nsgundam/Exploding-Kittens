@@ -1,6 +1,8 @@
 import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
 
+const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
+
 export const registerRoomSocket = (io: Server) => {
 
   io.on("connection", (socket: Socket) => {
@@ -19,6 +21,12 @@ export const registerRoomSocket = (io: Server) => {
         socket.data.roomId = roomId;
 
         socket.join(roomId);
+
+        // Cancel pending disconnect removal if the user reconnected
+        if (disconnectTimeouts.has(playerToken)) {
+          clearTimeout(disconnectTimeouts.get(playerToken)!);
+          disconnectTimeouts.delete(playerToken);
+        }
 
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
@@ -45,20 +53,47 @@ export const registerRoomSocket = (io: Server) => {
       }
     });
 
-    // Leave Room = Disconnect 
+    // Unseat
+    socket.on("unseatPlayer", async ({ roomId, playerToken }) => {
+      try {
+        await roomService.unseatPlayer(roomId, playerToken);
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
+      } catch (err: any) {
+        socket.emit("errorMessage", err.message || "Unseat failed");
+      }
+    });
+
+    // Leave Room / Disconnect Logic
+    // Allow a 30-second grace period for reconnections
     socket.on("disconnect", async () => {
       console.log("Disconnected:", socket.id);
       try {
         const { roomId, playerToken } = socket.data;
 
         if (roomId && playerToken) {
-          const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
-          
-          if (updatedRoom) {
-             io.to(roomId).emit("roomUpdated", updatedRoom);
-          } else {
-             io.to(roomId).emit("roomDeleted");
+          // Clear any existing timeout for this player to avoid race conditions
+          if (disconnectTimeouts.has(playerToken)) {
+            clearTimeout(disconnectTimeouts.get(playerToken)!);
           }
+
+          // Delay the leave mapping for 30 seconds
+          const timeoutId = setTimeout(async () => {
+            try {
+              const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
+              if (updatedRoom) {
+                io.to(roomId).emit("roomUpdated", updatedRoom);
+              } else {
+                io.to(roomId).emit("roomDeleted");
+              }
+            } catch (err) {
+              console.error("Leave room error during disconnect timeout:", err);
+            } finally {
+              disconnectTimeouts.delete(playerToken);
+            }
+          }, 60000);
+
+          disconnectTimeouts.set(playerToken, timeoutId);
         }
 
       } catch (err) {

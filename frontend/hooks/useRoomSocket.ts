@@ -3,9 +3,17 @@ import { io, Socket } from "socket.io-client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
+interface RoomData {
+  room_id: string;
+  room_name: string;
+  status: string;
+  max_players: number;
+  players: any[];
+}
+
 export const useRoomSocket = (roomId: string) => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [roomData, setRoomData] = useState<any>(null);
+  const [roomData, setRoomData] = useState<RoomData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -29,19 +37,19 @@ export const useRoomSocket = (roomId: string) => {
       setIsConnected(true);
 
       const displayName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
-      
-      newSocket.emit("joinRoom", { 
-        roomId, 
-        playerToken, 
-        displayName 
+
+      newSocket.emit("joinRoom", {
+        roomId,
+        playerToken,
+        displayName
       });
     });
 
-    newSocket.on("roomUpdated", (updatedRoom) => {
+    newSocket.on("roomUpdated", (updatedRoom: RoomData) => {
       console.log("🔄 Room Updated:", updatedRoom);
       setRoomData(updatedRoom);
     });
-    newSocket.on("errorMessage", (msg) => {
+    newSocket.on("errorMessage", (msg: string) => {
       console.error("❌ Socket Error:", msg);
       setError(msg);
       alert(`แจ้งเตือน: ${msg}`);
@@ -60,13 +68,18 @@ export const useRoomSocket = (roomId: string) => {
   const selectSeat = useCallback((seatNumber: number) => {
     if (!socket) return;
     const playerToken = localStorage.getItem("player_token");
-    socket.emit("selectSeat", { roomId, playerToken, seatNumber });
+
+    if (seatNumber < 0) {
+      socket.emit("unseatPlayer", { roomId, playerToken });
+    } else {
+      socket.emit("selectSeat", { roomId, playerToken, seatNumber });
+    }
   }, [socket, roomId]);
 
-  return { 
-    roomData, 
-    isConnected, 
-    error, 
-    selectSeat 
+  return {
+    roomData,
+    isConnected,
+    error,
+    selectSeat
   };
 };

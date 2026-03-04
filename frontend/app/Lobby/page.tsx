@@ -90,9 +90,42 @@ export default function LobbyPage() {
     setIsJoinModalOpen(true);
   };
 
-  const handleJoinConfirm = () => {
+  const handleJoinConfirm = async () => {
     if (selectedRoom) {
-      window.location.href = `/room/${selectedRoom.id}`;
+      const playerToken = localStorage.getItem("player_token");
+      const displayName = localStorage.getItem("display_name");
+
+      if (!playerToken) {
+         alert("ไม่พบ Token ของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+         window.location.href = "/";
+         return;
+      }
+
+      if (!displayName) {
+         alert("ไม่พบชื่อผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+         window.location.href = "/";
+         return;
+      }
+
+      try {
+        const res = await fetch(`/api/rooms/${selectedRoom.id}/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-player-token": playerToken,
+          },
+          body: JSON.stringify({ displayName }),
+        });
+
+        if (!res.ok) {
+           const err = await res.json().catch(() => ({}));
+           throw new Error(err?.message || "Join room failed");
+        }
+
+        window.location.href = `/room/${selectedRoom.id}`;
+      } catch (err: any) {
+        alert(err.message || "Failed to join room");
+      }
     }
     setIsJoinModalOpen(false);
     setSelectedRoom(null);
@@ -108,8 +141,8 @@ export default function LobbyPage() {
           localStorage.setItem("player_token", id);
           return id;
         })();
-      const maxPlayers = 4;
-      const hostName = "Player_" + Math.floor(Math.random() * 1000);
+      const maxPlayers = 5; // Hardcoded to 5 as requested
+      const hostName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
 
       const res = await fetch("/api/rooms", {
         method: "POST",
@@ -135,8 +168,8 @@ export default function LobbyPage() {
       alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
 
       window.location.href = `/room/${createdRoom.room_id}`;
-    } catch (e) {
-      alert(e || "สร้างห้องไม่สำเร็จ");
+    } catch (e: any) {
+      alert(e.message || "สร้างห้องไม่สำเร็จ");
       console.error(e);
     } finally {
       setIsCreateModalOpen(false);
@@ -144,8 +177,7 @@ export default function LobbyPage() {
   };
 
   const handleBack = () => {
-    if (confirm("คุณต้องการกลับไปหน้า Login หรือไม่?"))
-      alert("กำลังกลับไปหน้า Login...");
+    window.location.href = "/";
   };
 
   return (
