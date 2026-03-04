@@ -21,7 +21,7 @@ export const AnimatedBackground = () => {
     <motion.div 
       className="fixed inset-[-5%] w-[110%] h-[110%] z-0 bg-cover bg-center pointer-events-none"
       style={{
-        backgroundImage: "url('https://images.unsplash.com/photo-1618172193622-ae2d025f4032?q=80&w=2564&auto=format&fit=crop')", // Abstract space/particle-like image
+        backgroundImage: "url('images/background.jpg')",
       }}
       animate={{
         x: mousePosition.x * -1.5,
@@ -29,7 +29,7 @@ export const AnimatedBackground = () => {
       }}
       transition={{ type: "spring", stiffness: 50, damping: 30 }}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 " />
     </motion.div>
   );
 };
