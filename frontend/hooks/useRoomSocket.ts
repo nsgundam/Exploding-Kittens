@@ -2,13 +2,19 @@ import { useEffect, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-
+export interface Player {
+  player_id: string;
+  player_token: string;
+  display_name: string;
+  seat_number: number | null;
+  role: string;
+}
 interface RoomData {
   room_id: string;
   room_name: string;
   status: string;
   max_players: number;
-  players: any[];
+  players: Player[];
 }
 
 export const useRoomSocket = (roomId: string) => {
@@ -22,7 +28,11 @@ export const useRoomSocket = (roomId: string) => {
 
     const playerToken = localStorage.getItem("player_token");
     if (!playerToken) {
-      setError("ไม่พบ Token ของผู้เล่น กรุณารีเฟรชหน้าเว็บ");
+
+      setTimeout(() => {
+        setError("ไม่พบ Token ของผู้เล่น กรุณารีเฟรชหน้าเว็บ");
+      }
+      ,0);
       return;
     }
 
@@ -30,14 +40,19 @@ export const useRoomSocket = (roomId: string) => {
       transports: ["websocket"],
     });
 
-    setSocket(newSocket);
+    if (newSocket) {
+      setTimeout(() => {
+        setSocket(newSocket);
+      }
+      ,0);
+    }if (!newSocket) return;
+    
 
     newSocket.on("connect", () => {
       console.log("🟢 Socket Connected!");
       setIsConnected(true);
 
       const displayName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
-
       newSocket.emit("joinRoom", {
         roomId,
         playerToken,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRoomSocket } from "@/hooks/useRoomSocket";
+import { useRoomSocket, Player } from "@/hooks/useRoomSocket";
 import { useParams } from "next/navigation";
 
 export default function RoomPage() {
@@ -21,7 +21,7 @@ export default function RoomPage() {
       <div className="mt-5">
         <h2>ผู้เล่นในห้อง ({roomData.players.length}/{roomData.max_players})</h2>
         <ul>
-          {roomData.players.map((player: any) => (
+          {roomData.players.map((player: Player) => (
             <li key={player.player_id}>
               {player.display_name} (ที่นั่ง: {player.seat_number || "กำลังเลือก"})
             </li>
@@ -31,7 +31,7 @@ export default function RoomPage() {
 
       <div className="mt-5 flex gap-2">
         {Array.from({ length: roomData.max_players }, (_, i) => i + 1).map((seat) => {
-          const isOccupied = roomData.players.some((p: any) => p.seat_number === seat && p.role === "PLAYER");
+          const isOccupied = roomData.players.some((p: Player) => p.seat_number === seat && p.role === "PLAYER");
           return (
             <button 
               key={seat}
