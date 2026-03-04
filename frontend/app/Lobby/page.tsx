@@ -123,8 +123,8 @@ export default function LobbyPage() {
         }
 
         window.location.href = `/room/${selectedRoom.id}`;
-      } catch (err: any) {
-        alert(err.message || "Failed to join room");
+      } catch (err) {
+        alert(err || "Failed to join room");
       }
     }
     setIsJoinModalOpen(false);
@@ -168,8 +168,8 @@ export default function LobbyPage() {
       alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
 
       window.location.href = `/room/${createdRoom.room_id}`;
-    } catch (e: any) {
-      alert(e.message || "สร้างห้องไม่สำเร็จ");
+    } catch (e) {
+      alert(e || "สร้างห้องไม่สำเร็จ");
       console.error(e);
     } finally {
       setIsCreateModalOpen(false);
@@ -225,7 +225,7 @@ export default function LobbyPage() {
 
       {/* ═══ HEADER ═══ */}
       <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
         <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
         <span
           className="absolute top-3 right-5 text-4xl animate-float"
@@ -242,7 +242,7 @@ export default function LobbyPage() {
 
       {/* ═══ LOBBY FRAME ═══ */}
       <div className="relative bg-white/5 backdrop-blur-3xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_0_40px_rgba(255,215,0,0.1)] z-10 flex-1 min-h-0 overflow-hidden">
-        <div className="absolute inset-0 border-[2px] border-white/20 rounded-3xl pointer-events-none z-10" />
+        <div className="absolute inset-0 border-2 border-white/20 rounded-3xl pointer-events-none z-10" />
         <span className="absolute top-3 left-3 text-xl opacity-50 z-20">
           😼
         </span>

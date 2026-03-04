@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AnimatedBackground } from "@/app/components/AnimatedBackground";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const AVATAR_STYLES = [
   "adventurer", "avataaars", "bottts", "fun-emoji", "lorelei", "notionists", "personas", "pixel-art"
@@ -14,27 +14,39 @@ const AVATAR_STYLES = [
 
 export default function Home() {
   const router = useRouter();
+  
+  // 🟢 1. ให้ State เริ่มต้นด้วยค่า default ธรรมดาก่อน ป้องกัน Server/Client Mismatch
   const [name, setName] = useState("");
   const [avatarStyle, setAvatarStyle] = useState(AVATAR_STYLES[0]);
-  const [seed, setSeed] = useState("");
+  const [seed, setSeed] = useState("default-seed"); // ใส่ค่า default ป้องกันรูปเปลี่ยนกะพริบตอนโหลด
   const [isLoading, setIsLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false); // เอาไว้เช็คว่าโหลดหน้าเสร็จหรือยัง
 
   useEffect(() => {
-    setSeed(Math.random().toString(36).substring(7));
-    
-    const existingName = localStorage.getItem("display_name");
-    const existingAvatar = localStorage.getItem("profile_picture");
-    
-    if (existingName) setName(existingName);
-    if (existingAvatar) {
-      try {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true); 
+
+    try {
+      // จัดการเรื่องชื่อ
+      const existingName = localStorage.getItem("display_name");
+      if (existingName) setName(existingName);
+
+      // จัดการเรื่องรูป Avatar
+      const existingAvatar = localStorage.getItem("profile_picture");
+      if (existingAvatar) {
         const url = new URL(existingAvatar);
         const style = url.pathname.split("/")[4];
         const seedValue = url.pathname.split("/")[5].replace(".svg", "");
+        
         if (AVATAR_STYLES.includes(style)) setAvatarStyle(style);
         setSeed(seedValue);
-      } catch (e) {
+      } else {
+        // ถ้าไม่เคยมีรูปมาก่อน ค่อยสุ่มใหม่
+        setSeed(Math.random().toString(36).substring(7));
       }
+    } catch (e) {
+      console.error(e);
+      setSeed(Math.random().toString(36).substring(7)); // fallback สุ่มใหม่ถ้าพัง
     }
   }, []);
 
@@ -47,6 +59,7 @@ export default function Home() {
   };
 
   const handleJoin = async (e: React.FormEvent) => {
+    // ... (ส่วนนี้ใช้โค้ดเดิมของคุณได้เลยครับ สมบูรณ์แล้ว)
     e.preventDefault();
     if (!name.trim()) return;
 
@@ -70,12 +83,14 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
+  if (!isMounted) return null;
 return (
     <div className="min-h-screen w-full relative flex flex-col items-center justify-between p-8 md:p-16 font-sans selection:bg-orange-500/30 overflow-hidden">
       <AnimatedBackground />
 
       <div className="text-center space-y-4 z-10 pt-10 mt-10">
-        <h1 className="text-5xl md:text-7xl font-bungee tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
+        <h1 className="text-5xl md:text-7xl font-bungee tracking-wider text-transparent bg-clip-text bg-linear-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
           EXPLODING KITTENS
         </h1>
         <p className="text-zinc-200 text-xl md:text-2xl font-bold drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
@@ -121,7 +136,7 @@ return (
         <Button 
           type="submit" 
           disabled={!name.trim() || isLoading}
-          className="w-full h-16 text-xl font-bungee tracking-widest bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white border-2 border-orange-400/50 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all rounded-2xl"
+          className="w-full h-16 text-xl font-bungee tracking-widest bg-linear-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white border-2 border-orange-400/50 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all rounded-2xl"
         >
           {isLoading ? (
             <Loader2 className="mr-2 h-8 w-8 animate-spin" />
