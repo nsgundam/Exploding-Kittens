@@ -1,62 +1,99 @@
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
+
+const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
 export const registerRoomSocket = (io: Server) => {
 
-  io.on("connection", (socket) => {
-
+  io.on("connection", (socket: Socket) => {
     console.log("Connected:", socket.id);
-// join room
-    socket.on("joinRoom", async ({ roomId, displayName }) => {
-      try {
 
-        // 1️⃣ validate + update state ก่อน
-        const room = await roomService.joinRoomAsSpectator(
+    // Join Room
+    socket.on("joinRoom", async ({ roomId, playerToken, displayName }) => {
+      try {
+        await roomService.joinRoom(
           roomId,
-          socket.id,
+          playerToken,
           displayName
         );
 
-        // 2️⃣ join หลัง validation สำเร็จ
+        socket.data.playerToken = playerToken;
+        socket.data.roomId = roomId;
+
         socket.join(roomId);
 
-        // 3️⃣ broadcast state ที่ service return มาเลย
-        io.to(roomId).emit("roomUpdated", room);
+        // Cancel pending disconnect removal if the user reconnected
+        if (disconnectTimeouts.has(playerToken)) {
+          clearTimeout(disconnectTimeouts.get(playerToken)!);
+          disconnectTimeouts.delete(playerToken);
+        }
+
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
 
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Join failed");
       }
     });
-// select seat
-    socket.on("selectSeat", async ({ roomId, seatNumber }) => {
-      try {
 
-        const room = await roomService.selectSeat(
+    // Select Seat
+    socket.on("selectSeat", async ({ roomId, playerToken, seatNumber }) => {
+      try {
+        await roomService.selectSeat(
           roomId,
-          socket.id,
+          playerToken,
           seatNumber
         );
 
-        io.to(roomId).emit("roomUpdated", room);
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
 
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Seat selection failed");
       }
     });
-//leave room  = disconnect
-    socket.on("disconnect", async () => {
+
+    // Unseat
+    socket.on("unseatPlayer", async ({ roomId, playerToken }) => {
       try {
+        await roomService.unseatPlayer(roomId, playerToken);
+        const updatedRoom = await roomService.getRoomById(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
+      } catch (err: any) {
+        socket.emit("errorMessage", err.message || "Unseat failed");
+      }
+    });
 
-        const joinedRooms = [...socket.rooms].filter(r => r !== socket.id);
+    // Leave Room / Disconnect Logic
+    // Allow a 30-second grace period for reconnections
+    socket.on("disconnect", async () => {
+      console.log("Disconnected:", socket.id);
+      try {
+        const { roomId, playerToken } = socket.data;
 
-        for (const roomId of joinedRooms) {
+        if (roomId && playerToken) {
+          // Clear any existing timeout for this player to avoid race conditions
+          if (disconnectTimeouts.has(playerToken)) {
+            clearTimeout(disconnectTimeouts.get(playerToken)!);
+          }
 
-          const updatedRoom = await roomService.leaveRoom(
-            roomId,
-            socket.id
-          );
+          // Delay the leave mapping for 30 seconds
+          const timeoutId = setTimeout(async () => {
+            try {
+              const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
+              if (updatedRoom) {
+                io.to(roomId).emit("roomUpdated", updatedRoom);
+              } else {
+                io.to(roomId).emit("roomDeleted");
+              }
+            } catch (err) {
+              console.error("Leave room error during disconnect timeout:", err);
+            } finally {
+              disconnectTimeouts.delete(playerToken);
+            }
+          }, 60000);
 
-          io.to(roomId).emit("roomUpdated", updatedRoom);
+          disconnectTimeouts.set(playerToken, timeoutId);
         }
 
       } catch (err) {
@@ -65,5 +102,4 @@ export const registerRoomSocket = (io: Server) => {
     });
 
   });
-
 };

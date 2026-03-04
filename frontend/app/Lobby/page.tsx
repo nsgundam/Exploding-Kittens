@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { AnimatedBackground } from "../components/AnimatedBackground";
 import RoomCard from "../components/RoomCard";
 import JoinModal from "../components/JoinModal";
-import CreateRoomModal from "../components/CreateRoomModal";
+import CreateRoomModal, {
+  RoomCreatePayload,
+} from "../components/CreateRoomModal";
 
 interface Room {
   id: string;
@@ -25,7 +28,9 @@ type ApiRoom = {
 };
 
 const mapApiRoomToUi = (r: ApiRoom): Room => {
-  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
+  const playerCount = (r.players ?? []).filter(
+    (p) => p.role === "PLAYER",
+  ).length;
 
   return {
     id: r.room_id,
@@ -46,27 +51,26 @@ export default function LobbyPage() {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      const res = await fetch("/api/rooms");
-      if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const res = await fetch("/api/rooms");
+        if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
 
-      const data: ApiRoom[] = await res.json();
-      const uiRooms = data.map(mapApiRoomToUi);
+        const data: ApiRoom[] = await res.json();
+        const uiRooms = data.map(mapApiRoomToUi);
 
-      setRooms(uiRooms);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+        setRooms(uiRooms);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-  fetchRooms();
-}, []);
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilteredRooms(rooms);
     } else {
       const query = searchQuery.toLowerCase();
@@ -86,61 +90,99 @@ useEffect(() => {
     setIsJoinModalOpen(true);
   };
 
-  const handleJoinConfirm = () => {
-    if (selectedRoom)
-      alert(`กำลังเข้าร่วมห้อง ${selectedRoom.id}.${selectedRoom.name}...`);
+  const handleJoinConfirm = async () => {
+    if (selectedRoom) {
+      const playerToken = localStorage.getItem("player_token");
+      const displayName = localStorage.getItem("display_name");
+
+      if (!playerToken) {
+         alert("ไม่พบ Token ของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+         window.location.href = "/";
+         return;
+      }
+
+      if (!displayName) {
+         alert("ไม่พบชื่อผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+         window.location.href = "/";
+         return;
+      }
+
+      try {
+        const res = await fetch(`/api/rooms/${selectedRoom.id}/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-player-token": playerToken,
+          },
+          body: JSON.stringify({ displayName }),
+        });
+
+        if (!res.ok) {
+           const err = await res.json().catch(() => ({}));
+           throw new Error(err?.message || "Join room failed");
+        }
+
+        window.location.href = `/room/${selectedRoom.id}`;
+      } catch (err) {
+        alert(err || "Failed to join room");
+      }
+    }
     setIsJoinModalOpen(false);
     setSelectedRoom(null);
   };
 
-  const handleCreateRoom = async (name: string) => {
-  try {
-    // ตัวอย่าง hostSessionId (ชั่วคราว)
-    // แนะนำ: เก็บ session ไว้ใน localStorage หรือใช้ login จริง
-    const hostSessionId =
-      localStorage.getItem("session_id") ||
-      (() => {
-        const id = crypto.randomUUID();
-        localStorage.setItem("session_id", id);
-        return id;
-      })();
+  const handleCreateRoom = async (payload: RoomCreatePayload) => {
+    try {
+      const { name, cardVersion, expansions } = payload;
+      const playerToken =
+        localStorage.getItem("player_token") ||
+        (() => {
+          const id = crypto.randomUUID();
+          localStorage.setItem("player_token", id);
+          return id;
+        })();
+      const maxPlayers = 5; // Hardcoded to 5 as requested
+      const hostName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
 
-    const maxPlayers = 4; 
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-player-token": playerToken,
+        },
+        body: JSON.stringify({
+          roomName: name,
+          hostName,
+          maxPlayers,
+          cardVersion: cardVersion,
+          expansions: expansions,
+        }),
+      });
 
-    const res = await fetch("/api/rooms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        roomName: name,
-        hostSessionId,
-        maxPlayers,
-      }),
-    });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || `Create room failed: ${res.status}`);
+      }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.message || `Create room failed: ${res.status}`);
+      const createdRoom = await res.json();
+      alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
+
+      window.location.href = `/room/${createdRoom.room_id}`;
+    } catch (e) {
+      alert(e || "สร้างห้องไม่สำเร็จ");
+      console.error(e);
+    } finally {
+      setIsCreateModalOpen(false);
     }
-
-    const createdRoom = await res.json();
-
-    alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
-    window.location.reload();
-  } catch (e: any) {
-    alert(e.message || "สร้างห้องไม่สำเร็จ");
-    console.error(e);
-  } finally {
-    setIsCreateModalOpen(false);
-  }
-};
+  };
 
   const handleBack = () => {
-    if (confirm("คุณต้องการกลับไปหน้า Login หรือไม่?"))
-      alert("กำลังกลับไปหน้า Login...");
+    window.location.href = "/";
   };
 
   return (
-    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-387.5 w-full mx-auto overflow-hidden">
+    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-387.5 w-full mx-auto overflow-hidden text-white relative">
+      <AnimatedBackground />
       {/* Background Decoration */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <span
@@ -182,8 +224,8 @@ useEffect(() => {
       </div>
 
       {/* ═══ HEADER ═══ */}
-      <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-linear-to-r from-amber-900/40 via-orange-900/40 to-amber-900/40 border-[5px] border-white rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(255,215,0,0.4)] z-10 shrink-0">
-        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none" />
+      <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
+        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
         <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
         <span
           className="absolute top-3 right-5 text-4xl animate-float"
@@ -199,8 +241,8 @@ useEffect(() => {
       </div>
 
       {/* ═══ LOBBY FRAME ═══ */}
-      <div className="relative bg-linear-to-br from-black/60 to-black/40 border-[6px] border-neon-yellow rounded-3xl shadow-[0_0_40px_rgba(255,215,0,0.5),inset_0_0_40px_rgba(255,215,0,0.15)] z-10 flex-1 min-h-0 overflow-hidden">
-        <div className="absolute inset-0 border-[3px] border-neon-orange rounded-[22px] pointer-events-none m-0.75 z-10" />
+      <div className="relative bg-white/5 backdrop-blur-3xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_0_40px_rgba(255,215,0,0.1)] z-10 flex-1 min-h-0 overflow-hidden">
+        <div className="absolute inset-0 border-2 border-white/20 rounded-3xl pointer-events-none z-10" />
         <span className="absolute top-3 left-3 text-xl opacity-50 z-20">
           😼
         </span>
@@ -238,7 +280,7 @@ useEffect(() => {
       </div>
 
       {/* ═══ CONTROLS ═══ */}
-      <div className="relative flex gap-4 items-center px-8 py-8 bg-linear-to-r from-black/60 via-black/50 to-black/60 border-[5px] border-white rounded-3xl shadow-[0_8px_30px_rgba(255,215,0,0.3)] z-10 shrink-0">
+      <div className="relative flex gap-4 items-center px-8 py-8 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0">
         <span className="absolute -top-3 left-1/4 text-2xl animate-float">
           💣
         </span>

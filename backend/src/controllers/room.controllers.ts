@@ -1,30 +1,35 @@
 import { Request, Response } from "express";
 import { roomService } from "../services/room.service";
-//
+import { CreateRoomInput } from "../types/Rooms";
+
+
+const getPlayerToken = (req: Request): string | null => {
+  const token = req.headers['x-player-token'];
+  return token ? String(token) : null;
+};
+
 export const createRoom = async (req: Request, res: Response) => {
   try {
-    console.log("BODY:", req.body);
+    const payload = req.body as CreateRoomInput;
+    const playerToken = getPlayerToken(req);
 
-    const { roomName, displayName, maxPlayers } = req.body || {};
-
-    if (!roomName || !displayName || !maxPlayers) {
-      return res.status(400).json({
-        message: "roomName, displayName and maxPlayers are required",
-      });
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required (send via x-player-token header)" });
     }
 
-    const room = await roomService.createRoom(
-      roomName,
-      displayName,
-      Number(maxPlayers)
-    );
+    if (!payload.roomName || !payload.hostName || !payload.maxPlayers) {
+      return res.status(400).json({ message: "roomName, hostName and maxPlayers are required" });
+    }
+
+    const room = await roomService.createRoom({
+      ...payload,
+      playerToken
+    });
 
     return res.status(201).json(room);
 
   } catch (error: any) {
-    return res.status(500).json({
-      message: error.message
-    });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -37,35 +42,30 @@ export const getAllRooms = async (req: Request, res: Response) => {
   }
 };
 
-// 
 export const joinRoom = async (req: Request, res: Response) => {
   try {
-const roomId = req.params.roomId as string;    
-const { displayName } = req.body || {};
+    const roomId = req.params.roomId as string;
+    const { displayName } = req.body || {};
+    const playerToken = getPlayerToken(req);
 
-    if (!displayName) {
-      return res.status(400).json({
-        message: "displayName is required",
-      });
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
     }
 
-    // ตอนนี้ยังไม่มี auth system
-    // ใช้ fake session id ไปก่อน
-    const sessionId = "sess_user_1";
+    if (!displayName) {
+      return res.status(400).json({ message: "displayName is required" });
+    }
 
-    const player = await roomService.joinRoomAsSpectator(
+    const player = await roomService.joinRoom(
       roomId,
-      sessionId,
+      playerToken,
       displayName
     );
 
-    
     return res.status(201).json(player);
 
   } catch (error: any) {
-    return res.status(500).json({
-      message: error.message,
-    });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -73,39 +73,67 @@ export const selectSeat = async (req: Request, res: Response) => {
   try {
     const roomId = req.params.roomId as string;
     const { seatNumber } = req.body;
+    const playerToken = getPlayerToken(req);
 
-    if (!seatNumber) {
-      return res.status(400).json({
-        message: "seatNumber is required",
-      });
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
     }
 
-    const sessionId = "sess_user_1";
+    if (!seatNumber) {
+      return res.status(400).json({ message: "seatNumber is required" });
+    }
 
     const player = await roomService.selectSeat(
       roomId,
-      sessionId,
+      playerToken,
       Number(seatNumber)
     );
 
     return res.status(200).json(player);
 
   } catch (error: any) {
-    return res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 };
-//roomID = string นะจ๊ะ
+
 export const getRoom = async (req: Request<{ roomId: string }>, res: Response) => {
   try {
     const { roomId } = req.params;
-
     const room = await roomService.getRoomById(roomId);
-
     res.status(200).json(room);
-
   } catch (error: any) {
     res.status(404).json({ message: error.message });
+  }
+};
+
+export const leaveRoom = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req);
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    const room = await roomService.leaveRoom(roomId, playerToken);
+    return res.status(200).json(room || { deleted: true });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export const startGame = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req);
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    const room = await roomService.startGame(roomId, playerToken);
+    return res.status(200).json(room);
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
   }
 };

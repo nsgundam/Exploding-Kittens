@@ -27,23 +27,36 @@ enum GameSessionStatus {
 }
 
 //////////////////////
+// PLAYER IDENTITY
+//////////////////////
+
+model PlayerIdentity {
+  token           String   @id // UUID เก็บใน LocalStorage
+  display_name    String // ชื่อล่าสุดที่ใช้ (optional - เพื่อ UX กรอกชื่อเดิมให้อัตโนมัติ)
+  profile_picture String? // รูปล่าสุด
+  created_at      DateTime @default(now())
+  last_seen       DateTime @default(now())
+
+  players      Player[]
+  hosted_rooms Room[]
+}
+
+//////////////////////
 // ROOM
 //////////////////////
 
 model Room {
-  room_id   String @id @default(uuid())
-  room_name String
-
-  host_session_id String? 
-
-  status               RoomStatus @default(WAITING)
+  room_id              String         @id @default(uuid())
+  room_name            String
+  host_token           String
+  host_identity        PlayerIdentity @relation(fields: [host_token], references: [token])
+  status               RoomStatus     @default(WAITING)
   max_players          Int
-  created_at           DateTime   @default(now())
-  updated_at           DateTime   @updatedAt
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
   restart_available_at DateTime?
 
-  players Player[] @relation("RoomPlayers")
-
+  players       Player[]      @relation("RoomPlayers")
   deck_config   DeckConfig?
   game_sessions GameSession[]
 }
@@ -53,26 +66,30 @@ model Room {
 //////////////////////
 
 model Player {
-  player_id       String     @id @default(uuid())
-  session_id      String     @unique
+  player_id       String         @id @default(uuid())
+  player_token    String
+  identity        PlayerIdentity @relation(fields: [player_token], references: [token])
   display_name    String
   profile_picture String?
   room_id         String
   seat_number     Int?
-  role            PlayerRole @default(SPECTATOR)
-  is_alive        Boolean    @default(true)
-  is_active       Boolean    @default(true)
-  afk_count       Int        @default(0)
-  joined_at       DateTime   @default(now())
-  last_active     DateTime   @default(now())
+  role            PlayerRole     @default(SPECTATOR)
+  is_alive        Boolean        @default(true)
+  is_active       Boolean        @default(true)
+  afk_count       Int            @default(0)
+  joined_at       DateTime       @default(now())
+  last_active     DateTime       @default(now())
 
-  room Room @relation("RoomPlayers", fields: [room_id], references: [room_id], onDelete: Cascade)
+  room                  Room          @relation("RoomPlayers", fields: [room_id], references: [room_id], onDelete: Cascade)
+  current_turn_sessions GameSession[] @relation("CurrentTurn")
+  won_sessions          GameSession[] @relation("SessionWinner")
+  logs                  GameLog[]
+  hands                 CardHand[]
 
-  hands CardHand[]
-
+  @@unique([player_token, room_id])
   @@unique([room_id, seat_number])
   @@index([room_id])
-  @@index([session_id])
+  @@index([player_token]) // ✅ แก้บั้ก: เดิมเขียน @@index([session_id]) ซึ่ง field นี้ไม่มีแล้ว
 }
 
 //////////////////////
@@ -80,20 +97,21 @@ model Player {
 //////////////////////
 
 model GameSession {
-  session_id              String  @id @default(uuid())
-  room_id                 String
-  current_turn_session_id String?
-  turn_number             Int     @default(1)
+  session_id             String            @id @default(uuid())
+  room_id                String
+  current_turn_player_id String?
+  turn_number            Int               @default(1)
+  start_time             DateTime?
+  end_time               DateTime?
+  status                 GameSessionStatus @default(WAITING)
+  winner_player_id       String?
 
-  start_time        DateTime?
-  end_time          DateTime?
-  status            GameSessionStatus @default(WAITING)
-  winner_session_id String?
-
-  room       Room       @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
-  deck_state DeckState?
-  logs       GameLog[]
-  hands      CardHand[]
+  room                Room       @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
+  current_turn_player Player?    @relation("CurrentTurn", fields: [current_turn_player_id], references: [player_id])
+  winner_player       Player?    @relation("SessionWinner", fields: [winner_player_id], references: [player_id])
+  deck_state          DeckState?
+  logs                GameLog[]
+  hands               CardHand[]
 
   @@index([room_id])
 }
@@ -134,7 +152,7 @@ model DeckState {
 model GameLog {
   log_id              String   @id @default(uuid())
   session_id          String
-  player_session_id   String
+  player_id           String
   player_display_name String
   action_type         String
   action_details      Json
@@ -142,6 +160,7 @@ model GameLog {
   timestamp           DateTime @default(now())
   turn_number         Int
 
+  player  Player      @relation(fields: [player_id], references: [player_id])
   session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
   @@index([session_id])
