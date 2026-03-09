@@ -30,8 +30,8 @@ export default function CreateRoomModal({
       return;
     }
 
-    const cardVersion = selectedDeck === 1 ? "BASE" : "Good vs Evil";
-    const expansions = addonEnabled ? ["IMPLODING"] : [];
+    const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
+    const expansions = addonEnabled ? ["imploding"] : [];
 
     onCreate({
       name: roomName,
@@ -108,7 +108,7 @@ export default function CreateRoomModal({
                 ].join(" ")}
                 onClick={() => setSelectedDeck(1)}
               >
-                🎴 สำรับ 1 (BASE)
+                🎴 สำรับ 1 (classic)
               </button>
               <button
                 style={{ height: "56px" }}
@@ -120,7 +120,7 @@ export default function CreateRoomModal({
                 ].join(" ")}
                 onClick={() => setSelectedDeck(2)}
               >
-                🎴 สำรับ 2 (NSFW)
+                🎴 สำรับ 2 (good and evil)
               </button>
             </div>
           </div>
