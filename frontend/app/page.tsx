@@ -36,10 +36,10 @@ export default function Home() {
       if (existingAvatar) {
         const url = new URL(existingAvatar);
         const style = url.pathname.split("/")[4];
-        const seedValue = url.pathname.split("/")[5].replace(".svg", "");
+        const seedValue = url.pathname.split("/")[5];
         
         if (AVATAR_STYLES.includes(style)) setAvatarStyle(style);
-        setSeed(seedValue);
+        setSeed(seedValue.concat(".svg"));
       } else {
         // ถ้าไม่เคยมีรูปมาก่อน ค่อยสุ่มใหม่
         setSeed(Math.random().toString(36).substring(7));
