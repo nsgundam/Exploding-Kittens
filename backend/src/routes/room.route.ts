@@ -1,0 +1,22 @@
+import { Router } from "express";
+import * as roomControllers from "../controllers/room.controllers"; 
+
+const router = Router();
+
+// GET /api/rooms
+router.get("/", roomControllers.getAllRooms);
+// GET /api/rooms/:roomId
+router.get("/:roomId", roomControllers.getRoom);
+// POST /api/rooms
+router.post("/", roomControllers.createRoom);
+// POST /api/rooms/:roomId/join
+router.post("/:roomId/join", roomControllers.joinRoom);
+// POST /api/rooms/:roomId/seat
+router.post("/:roomId/seat", roomControllers.selectSeat);
+
+// POST /api/rooms/:roomId/leave
+router.post("/:roomId/leave", roomControllers.leaveRoom);
+// POST /api/rooms/:roomId/start
+router.post("/:roomId/start", roomControllers.startGame);
+
+export default router;

@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum PlayerRole {
+  SPECTATOR
+  PLAYER
+}
+
+enum RoomStatus {
+  WAITING
+  PLAYING
+}
+
+enum GameSessionStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+//////////////////////
+// PLAYER IDENTITY
+//////////////////////
+
+model PlayerIdentity {
+  token           String   @id // UUID เก็บใน LocalStorage
+  display_name    String // ชื่อล่าสุดที่ใช้ (optional - เพื่อ UX กรอกชื่อเดิมให้อัตโนมัติ)
+  profile_picture String? // รูปล่าสุด
+  created_at      DateTime @default(now())
+  last_seen       DateTime @default(now())
+
+  players      Player[]
+  hosted_rooms Room[]
+}
+
+//////////////////////
+// ROOM
+//////////////////////
+
+model Room {
+  room_id              String         @id @default(uuid())
+  room_name            String
+  host_token           String
+  host_identity        PlayerIdentity @relation(fields: [host_token], references: [token])
+  status               RoomStatus     @default(WAITING)
+  max_players          Int
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
+  restart_available_at DateTime?
+
+  players       Player[]      @relation("RoomPlayers")
+  deck_config   DeckConfig?
+  game_sessions GameSession[]
+}
+
+//////////////////////
+// PLAYER
+//////////////////////
+
+model Player {
+  player_id       String         @id @default(uuid())
+  player_token    String
+  identity        PlayerIdentity @relation(fields: [player_token], references: [token])
+  display_name    String
+  profile_picture String?
+  room_id         String
+  seat_number     Int?
+  role            PlayerRole     @default(SPECTATOR)
+  is_alive        Boolean        @default(true)
+  is_active       Boolean        @default(true)
+  afk_count       Int            @default(0)
+  joined_at       DateTime       @default(now())
+  last_active     DateTime       @default(now())
+
+  room                  Room          @relation("RoomPlayers", fields: [room_id], references: [room_id], onDelete: Cascade)
+  current_turn_sessions GameSession[] @relation("CurrentTurn")
+  won_sessions          GameSession[] @relation("SessionWinner")
+  logs                  GameLog[]
+  hands                 CardHand[]
+
+  @@unique([player_token, room_id])
+  @@unique([room_id, seat_number])
+  @@index([room_id])
+  @@index([player_token]) // ✅ แก้บั้ก: เดิมเขียน @@index([session_id]) ซึ่ง field นี้ไม่มีแล้ว
+}
+
+//////////////////////
+// GAME SESSION
+//////////////////////
+
+model GameSession {
+  session_id             String            @id @default(uuid())
+  room_id                String
+  current_turn_player_id String?
+  turn_number            Int               @default(1)
+  start_time             DateTime?
+  end_time               DateTime?
+  status                 GameSessionStatus @default(WAITING)
+  winner_player_id       String?
+
+  room                Room       @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
+  current_turn_player Player?    @relation("CurrentTurn", fields: [current_turn_player_id], references: [player_id])
+  winner_player       Player?    @relation("SessionWinner", fields: [winner_player_id], references: [player_id])
+  deck_state          DeckState?
+  logs                GameLog[]
+  hands               CardHand[]
+
+  @@index([room_id])
+}
+
+//////////////////////
+// DECK CONFIG
+//////////////////////
+
+model DeckConfig {
+  config_id     String   @id @default(uuid())
+  room_id       String   @unique
+  card_version  String
+  expansions    Json
+  last_modified DateTime @default(now())
+
+  room Room @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
+}
+
+//////////////////////
+// DECK STATE
+//////////////////////
+
+model DeckState {
+  deck_state_id   String   @id @default(uuid())
+  session_id      String   @unique
+  deck_order      Json
+  discard_pile    Json
+  cards_remaining Int
+  last_updated    DateTime @default(now())
+
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+}
+
+//////////////////////
+// GAME LOG
+//////////////////////
+
+model GameLog {
+  log_id              String   @id @default(uuid())
+  session_id          String
+  player_id           String
+  player_display_name String
+  action_type         String
+  action_details      Json
+  is_noped            Boolean  @default(false)
+  timestamp           DateTime @default(now())
+  turn_number         Int
+
+  player  Player      @relation(fields: [player_id], references: [player_id])
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([turn_number])
+}
+
+//////////////////////
+// CARD HAND
+//////////////////////
+
+model CardHand {
+  hand_id    String   @id @default(uuid())
+  player_id  String
+  session_id String
+  cards      Json
+  card_count Int
+  updated_at DateTime @default(now())
+
+  player  Player      @relation(fields: [player_id], references: [player_id], onDelete: Cascade)
+  session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+  @@unique([player_id, session_id])
+}
+
+//////////////////////
+// CARD MASTER
+//////////////////////
+
+model CardMaster {
+  card_id          Int      @id @default(autoincrement())
+  card_code        String   @unique
+  name             String
+  type             String
+  category         String
+  description      String
+  effect_details   Json
+  image_url        String
+  thumbnail_url    String
+  quantity_in_deck Int
+  is_playable      Boolean
+  is_stackable     Boolean
+  expansion_pack   String?
+  display_order    Int
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
