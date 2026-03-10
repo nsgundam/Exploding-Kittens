@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { roomService } from "../services/room.service";
 import { CreateRoomInput } from "../types/Rooms";
-
+import { RoomStatus } from "@prisma/client";
 
 const getPlayerToken = (req: Request): string | null => {
   const token = req.headers['x-player-token'];
@@ -35,8 +35,26 @@ export const createRoom = async (req: Request, res: Response) => {
 
 export const getAllRooms = async (req: Request, res: Response) => {
   try {
-    const rooms = await roomService.getAllRooms();
+    const { status } = req.query;
+    const rooms = await roomService.getAllRooms(status as RoomStatus | undefined);
     res.status(200).json(rooms);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getCurrentRoom = async (req: Request, res: Response) => {
+  try {
+    const playerToken = getPlayerToken(req);
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    const currentRoom = await roomService.getCurrentRoom(playerToken);
+
+    // Return empty object if no room, or the room id if there is one
+    res.status(200).json(currentRoom || {});
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

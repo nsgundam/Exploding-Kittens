@@ -76,10 +76,22 @@ export const roomService = {
     });
   },
 
-  async getAllRooms() {
+  async getAllRooms(status?: RoomStatus) {
     return await prisma.room.findMany({
+      where: status ? { status } : undefined,
       include: { players: true }
     });
+  },
+
+  async getCurrentRoom(playerToken: string) {
+    if (!playerToken) return null;
+
+    const player = await prisma.player.findFirst({
+      where: { player_token: playerToken },
+      select: { room_id: true }
+    });
+
+    return player ? { roomId: player.room_id } : null;
   },
 
   async getRoomById(roomId: string) {

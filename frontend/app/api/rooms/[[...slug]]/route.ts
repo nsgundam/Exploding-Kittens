@@ -47,4 +47,5 @@ export async function matchAndProxy(req: NextRequest, { params }: { params: Prom
 export const GET = matchAndProxy;
 export const POST = matchAndProxy;
 export const PUT = matchAndProxy;
+export const PATCH = matchAndProxy;
 export const DELETE = matchAndProxy;
