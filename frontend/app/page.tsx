@@ -44,11 +44,26 @@ export default function Home() {
         // ถ้าไม่เคยมีรูปมาก่อน ค่อยสุ่มใหม่
         setSeed(Math.random().toString(36).substring(7));
       }
+
+      // ตรวจสอบห้องปัจจุบันเพื่อ Reconnect
+      const token = localStorage.getItem("player_token");
+      if (token) {
+        fetch("/api/rooms/current", {
+          headers: { "x-player-token": token }
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.roomId) {
+            router.push(`/room/${data.roomId}`);
+          }
+        })
+        .catch(err => console.error("Auto-reconnect failed:", err));
+      }
     } catch (e) {
       console.error(e);
       setSeed(Math.random().toString(36).substring(7)); // fallback สุ่มใหม่ถ้าพัง
     }
-  }, []);
+  }, [router]);
 
   const currentAvatarUrl = `https://api.dicebear.com/9.x/${avatarStyle}/svg?seed=${seed}&backgroundColor=transparent`;
 

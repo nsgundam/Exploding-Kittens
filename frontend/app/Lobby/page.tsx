@@ -54,7 +54,7 @@ export default function LobbyPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch("/api/rooms");
+        const res = await fetch("/api/rooms?status=WAITING");
         if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
 
         const data: ApiRoom[] = await res.json();
