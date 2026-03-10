@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
+import { gameService } from "../services/game.service";
 
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
@@ -61,6 +62,43 @@ export const registerRoomSocket = (io: Server) => {
         io.to(roomId).emit("roomUpdated", updatedRoom);
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Unseat failed");
+      }
+    });
+
+    // Start Game
+    socket.on("startGame", async ({ roomId, playerToken }) => {
+      try {
+        // Assume roomService.startGame updates the room status to PLAYING
+        const updatedRoom = await roomService.startGame(roomId, playerToken);
+
+        io.to(roomId).emit("roomUpdated", updatedRoom);
+        io.to(roomId).emit("gameStarted", updatedRoom);
+      } catch (err: any) {
+        socket.emit("errorMessage", err.message || "Failed to start game");
+      }
+    });
+
+    // Play Card
+    socket.on("playCard", async ({ roomId, playerToken, cardCode, targetPlayerToken }) => {
+      try {
+        const result = await gameService.playCard(roomId, playerToken, cardCode, targetPlayerToken);
+        io.to(roomId).emit("cardPlayed", result);
+        // Note: Real implementation will likely broadcast full room state
+        // via roomUpdated depending on the card effect.
+      } catch (err: any) {
+        socket.emit("errorMessage", err.message || "Failed to play card");
+      }
+    });
+
+    // Draw Card
+    socket.on("drawCard", async ({ roomId, playerToken }) => {
+      try {
+        const result = await gameService.drawCard(roomId, playerToken);
+        io.to(roomId).emit("cardDrawn", result);
+        // Note: Real implementation will likely broadcast full room state
+        // via roomUpdated after turn changes.
+      } catch (err: any) {
+        socket.emit("errorMessage", err.message || "Failed to draw card");
       }
     });
 

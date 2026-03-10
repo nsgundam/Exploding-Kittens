@@ -388,11 +388,11 @@ cd frontend && npm run dev   # → http://localhost:3000
 |--------|-----|-------------|----------|
 | S2-01 | API: POST /sessions — สร้าง GameSession + DeckState + แจกไพ่ | พัต + นันย่า | — |
 | S2-02 | UI: ปุ่ม "Start Game" สำหรับ Host + validate ผู้เล่น ≥ 2 คน | เบส | — |
-| S2-03 | Socket: game_start event → sync ทุก client | กัน | — |
+| S2-03 | Socket: game_start event → sync ทุก client | กัน | — | ✅ Done | Included in `room.socket.ts` |
 | S2-04 | UI Game Room — แสดงไพ่ในมือ (ตัวเอง) | เบส | — |
 | S2-05 | UI Game Room — แสดง deck count, discard pile | เบส | — |
-| S2-06 | Socket: play_card event + บันทึก GameLog | กัน + นันย่า | — |
-| S2-07 | Socket: draw_card event + ตรวจสอบ Exploding Kitten | กัน | — |
+| S2-06 | Socket: play_card event + บันทึก GameLog | กัน + นันย่า | — | ✅ Done | Stubbed `gameService.playCard` |
+| S2-07 | Socket: draw_card event + ตรวจสอบ Exploding Kitten | กัน | — | ✅ Done | Stubbed `gameService.drawCard` |
 | S2-08 | Game Logic: turn management (เทิร์น + เปลี่ยนผู้เล่น) | พัต | — |
 | S2-09 | Game Logic: Defuse card handling | นันย่า | — |
 | S2-10 | UI: แสดง Game Log / action history | อาร์ม | — |
@@ -458,11 +458,11 @@ cd frontend && npm run dev   # → http://localhost:3000
 | Sprint | Status | Completion |
 |--------|--------|------------|
 | Sprint 1 — Core Infrastructure | 🔄 In Progress | 19/21 tickets done (0 partial, 2 not done) |
-| Sprint 2 — Basic Gameplay | ⏳ Planned | 0/11 |
+| Sprint 2 — Basic Gameplay | 🔄 In Progress | 3/11 |
 | Sprint 3 — Advanced Features | ⏳ Planned | 0/10 |
 | Sprint 4 — Polish & UX | ⏳ Planned | 0/8 |
 | Sprint 5 — Testing & Launch | ⏳ Planned | 0/8 |
-| **Total** | | **19/58 tickets** |
+| **Total** | | **22/58 tickets** |
 
 ### 🔄 Game Flow
 
