@@ -68,11 +68,17 @@ export const registerRoomSocket = (io: Server) => {
     // Start Game
     socket.on("startGame", async ({ roomId, playerToken }) => {
       try {
-        // Assume roomService.startGame updates the room status to PLAYING
-        const updatedRoom = await roomService.startGame(roomId, playerToken);
+        const { room, session } = await roomService.startGame(roomId, playerToken);
 
-        io.to(roomId).emit("roomUpdated", updatedRoom);
-        io.to(roomId).emit("gameStarted", updatedRoom);
+        // broadcast ห้องที่อัปเดตแล้วให้ทุกคนในห้อง
+        io.to(roomId).emit("roomUpdated", room);
+
+        // บอกทุกคนว่าเกมเริ่มแล้ว พร้อมส่ง session_id ไปด้วย
+        io.to(roomId).emit("gameStarted", {
+          room,
+          session_id: session.session_id,
+          first_turn_player_id: session.current_turn_player_id,
+        });
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to start game");
       }
