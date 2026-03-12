@@ -29,7 +29,7 @@ export const roomService = {
 
     // Generate room code with DB loop check to avoid collision
     let newRoomCode = '';
-    let isUnique = false;
+    let isUnique = false;// code นั้นใช้ไปยัง? ถ้ายังให้ใช้ code นั้น ถ้าใช้ไปแล้วให้ gen ใหม่
 
     while (!isUnique) {
       newRoomCode = generateRoomCode();
@@ -40,14 +40,16 @@ export const roomService = {
         isUnique = true;
       }
     }
-
+// สร้างห้องใหม่พร้อมกับสร้าง player identity และ player record สำหรับ host ใน transaction เดียวกัน เพื่อความ atomic
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
         where: { token: playerToken },
         update: { display_name: hostName, last_seen: new Date() },
         create: { token: playerToken, display_name: hostName }
       });
-
+// รับมาจาก client ว่า host ต้องการใช้ชื่อห้องอะไร max player กี่คน 
+// และเลือกการ์ดเวอร์ชั่นไหนบ้าง (สำหรับตอนนี้ยังไม่ใช้ แต่เผื่อไว้) แล้วสร้างห้องใหม่พร้อมกับตั้ง host player 
+// และ deck config ใน transaction เดียวกัน
       const room = await tx.room.create({
         data: {
           room_id: newRoomCode,
@@ -93,7 +95,7 @@ export const roomService = {
       include: { players: true }
     });
   },
-
+// ฟังก์ชันนี้จะเช็คว่า player token นี้อยู่ในห้องไหนอยู่ไหม ถ้าอยู่ก็ return id ห้องนั้น ถ้าไม่อยู่ก็ return null
   async getCurrentRoom(playerToken: string) {
     if (!playerToken) return null;
 
@@ -279,29 +281,6 @@ export const roomService = {
     });
   },
 
-  //   async startGame(roomId: string, playerToken: string) {
-  //     return await prisma.$transaction(async (tx) => {
-  //       const room = await tx.room.findUnique({
-  //         where: { room_id: roomId }
-  //       });
-
-  //       if (!room) throw new Error("Room not found");
-  //       if (room.host_token !== playerToken) throw new Error("Only the host can start the game");
-  //       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
-
-  //       const playerCount = await tx.player.count({
-  //         where: { room_id: roomId, role: PlayerRole.PLAYER }
-  //       });
-
-  //       if (playerCount < 2) throw new Error("Not enough players");
-
-  //       return await tx.room.update({
-  //         where: { room_id: roomId },
-  //         data: { status: RoomStatus.PLAYING }
-  //       });
-  //     });
-  //   }
-  // };
   //  Start Game
   async startGame(roomId: string, playerToken: string) {
     return await prisma.$transaction(async (tx) => {

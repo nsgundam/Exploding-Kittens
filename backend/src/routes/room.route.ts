@@ -9,6 +9,7 @@ router.get("/", roomControllers.getAllRooms);
 router.get("/current", roomControllers.getCurrentRoom);
 // GET /api/rooms/:roomId
 router.get("/:roomId", roomControllers.getRoom);
+
 // POST /api/rooms
 router.post("/", roomControllers.createRoom);
 // POST /api/rooms/:roomId/join
