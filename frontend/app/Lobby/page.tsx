@@ -8,6 +8,8 @@ import CreateRoomModal, {
   RoomCreatePayload,
 } from "../components/CreateRoomModal";
 
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 interface Room {
   id: string;
   name: string;
@@ -54,7 +56,7 @@ export default function LobbyPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch("/api/rooms?status=WAITING");
+        const res = await fetch(`${BACKEND_URL}/api/rooms`);
         if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
 
         const data: ApiRoom[] = await res.json();
