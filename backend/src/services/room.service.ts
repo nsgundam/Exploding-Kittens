@@ -262,7 +262,7 @@ export const roomService = {
       const room = await tx.room.findUnique({
         where: { room_id: roomId }
       });
-
+// ถ้าผู้เล่นที่ออกไปเป็น host ให้โปรโมทผู้เล่นที่นั่งคนแรกขึ้นเป็น host ใหม่
       if (room && room.host_token === playerToken) {
         // Prefer promoting a seated player to host
         const candidateHost = remainingPlayers.find(p => p.role === PlayerRole.PLAYER) || remainingPlayers[0];
@@ -307,7 +307,9 @@ export const roomService = {
       const expansions: string[] = Array.isArray(room.deck_config?.expansions)
         ? (room.deck_config!.expansions as string[])
         : [];
-
+//    กฎการเลือกไพ่จาก CardMaster:
+//    - ถ้าไม่มีการเลือก expansion ใดๆ ให้ใช้ไพ่ที่ไม่มี expansion_pack (base cards) เท่านั้น
+//    - ถ้ามีการเลือก expansion ให้ใช้ไพ่ที่ไม่มี expansion_pack (base cards) บวกกับไพ่จาก expansion ที่เลือกเท่านั้น
       const cardMasters = await tx.cardMaster.findMany({
         where: {
           OR: [
@@ -325,29 +327,37 @@ export const roomService = {
       const CARDS_PER_HAND = 4;
 
       let baseDeck: string[] = [];
-
+//    สร้าง baseDeck โดยใส่ไพ่ทั่วไป (ไม่รวม EK และ DF) ลงไปก่อน แล้วค่อยจัดการ EK กับ DF ทีหลัง
+//    EK จะไม่ใส่ใน deck ตอนนี้เพราะต้องแจกไพ่ให้ผู้เล่นก่อน แล้วค่อยใส่ EK กลับเข้าไปทีหลังตามจำนวนผู้เล่น - 1 เพื่อให้แน่ใจว่าเกมจะจบได้
+//    DF จะไม่ใส่ใน deck เพราะจะแจกให้ผู้เล่นทุกคนคนละ 1 ใบก่อนเลย
+//
       for (const card of cardMasters) {
         if (card.card_code === "EK") continue; // จัดการ EK ทีหลัง
         if (card.card_code === "DF") continue; // DF แจกตรงๆ ไม่ใส่ใน deck
-        for (let i = 0; i < card.quantity_in_deck; i++) {
-          baseDeck.push(card.card_code);
+        for (let i = 0; i < card.quantity_in_deck; i++) { // ใส่ไพ่ทั่วไปลง deck ตามจำนวนที่กำหนดใน CardMaster
+          baseDeck.push(card.card_code);// เช่น ถ้า card_code = "SK" และ quantity_in_deck = 4 ก็จะใส่ "SK" ลงไปใน baseDeck 4 ใบ
         }
       }
 
       baseDeck = shuffleArray(baseDeck);
 
       // ── 5. แจกไพ่ให้แต่ละผู้เล่น: DF 1 ใบ + ไพ่ทั่วไป 4 ใบ
+      //    สร้าง object ชื่อ hands เพื่อเก็บไพ่ที่แจกให้แต่ละผู้เล่น โดยใช้ player_id เป็น key และ array ของ card_code ที่แจกให้เป็น value
+      //    เช่น hands = { "player1_id": ["DF", "SK", "AT", "NC", "TP"], "player2_id": ["DF", "SK", "AT", "NC", "TP"], ... }
       const hands: Record<string, string[]> = {};
       for (const p of players) {
         hands[p.player_id] = ["DF"]; // แจก Defuse ก่อนเลย
-        for (let i = 0; i < CARDS_PER_HAND; i++) {
+        for (let i = 0; i < CARDS_PER_HAND; i++) { // แจกไพ่ทั่วไปตามจำนวนที่กำหนด
           const card = baseDeck.pop();
           if (!card) throw new Error("Not enough cards in deck to deal");
-          hands[p.player_id]!.push(card);
+          hands[p.player_id]!.push(card);//
         }
       }
 
       // ── 6. ใส่ EK กลับ deck (จำนวน = players - 1) แล้วสับใหม่ 
+      //    ตามกฎของ Exploding Kittens จะต้องมี EK อยู่ใน deck เท่ากับจำนวนผู้เล่น - 1 เพื่อให้แน่ใจว่าเกมจะจบได้เมื่อผู้เล่นโดน EK ครบตามจำนวนนี้
+      //    เราใส่ EK กลับเข้าไปใน deck หลังจากแจกไพ่ให้ผู้เล่นแล้ว เพื่อให้แน่ใจว่าไม่มีผู้เล่นคนไหนได้ EK ไปตั้งแต่แรก และเพื่อให้การคำนวณจำนวน EK ที่ต้องใส่กลับเข้าไปง่ายขึ้น
+      //    เช่น ถ้ามีผู้เล่น 4 คน เราจะใส่ EK กลับเข้าไปใน deck 3 ใบ เพื่อให้แน่ใจว่าเมื่อมีผู้เล่นโดน EK ไป 3 คน เกมจะจบลงได้
       const ekCount = players.length - 1;
       for (let i = 0; i < ekCount; i++) {
         baseDeck.push("EK");

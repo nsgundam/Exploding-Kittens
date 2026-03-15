@@ -14,12 +14,16 @@ router.get("/:roomId", roomControllers.getRoom);
 router.post("/", roomControllers.createRoom);
 // POST /api/rooms/:roomId/join
 router.post("/:roomId/join", roomControllers.joinRoom);
+
 // PATCH /api/rooms/:roomId/seat
 router.patch("/:roomId/seat", roomControllers.selectSeat);
 
+// PATCH /api/rooms/:roomId/unseat
+router.patch('/:roomId/unseat', roomControllers.unseatPlayer);
+
 // POST /api/rooms/:roomId/leave
 router.post("/:roomId/leave", roomControllers.leaveRoom);
+
 // POST /api/rooms/:roomId/start
 router.post("/:roomId/start", roomControllers.startGame);
-
 export default router;
