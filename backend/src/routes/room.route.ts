@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as roomControllers from "../controllers/room.controllers";
-
+import * as gameControllers from "../controllers/game.controllers";
 const router = Router();
 
 // GET /api/rooms
@@ -26,4 +26,12 @@ router.post("/:roomId/leave", roomControllers.leaveRoom);
 
 // POST /api/rooms/:roomId/start
 router.post("/:roomId/start", roomControllers.startGame);
+
+// Game actions
+// POST /api/rooms/:roomId/draw
+router.post('/:roomId/draw',    gameControllers.drawCard)
+// POST /api/rooms/:roomId/defuse
+router.post('/:roomId/defuse',  gameControllers.defuseCard)
+// POST /api/rooms/:roomId/eliminate
+router.post('/:roomId/eliminate', gameControllers.eliminatePlayer) // เรียกจาก Socket timer
 export default router;
