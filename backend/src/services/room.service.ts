@@ -89,7 +89,7 @@ export const roomService = {
 
   async getAllRooms(status?: RoomStatus) {
     return await prisma.room.findMany({
-      where: status ? { status } : undefined,
+      where: status ? { status } : {},
       include: { players: true }
     });
   },
@@ -279,29 +279,6 @@ export const roomService = {
     });
   },
 
-  //   async startGame(roomId: string, playerToken: string) {
-  //     return await prisma.$transaction(async (tx) => {
-  //       const room = await tx.room.findUnique({
-  //         where: { room_id: roomId }
-  //       });
-
-  //       if (!room) throw new Error("Room not found");
-  //       if (room.host_token !== playerToken) throw new Error("Only the host can start the game");
-  //       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
-
-  //       const playerCount = await tx.player.count({
-  //         where: { room_id: roomId, role: PlayerRole.PLAYER }
-  //       });
-
-  //       if (playerCount < 2) throw new Error("Not enough players");
-
-  //       return await tx.room.update({
-  //         where: { room_id: roomId },
-  //         data: { status: RoomStatus.PLAYING }
-  //       });
-  //     });
-  //   }
-  // };
   //  Start Game
   async startGame(roomId: string, playerToken: string) {
     return await prisma.$transaction(async (tx) => {

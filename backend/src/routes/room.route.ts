@@ -5,19 +5,25 @@ const router = Router();
 
 // GET /api/rooms
 router.get("/", roomControllers.getAllRooms);
+
 // GET /api/rooms/current
 router.get("/current", roomControllers.getCurrentRoom);
+
 // GET /api/rooms/:roomId
 router.get("/:roomId", roomControllers.getRoom);
+
 // POST /api/rooms
 router.post("/", roomControllers.createRoom);
+
 // POST /api/rooms/:roomId/join
 router.post("/:roomId/join", roomControllers.joinRoom);
+
 // PATCH /api/rooms/:roomId/seat
 router.patch("/:roomId/seat", roomControllers.selectSeat);
 
 // POST /api/rooms/:roomId/leave
 router.post("/:roomId/leave", roomControllers.leaveRoom);
+
 // POST /api/rooms/:roomId/start
 router.post("/:roomId/start", roomControllers.startGame);
 
