@@ -167,6 +167,7 @@ export const gameService = {
   },
 
   // S2-08: Defuse Card — client กดทัน 10 วิ
+  // เมื่อผู้เล่นจั่ว EK ขึ้นมา จะมี log ที่ action_type = 'DREW_EXPLODING_KITTEN' อยู่ใน gameLog แล้ว ซึ่งจะมีรายละเอียดการ์ดที่จั่วใน action_details.card
   async defuseCard(roomId: string, playerToken: string) {
     return await prisma.$transaction(async (tx) => {
 
@@ -276,6 +277,8 @@ export const gameService = {
       }
 
       // ── ตรวจว่ายัง pending DREW_EXPLODING_KITTEN อยู่จริงไหม ───
+      // ต้องเช็คว่า log ล่าสุดของ player นี้เป็น DREW_EXPLODING_KITTEN และยังไม่มี log 
+      // ใหม่กว่าแบบอื่นเข้ามาอีก (เช่น ยังไม่ได้กด defuse หรือเล่นการ์ดอื่นๆ)
       const lastLog = await tx.gameLog.findFirst({
         where: { session_id: session.session_id, player_id: player.player_id },
         orderBy: { timestamp: 'desc' }
