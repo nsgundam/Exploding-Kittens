@@ -155,3 +155,19 @@ export const startGame = async (req: Request, res: Response) => {
     return res.status(400).json({ message: error.message });
   }
 };
+//  unseatPlayer controller จะรับผิดชอบในการจัดการเมื่อผู้เล่นต้องการยกเลิกการนั่งที่ที่เลือกไว้ โดยจะตรวจสอบ playerToken เพื่อยืนยันตัวตนของผู้เล่น และเรียกใช้ roomService.unseatPlayer เพื่อทำการยกเลิกการนั่งที่ จากนั้นจะส่งข้อมูลผู้เล่นที่ถูกยกเลิกการนั่งที่กลับไปยัง client
+export const unseatPlayer = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req);
+
+      if (!playerToken) {
+        return res.status(401).json({ message: "playerToken is required" });
+      }
+
+      const player = await roomService.unseatPlayer(roomId, playerToken);
+      return res.status(200).json(player);
+    } catch (error: any) {
+      return res.status(400).json({ message: error.message });
+    } 
+  }

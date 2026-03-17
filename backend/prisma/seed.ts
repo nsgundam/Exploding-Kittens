@@ -1,5 +1,6 @@
 import { PrismaClient, PlayerRole, RoomStatus, GameSessionStatus } from '@prisma/client'
 import { PrismaPg } from "@prisma/adapter-pg";
+import { classicCards, implodingKittensCards, goodAndEvilCards } from './cards'
 import pg from "pg";
 
 const pool = new pg.Pool({
@@ -14,248 +15,20 @@ const prisma = new PrismaClient({
 
 async function main() {
   console.log('🌱 Starting seed...')
-
   // ============================================================
-  // CARD MASTER — ข้อมูลการ์ดทั้งหมดในเกม
+  // CARD MASTER — ข้อมูลการ์ดทั้งหมดสำหรับเกม
   // ============================================================
-
   await prisma.cardMaster.deleteMany()
 
-  const cards = await prisma.cardMaster.createMany({
-    data: [
-      // Classic Version
-      {
-        card_code: 'EK',
-        name: 'Exploding Kitten',
-        type: 'bomb',
-        category: 'core',
-        description: 'ถ้าจั่วใบนี้และไม่มี Defuse คุณแพ้เกม',
-        effect_details: { action: 'eliminate_player' },
-        image_url: '/cards/exploding-kitten.png',
-        thumbnail_url: '/cards/thumb/exploding-kitten.png',
-        quantity_in_deck: 4,
-        is_playable: false,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 1,
-      },
-      {
-        card_code: 'DF',
-        name: 'Defuse',
-        type: 'defuse',
-        category: 'core',
-        description: 'ใช้เพื่อหยุดการระเบิด และใส่ Exploding Kitten กลับในสำรับ',
-        effect_details: { action: 'defuse_bomb', insert_back: true },
-        image_url: '/cards/defuse.png',
-        thumbnail_url: '/cards/thumb/defuse.png',
-        quantity_in_deck: 6,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 2,
-      },
-      {
-        card_code: 'AT',
-        name: 'Attack',
-        type: 'action',
-        category: 'core',
-        description: 'จบเทิร์นโดยไม่จั่วไพ่ ผู้เล่นถัดไปเล่น 2 เทิร์น',
-        effect_details: { action: 'attack', extra_turns: 2 },
-        image_url: '/cards/attack.png',
-        thumbnail_url: '/cards/thumb/attack.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: true,
-        expansion_pack: null,
-        display_order: 3,
-      },
-      {
-        card_code: 'SK',
-        name: 'Skip',
-        type: 'action',
-        category: 'core',
-        description: 'จบเทิร์นโดยไม่จั่วไพ่',
-        effect_details: { action: 'skip_turn' },
-        image_url: '/cards/skip.png',
-        thumbnail_url: '/cards/thumb/skip.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 4,
-      },
-      {
-        card_code: 'SF',
-        name: 'See The Future',
-        type: 'action',
-        category: 'core',
-        description: 'ดูไพ่ 3 ใบบนสุดของสำรับ',
-        effect_details: { action: 'see_future', cards_to_see: 3 },
-        image_url: '/cards/see-the-future.png',
-        thumbnail_url: '/cards/thumb/see-the-future.png',
-        quantity_in_deck: 5,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 5,
-      },
-      {
-        card_code: 'SH',
-        name: 'Shuffle',
-        type: 'action',
-        category: 'core',
-        description: 'สับสำรับใหม่แบบสุ่ม',
-        effect_details: { action: 'shuffle_deck' },
-        image_url: '/cards/shuffle.png',
-        thumbnail_url: '/cards/thumb/shuffle.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 6,
-      },
-      {
-        card_code: 'NP',
-        name: 'Nope',
-        type: 'reaction',
-        category: 'core',
-        description: 'หยุด action ของผู้เล่นคนอื่น สามารถเล่นได้ทุกเวลา',
-        effect_details: { action: 'nope', can_nope_nope: true },
-        image_url: '/cards/nope.png',
-        thumbnail_url: '/cards/thumb/nope.png',
-        quantity_in_deck: 5,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 7,
-      },
-      {
-        card_code: 'FV',
-        name: 'Favor',
-        type: 'action',
-        category: 'core',
-        description: 'บังคับผู้เล่นคนอื่นให้ส่งไพ่ 1 ใบให้คุณ',
-        effect_details: { action: 'steal_card', target: 'chosen_player' },
-        image_url: '/cards/favor.png',
-        thumbnail_url: '/cards/thumb/favor.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 8,
-      },
-      // Combo Cards (Classic)
-      {
-        card_code: 'CAT_TACO',
-        name: 'Taco Cat',
-        type: 'combo',
-        category: 'cat',
-        description: 'ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น',
-        effect_details: { action: 'combo_steal', combo_size: 2 },
-        image_url: '/cards/taco-cat.png',
-        thumbnail_url: '/cards/thumb/taco-cat.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 9,
-      },
-      {
-        card_code: 'CAT_MELON',
-        name: 'Melon Cat',
-        type: 'combo',
-        category: 'cat',
-        description: 'ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น',
-        effect_details: { action: 'combo_steal', combo_size: 2 },
-        image_url: '/cards/melon-cat.png',
-        thumbnail_url: '/cards/thumb/melon-cat.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 10,
-      },
-      {
-        card_code: 'CAT_BEARD',
-        name: 'Beard Cat',
-        type: 'combo',
-        category: 'cat',
-        description: 'ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น',
-        effect_details: { action: 'combo_steal', combo_size: 2 },
-        image_url: '/cards/beard-cat.png',
-        thumbnail_url: '/cards/thumb/beard-cat.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 11,
-      },
-      {
-        card_code: 'CAT_RAINBOW',
-        name: 'Rainbow-Ralphing Cat',
-        type: 'combo',
-        category: 'cat',
-        description: 'ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น',
-        effect_details: { action: 'combo_steal', combo_size: 2 },
-        image_url: '/cards/rainbow-cat.png',
-        thumbnail_url: '/cards/thumb/rainbow-cat.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 12,
-      },
-      {
-        card_code: 'CAT_POTATO',
-        name: 'Potato Cat',
-        type: 'combo',
-        category: 'cat',
-        description: 'ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น',
-        effect_details: { action: 'combo_steal', combo_size: 2 },
-        image_url: '/cards/potato-cat.png',
-        thumbnail_url: '/cards/thumb/potato-cat.png',
-        quantity_in_deck: 4,
-        is_playable: true,
-        is_stackable: false,
-        expansion_pack: null,
-        display_order: 13,
-      },
+  const allCards = [
+    ...classicCards(),        // 56 ใบ  (display_order 1–13)
+    ...implodingKittensCards(), // 20 ใบ  (display_order 14–19)
+    ...goodAndEvilCards(),    // 53 ใบ  (display_order 20–35)
+  ]
 
-      // Good and Evil Version
-      {
-        card_code: 'EKG',
-        name: 'Exploding Kitten (Good)',
-        type: 'bomb',
-        category: 'core',
-        description: 'เวอร์ชั่น Good — ระเบิดสีทอง ถ้าจั่วใบนี้โดยไม่มี Defuse คุณแพ้เกม',
-        effect_details: { action: 'eliminate_player', variant: 'good' },
-        image_url: '/cards/exploding-kitten-good.png',
-        thumbnail_url: '/cards/thumb/exploding-kitten-good.png',
-        quantity_in_deck: 2,
-        is_playable: false,
-        is_stackable: false,
-        expansion_pack: 'good_and_evil',
-        display_order: 14,
-      },
-      {
-        card_code: 'EKE',
-        name: 'Exploding Kitten (Evil)',
-        type: 'bomb',
-        category: 'core',
-        description: 'เวอร์ชั่น Evil — ระเบิดสีแดง มีผลพิเศษเพิ่มเติม',
-        effect_details: { action: 'eliminate_player', variant: 'evil', extra_effect: 'discard_hand' },
-        image_url: '/cards/exploding-kitten-evil.png',
-        thumbnail_url: '/cards/thumb/exploding-kitten-evil.png',
-        quantity_in_deck: 2,
-        is_playable: false,
-        is_stackable: false,
-        expansion_pack: 'good_and_evil',
-        display_order: 15,
-      },
-    ],
-  })
-
+  const cards = await prisma.cardMaster.createMany({ data: allCards })
   console.log(`✅ CardMaster: created ${cards.count} cards`)
+  // expected output: ✅ CardMaster: created 129 cards
 
   // ============================================================
   // PLAYER IDENTITIES — ผู้เล่นสมมติ 6 คน
