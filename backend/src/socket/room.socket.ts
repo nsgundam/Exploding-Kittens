@@ -1,7 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
 import { gameService } from "../services/game.service";
-import { prisma } from "../config/prisma";
 
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
@@ -13,11 +12,18 @@ export const registerRoomSocket = (io: Server) => {
     // Join Room
     socket.on("joinRoom", async ({ roomId, playerToken, displayName }) => {
       try {
-        await roomService.joinRoom(roomId, playerToken, displayName);
+        await roomService.joinRoom(
+          roomId,
+          playerToken,
+          displayName
+        );
+
         socket.data.playerToken = playerToken;
         socket.data.roomId = roomId;
+
         socket.join(roomId);
 
+        // Cancel pending disconnect removal if the user reconnected
         if (disconnectTimeouts.has(playerToken)) {
           clearTimeout(disconnectTimeouts.get(playerToken)!);
           disconnectTimeouts.delete(playerToken);
@@ -25,6 +31,7 @@ export const registerRoomSocket = (io: Server) => {
 
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
+
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Join failed");
       }
@@ -33,9 +40,15 @@ export const registerRoomSocket = (io: Server) => {
     // Select Seat
     socket.on("selectSeat", async ({ roomId, playerToken, seatNumber }) => {
       try {
-        await roomService.selectSeat(roomId, playerToken, seatNumber);
+        await roomService.selectSeat(
+          roomId,
+          playerToken,
+          seatNumber
+        );
+
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
+
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Seat selection failed");
       }
@@ -55,23 +68,16 @@ export const registerRoomSocket = (io: Server) => {
     // Start Game
     socket.on("startGame", async ({ roomId, playerToken }) => {
       try {
-        const { room, session, cardHands } = await roomService.startGame(roomId, playerToken);
+        const { room, session } = await roomService.startGame(roomId, playerToken);
 
-        // แนบ hand_count เข้าแต่ละ player ตั้งแต่เริ่มเกม
-        const roomWithHandCount = {
-          ...room,
-          players: room.players.map((p: any) => {
-            const hand = cardHands?.find((h: any) => h.player_id === p.player_id);
-            return { ...p, hand_count: hand?.card_count ?? 0 };
-          }),
-        };
+        // broadcast ห้องที่อัปเดตแล้วให้ทุกคนในห้อง
+        io.to(roomId).emit("roomUpdated", room);
 
-        io.to(roomId).emit("roomUpdated", roomWithHandCount);
+        // บอกทุกคนว่าเกมเริ่มแล้ว พร้อมส่ง session_id ไปด้วย
         io.to(roomId).emit("gameStarted", {
-          room: roomWithHandCount,
+          room,
           session_id: session.session_id,
           first_turn_player_id: session.current_turn_player_id,
-          cardHands,
         });
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to start game");
@@ -83,6 +89,8 @@ export const registerRoomSocket = (io: Server) => {
       try {
         const result = await gameService.playCard(roomId, playerToken, cardCode, targetPlayerToken);
         io.to(roomId).emit("cardPlayed", result);
+        // Note: Real implementation will likely broadcast full room state
+        // via roomUpdated depending on the card effect.
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to play card");
       }
@@ -93,41 +101,27 @@ export const registerRoomSocket = (io: Server) => {
       try {
         const result = await gameService.drawCard(roomId, playerToken);
         io.to(roomId).emit("cardDrawn", result);
-
-        // ดึง session + hands มาแนบ hand_count ให้ทุก player
-        const session = await prisma.gameSession.findFirst({
-          where: { room_id: roomId, status: "IN_PROGRESS" },
-          orderBy: { start_time: "desc" },
-          include: { hands: true },
-        });
-
-        const updatedRoom = await roomService.getRoomById(roomId);
-
-        const roomWithHandCount = {
-          ...updatedRoom,
-          players: updatedRoom.players.map((p: any) => {
-            const hand = session?.hands.find((h: any) => h.player_id === p.player_id);
-            return { ...p, hand_count: hand?.card_count ?? 0 };
-          }),
-        };
-
-        io.to(roomId).emit("roomUpdated", roomWithHandCount);
+        // Note: Real implementation will likely broadcast full room state
+        // via roomUpdated after turn changes.
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to draw card");
       }
     });
 
     // Leave Room / Disconnect Logic
+    // Allow a 30-second grace period for reconnections
     socket.on("disconnect", async () => {
       console.log("Disconnected:", socket.id);
       try {
         const { roomId, playerToken } = socket.data;
 
         if (roomId && playerToken) {
+          // Clear any existing timeout for this player to avoid race conditions
           if (disconnectTimeouts.has(playerToken)) {
             clearTimeout(disconnectTimeouts.get(playerToken)!);
           }
 
+          // Delay the leave mapping for 30 seconds
           const timeoutId = setTimeout(async () => {
             try {
               const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
@@ -145,6 +139,7 @@ export const registerRoomSocket = (io: Server) => {
 
           disconnectTimeouts.set(playerToken, timeoutId);
         }
+
       } catch (err) {
         console.error("Disconnect error:", err);
       }
