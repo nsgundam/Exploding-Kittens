@@ -34,3 +34,8 @@
 - When asked to create a new feature, ALWAYS start by updating the Prisma Schema (if needed), then write the Service function, then the Socket Handler, and finally the Frontend UI.
 - Keep UI components small and separated (e.g., `Card.tsx`, `PlayerAvatar.tsx`, `DiscardPile.tsx`).
 - If an instruction contradicts the `SRS.md` or `project-plan.md`, inform the user immediately and ask for clarification.
+
+## 6. Other Consideration
+- Next.js Standards: Adhere strictly to Next.js App Router standards. Use Server Components where appropriate to reduce bundle size and improve performance.
+- Code Quality: Ensure all code follows clean code principles and aligns with the SOLID design principles to readability, maintainability, and scalability.
+- Documentation: Include a comprehensive README.md file with clear instructions on how to install, configure, and run the project.

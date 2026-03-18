@@ -10,8 +10,14 @@ const bungee = Bungee({
 })
 
 export const metadata: Metadata = {
-  title: 'Exploding Kittens',
-  description: 'Exploding Kittens Game',
+  title: 'Exploding Kittens Online',
+  description: 'Play Exploding Kittens online with friends in real-time. A highly strategic, kitty-powered version of Russian roulette.',
+  keywords: ['exploding kittens', 'card game', 'online game', 'multiplayer', 'board game', 'web game'],
+  openGraph: {
+    title: 'Exploding Kittens Online',
+    description: 'A highly strategic, kitty-powered version of Russian roulette.',
+    type: 'website',
+  }
 }
 
 export default function RootLayout({

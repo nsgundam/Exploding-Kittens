@@ -1,51 +1,99 @@
-// backend/src/controllers/game.controllers.ts
-import { Request, Response } from 'express'
-import { gameService } from '../services/game.service'
+import { Request, Response } from "express";
+import { gameService } from "../services/game.service";
+import { getErrorMessage, getErrorStatusCode } from "../utils/errors";
 
-const getPlayerToken = (req: Request): string | null => {
-  return req.headers['x-player-token'] as string ?? null
-}
-// จะมี controller สำหรับ action ที่เกี่ยวกับเกม เช่น draw card, defuse card, eliminate player ซึ่งจะถูกเรียกจาก route และ socket timer
-export const drawCard = async (req: Request, res: Response) => {
+/**
+ * POST /api/rooms/:roomId/start
+ * Start a game — only host can trigger this.
+ * FR-03-10, S2-06
+ */
+export const startGame = async (req: Request, res: Response): Promise<void> => {
   try {
-    const roomId = req.params['roomId'] as string
-    const playerToken = getPlayerToken(req)
-    if (!playerToken) return res.status(401).json({ message: 'x-player-token required' })
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
 
-    const result = await gameService.drawCard(roomId, playerToken)
-    return res.status(200).json(result)
-  } catch (error: any) {
-    return res.status(500).json({ message: error.message })
+    const result = await gameService.startGame(roomId, playerToken);
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
   }
-}
-// POST /api/rooms/:roomId/defuse
-//defuseCard จะถูกเรียกเมื่อผู้เล่นพยายามใช้การ์ด Defuse เพื่อป้องกันการระเบิดของ Exploding Kitten หลังจากที่ผู้เล่นดึงการ์ด Exploding Kitten ออกมาแล้ว
-//ผู้เล่นจะต้องส่งคำขอ POST ไปยัง endpoint นี้พร้อมกับ x-player-token ใน header เพื่อยืนยันตัวตนของผู้เล่น และ roomId ใน URL เพื่อระบุห้องที่ผู้เล่นอยู่
-export const defuseCard = async (req: Request, res: Response) => {
+};
+
+/**
+ * POST /api/rooms/:roomId/draw
+ * Draw a card from the deck.
+ * FR-04-4, S2-19/20
+ */
+export const drawCard = async (req: Request, res: Response): Promise<void> => {
   try {
-    const roomId = req.params['roomId'] as string
-    const playerToken = getPlayerToken(req)
-    if (!playerToken) return res.status(401).json({ message: 'x-player-token required' })
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
 
-    const result = await gameService.defuseCard(roomId, playerToken)
-    return res.status(200).json(result)
-  } catch (error: any) {
-    return res.status(500).json({ message: error.message })
+    const result = await gameService.drawCard(roomId, playerToken);
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
   }
-}
-// POST /api/rooms/:roomId/eliminate
-// eliminatePlayer จะถูกเรียกเมื่อผู้เล่นถูกกำจัดออกจากเกม (เช่น เมื่อดึงการ์ด Exploding Kitten ออกมาแล้วไม่มีการ์ด Defuse 
-// หรือเมื่อถูกผู้เล่นคนอื่นใช้การ์ด Attack หรือ Skip กับเขา) 
-// หลังจากที่ผู้เล่นถูกกำจัดแล้ว เขาจะไม่สามารถเข้าร่วมในเกมต่อไปได้ และจะต้องรอจนกว่าเกมจะจบลง
-export const eliminatePlayer = async (req: Request, res: Response) => {
+};
+
+/**
+ * POST /api/rooms/:roomId/defuse
+ * Use Defuse card after drawing Exploding Kitten.
+ * FR-04-7/9, S2-23
+ */
+export const defuseCard = async (req: Request, res: Response): Promise<void> => {
   try {
-    const roomId = req.params['roomId'] as string
-    const playerToken = getPlayerToken(req)
-    if (!playerToken) return res.status(401).json({ message: 'x-player-token required' })
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
 
-    const result = await gameService.eliminatePlayer(roomId, playerToken)
-    return res.status(200).json(result)
-  } catch (error: any) {
-    return res.status(500).json({ message: error.message })
+    const result = await gameService.defuseCard(roomId, playerToken);
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
   }
-}
+};
+
+/**
+ * POST /api/rooms/:roomId/eliminate
+ * Eliminate a player (called by socket timer when EK timer expires).
+ * FR-04-7/8, S2-25
+ */
+export const eliminatePlayer = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
+
+    const result = await gameService.eliminatePlayer(roomId, playerToken);
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
+  }
+};
+
+/**
+ * POST /api/rooms/:roomId/play
+ * Play a card from hand.
+ * FR-05, S2-13/18
+ */
+export const playCard = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
+    const { cardCode, targetPlayerToken } = req.body;
+
+    if (!cardCode) {
+      res.status(400).json({ message: "cardCode is required" });
+      return;
+    }
+
+    const result = await gameService.playCard(
+      roomId,
+      playerToken,
+      cardCode,
+      targetPlayerToken
+    );
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
+  }
+};

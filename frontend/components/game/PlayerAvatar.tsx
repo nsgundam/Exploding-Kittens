@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import { Player } from "@/hooks/useRoomSocket";
+import { Player } from "@/types";
 
 const avatarColors: Record<number, string> = {
   1: "#e07b39",
@@ -16,7 +15,6 @@ export interface PlayerAvatarProps {
   player?: Player;
   onSelect: () => void;
   onLeaveSeat?: () => void;
-  isMe?: boolean;
   myPicture?: string | null;
   myDisplayName?: string | null;
   isHost?: boolean;
@@ -29,7 +27,6 @@ export function PlayerAvatar({
   player,
   onSelect,
   onLeaveSeat,
-  isMe,
   myPicture,
   myDisplayName,
   isHost: isHostSeat,
@@ -38,39 +35,51 @@ export function PlayerAvatar({
 }: PlayerAvatarProps) {
   const occupied = !!player;
   const color = avatarColors[seat];
+  const isMe = !!onLeaveSeat;
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1 z-10 w-24">
       {/* Avatar + timer ring */}
       <div className="relative">
         {/* Crown for host */}
         {isHostSeat && occupied && (
           <div
-            className="absolute -top-8 left-1/2 z-20 text-lg"
-            style={{ transform: "translateX(-50%)", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}
+            className="absolute -top-4 left-1/2 z-20 text-lg drop-shadow-md"
+            style={{ transform: "translateX(-50%)" }}
           >
             👑
           </div>
         )}
-        {/* Turn timer ring (SVG circle) */}
+
+        {/* Turn timer ring (SVG circle) — วงนอก avatar */}
         {isCurrentTurn && (
           <svg
-            className="absolute inset-0 w-full h-full"
-            viewBox="0 0 72 72"
-            style={{ transform: "rotate(-90deg)" }}
+            className="absolute"
+            viewBox="0 0 84 84"
+            style={{
+              width: "84px",
+              height: "84px",
+              top: "-10px",
+              left: "-10px",
+              transform: "rotate(-90deg)",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
           >
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(245,166,35,0.15)" strokeWidth="4" />
+            <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(245,166,35,0.2)" strokeWidth="3" />
             <circle
-              cx="36" cy="36" r="32" fill="none"
-              stroke="#f5a623" strokeWidth="4"
-              strokeDasharray={`${2 * Math.PI * 32}`}
-              strokeDashoffset={`${2 * Math.PI * 32 * (1 - (timeLeft ?? 30) / 30)}`}
+              cx="42" cy="42" r="38" fill="none"
+              stroke={timeLeft && timeLeft <= 10 ? "#ef4444" : "#3b82f6"}
+              strokeWidth="3"
+              strokeDasharray={`${2 * Math.PI * 38}`}
+              strokeDashoffset={`${2 * Math.PI * 38 * (1 - (timeLeft ?? 30) / 30)}`}
               strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 1s linear" }}
+              style={{ transition: "stroke-dashoffset 1s linear, stroke 0.3s" }}
             />
           </svg>
         )}
 
+        {/* Main Avatar Button */}
         <button
           onClick={onSelect}
           className="relative w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 group focus:outline-none hover:scale-110"
@@ -85,18 +94,16 @@ export function PlayerAvatar({
         >
           {/* Avatar image */}
           {occupied ? (
-            (player.avatar_url || player.profile_picture || (myPicture && (isMe || player.display_name === myDisplayName))) ? (
-              <Image
-                src={player.avatar_url || player.profile_picture || myPicture!}
-                alt={player.display_name || "Avatar"}
-                width={64}
-                height={64}
+            ((player as any).avatar_url || (player as any).profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName))) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={(player as any).avatar_url || (player as any).profile_picture || myPicture!}
+                alt={player!.display_name}
                 className="w-full h-full rounded-full object-cover"
-                unoptimized
               />
             ) : (
-              <span className="text-lg font-black select-none" style={{ color }}>
-                {player.display_name?.charAt(0)?.toUpperCase() ?? "?"}
+              <span className="text-lg font-black select-none font-bungee" style={{ color }}>
+                {player!.display_name?.charAt(0)?.toUpperCase() ?? "?"}
               </span>
             )
           ) : (
@@ -111,34 +118,15 @@ export function PlayerAvatar({
             />
           )}
         </button>
-
-        {/* Timer countdown badge */}
-        {isCurrentTurn && (
-          <div
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border-2"
-            style={{
-              background: "#f5a623",
-              borderColor: "#2a1a0a",
-              color: "#1a0a02",
-              fontFamily: "'Fredoka One',cursive",
-            }}
-          >
-            {timeLeft ?? 30}
-          </div>
-        )}
       </div>
 
       {/* Name */}
       <span
-        className="text-xs font-bold tracking-wider"
+        className="text-xs font-bold tracking-wider truncate w-[80px] text-center"
         style={{
           color: occupied ? color : "rgba(80,40,0,0.45)",
           fontFamily: "'Fredoka One', cursive",
           textShadow: occupied ? `0 0 8px ${color}99` : "none",
-          maxWidth: "80px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
         }}
       >
         {occupied ? player.display_name : `ที่นั่ง ${seat}`}
@@ -147,7 +135,7 @@ export function PlayerAvatar({
       {/* Card count badge */}
       {occupied && (
         <div
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
+          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold mt-0.5"
           style={{
             background: `${color}22`,
             border: `1px solid ${color}66`,
@@ -156,14 +144,14 @@ export function PlayerAvatar({
           }}
         >
           <span>🃏</span>
-          <span>{player.hand_count ?? 0} cards</span>
+          <span>{(player as any).hand_count ?? 0}</span>
         </div>
       )}
 
-      {/* Leave seat button — shown when onLeaveSeat is provided (= this is my seat) */}
+      {/* Leave seat button */}
       {onLeaveSeat && occupied && (
         <button
-          className="mt-0.5 px-2 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase"
+          className="mt-1 px-2 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase"
           style={{
             background: "rgba(180,30,10,0.18)",
             border: "2px solid rgba(180,30,10,0.55)",

@@ -1,43 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AnimatedBackground } from "../components/AnimatedBackground";
-import RoomCard from "../components/RoomCard";
-import JoinModal from "../components/JoinModal";
-import CreateRoomModal, {
-  RoomCreatePayload,
-} from "../components/CreateRoomModal";
+import { useRouter } from "next/navigation";
+import { AnimatedBackground } from "@/components/lobby/AnimatedBackground";
+import RoomCard from "@/components/lobby/RoomCard";
+import JoinModal from "@/components/lobby/JoinModal";
+import CreateRoomModal, { RoomCreatePayload } from "@/components/lobby/CreateRoomModal";
+import type { LobbyRoom, ApiRoom } from "@/types";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-interface Room {
-  id: string;
-  name: string;
-  deck: number;
-  addon: boolean;
-  players: number;
-  maxPlayers: number;
-  status: "waiting" | "playing";
-}
-
-type ApiRoom = {
-  room_id: string;
-  room_name: string;
-  status: "WAITING" | "PLAYING" | "FINISHED";
-  max_players: number;
-  players?: Array<{ role: "SPECTATOR" | "PLAYER" }>;
-  deck_config?: { expansions?: { imploding?: boolean } };
-};
-
-const mapApiRoomToUi = (r: ApiRoom): Room => {
-  const playerCount = (r.players ?? []).filter(
-    (p) => p.role === "PLAYER",
-  ).length;
+const mapApiRoomToUi = (r: ApiRoom): LobbyRoom => {
+  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
 
   return {
     id: r.room_id,
     name: r.room_name,
-    deck: 1, // backend ยังไม่มี field deck ชัด ๆ เอา default ก่อน
+    cardVersion: r.deck_config?.card_version === "good_and_evil" ? "Good vs. Evil" : "Original",
     addon: Boolean(r.deck_config?.expansions?.imploding),
     players: playerCount,
     maxPlayers: r.max_players,
@@ -46,17 +25,21 @@ const mapApiRoomToUi = (r: ApiRoom): Room => {
 };
 
 export default function LobbyPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+  const router = useRouter();
+  const [rooms, setRooms] = useState<LobbyRoom[]>([]);
+  const [filteredRooms, setFilteredRooms] = useState<LobbyRoom[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<LobbyRoom | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/rooms`);
+        const res = await fetch(`${BACKEND_URL}/api/rooms`, {
+          // ensure we don't cache this frequently changing data
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
 
         const data: ApiRoom[] = await res.json();
@@ -69,6 +52,9 @@ export default function LobbyPage() {
     };
 
     fetchRooms();
+    // In a real app, this would use a socket for live updates, but polling every few seconds works for now
+    const timer = setInterval(fetchRooms, 3000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -87,7 +73,7 @@ export default function LobbyPage() {
     }
   }, [searchQuery, rooms]);
 
-  const handleRoomClick = (room: Room) => {
+  const handleRoomClick = (room: LobbyRoom) => {
     setSelectedRoom(room);
     setIsJoinModalOpen(true);
   };
@@ -97,15 +83,9 @@ export default function LobbyPage() {
       const playerToken = localStorage.getItem("player_token");
       const displayName = localStorage.getItem("display_name");
 
-      if (!playerToken) {
-         alert("ไม่พบ Token ของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
-         window.location.href = "/";
-         return;
-      }
-
-      if (!displayName) {
-         alert("ไม่พบชื่อผู้เล่น กรุณาเข้าสู่ระบบใหม่");
-         window.location.href = "/";
+      if (!playerToken || !displayName) {
+         alert("ไม่พบ Token หรือชื่อของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+         router.push("/");
          return;
       }
 
@@ -124,9 +104,9 @@ export default function LobbyPage() {
            throw new Error(err?.message || "Join room failed");
         }
 
-        window.location.href = `/room/${selectedRoom.id}`;
+        router.push(`/room/${selectedRoom.id}`);
       } catch (err) {
-        alert(err || "Failed to join room");
+        alert(err instanceof Error ? err.message : "Failed to join room");
       }
     }
     setIsJoinModalOpen(false);
@@ -136,14 +116,13 @@ export default function LobbyPage() {
   const handleCreateRoom = async (payload: RoomCreatePayload) => {
     try {
       const { name, cardVersion, expansions } = payload;
-      const playerToken =
-        localStorage.getItem("player_token") ||
-        (() => {
-          const id = crypto.randomUUID();
-          localStorage.setItem("player_token", id);
-          return id;
-        })();
-      const maxPlayers = 5; // Hardcoded to 5 as requested
+      const playerToken = localStorage.getItem("player_token");
+      if (!playerToken) {
+        alert("ไม่พบ Token หรือชื่อของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
+        router.push("/");
+        return;
+      }
+      const maxPlayers = 5;
       const hostName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
 
       const res = await fetch("/api/rooms", {
@@ -157,7 +136,7 @@ export default function LobbyPage() {
           hostName,
           maxPlayers,
           cardVersion: cardVersion,
-          expansions: expansions,
+          expansions: { addons: expansions.includes("imploding") ? ["imploding_kittens"] : [] },
         }),
       });
 
@@ -167,11 +146,9 @@ export default function LobbyPage() {
       }
 
       const createdRoom = await res.json();
-      alert(`สร้างห้อง "${createdRoom.room_name}" สำเร็จ!`);
-
-      window.location.href = `/room/${createdRoom.room_id}`;
+      router.push(`/room/${createdRoom.room_id}`);
     } catch (e) {
-      alert(e || "สร้างห้องไม่สำเร็จ");
+      alert(e instanceof Error ? e.message : "สร้างห้องไม่สำเร็จ");
       console.error(e);
     } finally {
       setIsCreateModalOpen(false);
@@ -179,63 +156,19 @@ export default function LobbyPage() {
   };
 
   const handleBack = () => {
-    window.location.href = "/";
+    router.push("/");
   };
 
   return (
-    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-387.5 w-full mx-auto overflow-hidden text-white relative">
+    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-8xl w-full mx-auto overflow-hidden text-white relative">
       <AnimatedBackground />
-      {/* Background Decoration */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <span
-          className="absolute top-10 left-10 text-6xl opacity-10 animate-float"
-          style={{ animationDelay: "0s" }}
-        >
-          🐱
-        </span>
-        <span
-          className="absolute top-20 right-20 text-5xl opacity-10 animate-float"
-          style={{ animationDelay: "1s" }}
-        >
-          🐈
-        </span>
-        <span
-          className="absolute bottom-20 left-20 text-7xl opacity-10 animate-float"
-          style={{ animationDelay: "2s" }}
-        >
-          😸
-        </span>
-        <span
-          className="absolute bottom-10 right-10 text-6xl opacity-10 animate-float"
-          style={{ animationDelay: "1.5s" }}
-        >
-          😺
-        </span>
-        <span
-          className="absolute top-1/2 left-1/4 text-4xl opacity-10 animate-float"
-          style={{ animationDelay: "0.5s" }}
-        >
-          💣
-        </span>
-        <span
-          className="absolute top-1/3 right-1/3 text-4xl opacity-10 animate-float"
-          style={{ animationDelay: "2.5s" }}
-        >
-          💥
-        </span>
-      </div>
-
+      
       {/* ═══ HEADER ═══ */}
-      <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
-        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
+      <div className="relative flex items-center justify-center min-h-[110px] px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
         <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
-        <span
-          className="absolute top-3 right-5 text-4xl animate-float"
-          style={{ animationDelay: "1s" }}
-        >
-          🐱
-        </span>
-        <h1 className="relative z-10 text-5xl text-neon-yellow font-bungee animate-pulse-custom tracking-wider drop-shadow-[6px_6px_15px_rgba(255,102,0,0.8)]">
+        <span className="absolute top-3 right-5 text-4xl animate-float" style={{ animationDelay: "1s" }}>🐱</span>
+        <h1 className="relative z-10 text-4xl md:text-5xl text-yellow-400 font-bungee tracking-wider drop-shadow-md">
           <span className="inline-block animate-float mx-2">🎮</span>
           EXPLODING KITTENS LOBBY
           <span className="inline-block animate-float mx-2">🎮</span>
@@ -245,27 +178,15 @@ export default function LobbyPage() {
       {/* ═══ LOBBY FRAME ═══ */}
       <div className="relative bg-white/5 backdrop-blur-3xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_0_40px_rgba(255,215,0,0.1)] z-10 flex-1 min-h-0 overflow-hidden">
         <div className="absolute inset-0 border-2 border-white/20 rounded-3xl pointer-events-none z-10" />
-        <span className="absolute top-3 left-3 text-xl opacity-50 z-20">
-          😼
-        </span>
-        <span className="absolute top-3 right-3 text-xl opacity-50 z-20">
-          😼
-        </span>
-        <span className="absolute bottom-3 left-3 text-xl opacity-50 z-20">
-          😼
-        </span>
-        <span className="absolute bottom-3 right-3 text-xl opacity-50 z-20">
-          😼
-        </span>
-
-        {/* Scrollable room list — padded on all 4 sides */}
+        
+        {/* Scrollable room list */}
         <div className="absolute inset-0 overflow-y-auto overflow-x-hidden px-8 py-5 flex flex-col gap-3">
           {filteredRooms.map((room) => (
             <RoomCard
               key={room.id}
               id={room.id}
               name={room.name}
-              deck={room.deck}
+              deck={1} // The component currently expects a number, let's keep it as 1 for now or adapt RoomCard 
               addon={room.addon}
               players={room.players}
               maxPlayers={room.maxPlayers}
@@ -273,40 +194,31 @@ export default function LobbyPage() {
               onClick={() => handleRoomClick(room)}
             />
           ))}
-          {filteredRooms.length === 0 && searchQuery && (
-            <div className="text-center p-12 text-neon-yellow text-2xl font-bold">
-              😿 ไม่พบห้องที่ค้นหา &quot;{searchQuery}&quot;
+          {filteredRooms.length === 0 && (
+            <div className="text-center p-12 text-yellow-400 text-2xl font-bold font-bungee">
+              {searchQuery ? `😿 ไม่พบห้องที่ค้นหา "${searchQuery}"` : "😿 ยังไม่มีห้องถูกสร้าง ลองสร้างเลย!"}
             </div>
           )}
         </div>
       </div>
 
       {/* ═══ CONTROLS ═══ */}
-      <div className="relative flex gap-4 items-center px-8 py-8 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0">
-        <span className="absolute -top-3 left-1/4 text-2xl animate-float">
-          💣
-        </span>
-        <span
-          className="absolute -top-3 right-1/4 text-2xl animate-float"
-          style={{ animationDelay: "1s" }}
-        >
-          💣
-        </span>
-
+      <div className="relative flex gap-4 items-center px-8 py-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0 flex-wrap md:flex-nowrap">
+        
         <button
           onClick={handleBack}
-          className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(255,170,0,0.6)] hover:border-neon-orange relative overflow-hidden group cursor-pointer"
+          className="bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-8 min-h-[55px] text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
-          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           <span className="relative z-10">◄ BACK</span>
         </button>
 
-        <div className="flex-1 flex items-center bg-white border-4 border-black rounded-[30px] px-5 min-h-13.75 shadow-[0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_8px_rgba(0,0,0,0.1)]">
+        <div className="flex-1 flex items-center bg-white border-4 border-black rounded-full px-5 min-h-[55px] shadow-inner">
           <span className="text-2xl mr-3">🔍</span>
           <input
             type="text"
-            className="flex-1 border-none text-xl outline-none italic font-bungee bg-transparent placeholder:text-gray-400 text-black"
-            placeholder="SEARCH"
+            className="flex-1 border-none text-xl outline-none italic font-bungee bg-transparent placeholder:text-gray-400 text-black w-full"
+            placeholder="SEARCH ROOMS..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -322,14 +234,10 @@ export default function LobbyPage() {
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(255,170,0,0.6)] hover:border-neon-orange relative overflow-hidden group cursor-pointer"
+          className="bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-12 min-h-[55px] text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
-          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-          <span className="relative z-10">CREATE</span>
-        </button>
-
-        <button className="bg-linear-to-br from-neon-yellow via-[#FFB700] to-[#FF9900] border-4 border-black rounded-full w-17 h-17 flex items-center justify-center text-2xl font-bold text-black font-bungee shrink-0 shadow-[0_6px_12px_rgba(0,0,0,0.4)] transition-all hover:rotate-360 hover:scale-110 duration-500 cursor-pointer">
-          ?
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <span className="relative z-10">CREATE ROOM</span>
         </button>
       </div>
 
@@ -340,6 +248,7 @@ export default function LobbyPage() {
         onConfirm={handleJoinConfirm}
         onClose={() => setIsJoinModalOpen(false)}
       />
+      
       <CreateRoomModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
