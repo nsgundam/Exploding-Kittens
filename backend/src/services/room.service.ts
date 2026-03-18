@@ -11,13 +11,12 @@ function generateRoomCode(length = 6): string {
   }
   return result;
 }
-//// for starting game, we want to shuffle the player order, so we can use this helper function
+
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j]!, a[i]!];
-
   }
   return a;
 }
@@ -27,7 +26,6 @@ export const roomService = {
   async createRoom(payload: CreateRoomInput) {
     const { playerToken, roomName, hostName, maxPlayers, cardVersion, expansions } = payload;
 
-    // Generate room code with DB loop check to avoid collision
     let newRoomCode = '';
     let isUnique = false;
 
@@ -172,12 +170,11 @@ export const roomService = {
 
       if (existingSeat) {
         if (existingSeat.player_token === playerToken) {
-          return existingSeat; // Already sitting here
+          return existingSeat;
         }
         throw new Error("Seat already taken");
       }
 
-      // If the player is changing seats, we don't count them as a new player
       const currentPlayerCount = await tx.player.count({
         where: { room_id: roomId, role: PlayerRole.PLAYER, player_token: { not: playerToken } }
       });
@@ -262,7 +259,6 @@ export const roomService = {
       });
 
       if (room && room.host_token === playerToken) {
-        // Prefer promoting a seated player to host
         const candidateHost = remainingPlayers.find(p => p.role === PlayerRole.PLAYER) || remainingPlayers[0];
         if (candidateHost) {
           await tx.room.update({
@@ -279,34 +275,9 @@ export const roomService = {
     });
   },
 
-  //   async startGame(roomId: string, playerToken: string) {
-  //     return await prisma.$transaction(async (tx) => {
-  //       const room = await tx.room.findUnique({
-  //         where: { room_id: roomId }
-  //       });
-
-  //       if (!room) throw new Error("Room not found");
-  //       if (room.host_token !== playerToken) throw new Error("Only the host can start the game");
-  //       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
-
-  //       const playerCount = await tx.player.count({
-  //         where: { room_id: roomId, role: PlayerRole.PLAYER }
-  //       });
-
-  //       if (playerCount < 2) throw new Error("Not enough players");
-
-  //       return await tx.room.update({
-  //         where: { room_id: roomId },
-  //         data: { status: RoomStatus.PLAYING }
-  //       });
-  //     });
-  //   }
-  // };
-  //  Start Game
   async startGame(roomId: string, playerToken: string) {
     return await prisma.$transaction(async (tx) => {
 
-      // ── 1. ตรวจสอบห้องและสิทธิ์ host
       const room = await tx.room.findUnique({
         where: { room_id: roomId },
         include: { deck_config: true },
@@ -316,68 +287,89 @@ export const roomService = {
       if (room.host_token !== playerToken) throw new Error("Only the host can start the game");
       if (room.status !== RoomStatus.WAITING) throw new Error("Game already started");
 
-      // ── 2. ดึง players ที่นั่ง เรียงตาม seat_number (เพื่อกำหนด turn order) 
       const players = await tx.player.findMany({
         where: { room_id: roomId, role: PlayerRole.PLAYER },
         orderBy: { seat_number: "asc" },
       });
 
-      if (players.length < 2) throw new Error("Need at least 2 players to start");
+      if (players.length < 1) throw new Error("Need at least 1 player to start");
 
-      // ── 3. ดึงไพ่ทั้งหมดจาก CardMaster ตาม DeckConfig expansion ───
+      const cardVersion: string = room.deck_config?.card_version ?? 'classic'
       const expansions: string[] = Array.isArray(room.deck_config?.expansions)
         ? (room.deck_config!.expansions as string[])
-        : [];
+        : []
+
+      const basePackFilter = cardVersion === 'good_and_evil'
+        ? { expansion_pack: 'good_and_evil' }
+        : { expansion_pack: null }
 
       const cardMasters = await tx.cardMaster.findMany({
         where: {
           OR: [
-            { expansion_pack: null },
+            basePackFilter,
             ...(expansions.length > 0 ? [{ expansion_pack: { in: expansions } }] : []),
           ],
         },
-      });
+      })
+      console.log('cardVersion:', cardVersion)
+      console.log('expansions:', expansions)
+      console.log('cardMasters count:', cardMasters.length)
+      console.log('cardMasters codes:', cardMasters.map(c => c.card_code))
 
-      // ── 4. แยก EK และ DF ออกจาก deck หลัก 
-      //    กฎการแจกไพ่ Exploding Kittens:
-      //    - DF: แจกให้ทุกคนคนละ 1 ใบก่อน
-      //    - ไพ่ทั่วไป: แจกคนละ 4 ใบ
-      //    - EK: ใส่กลับ deck = จำนวนผู้เล่น - 1 หลังแจกเสร็จ
-      const CARDS_PER_HAND = 4;
+      const CARDS_PER_HAND = 4
+      const totalDF = cardMasters.find(c =>
+        c.card_code === 'DF' || c.card_code === 'GVE_DF'
+      )?.quantity_in_deck ?? 6
 
-      let baseDeck: string[] = [];
+      let baseDeck: string[] = []
 
       for (const card of cardMasters) {
-        if (card.card_code === "EK") continue; // จัดการ EK ทีหลัง
-        if (card.card_code === "DF") continue; // DF แจกตรงๆ ไม่ใส่ใน deck
+        const isEK = card.card_code === 'EK' || card.card_code === 'GVE_EK'
+        const isDF = card.card_code === 'DF' || card.card_code === 'GVE_DF'
+        const isIK = card.card_code === 'IK'
+
+        if (isEK) continue
+        if (isDF) continue
+        if (isIK) continue
+
         for (let i = 0; i < card.quantity_in_deck; i++) {
-          baseDeck.push(card.card_code);
+          baseDeck.push(card.card_code)
         }
       }
 
-      baseDeck = shuffleArray(baseDeck);
+      baseDeck = shuffleArray(baseDeck)
 
-      // ── 5. แจกไพ่ให้แต่ละผู้เล่น: DF 1 ใบ + ไพ่ทั่วไป 4 ใบ
-      const hands: Record<string, string[]> = {};
+      const dfCode = cardVersion === 'good_and_evil' ? 'GVE_DF' : 'DF'
+      const ekCode = cardVersion === 'good_and_evil' ? 'GVE_EK' : 'EK'
+
+      const hands: Record<string, string[]> = {}
       for (const p of players) {
-        hands[p.player_id] = ["DF"]; // แจก Defuse ก่อนเลย
+        hands[p.player_id] = [dfCode]
         for (let i = 0; i < CARDS_PER_HAND; i++) {
-          const card = baseDeck.pop();
-          if (!card) throw new Error("Not enough cards in deck to deal");
-          hands[p.player_id]!.push(card);
+          const card = baseDeck.pop()
+          if (!card) throw new Error("Not enough cards in deck to deal")
+          hands[p.player_id]!.push(card)
         }
       }
 
-      // ── 6. ใส่ EK กลับ deck (จำนวน = players - 1) แล้วสับใหม่ 
-      const ekCount = players.length - 1;
-      for (let i = 0; i < ekCount; i++) {
-        baseDeck.push("EK");
+      const dfDealt = players.length
+      const dfRemaining = totalDF - dfDealt
+      for (let i = 0; i < dfRemaining; i++) {
+        baseDeck.push(dfCode)
       }
-      baseDeck = shuffleArray(baseDeck);
 
-      // ── 7. สร้าง GameSession กำหนดผู้เล่นคนแรกที่ได้ตาแรก (ตามลำดับที่นั่ง)
+      const ekCount = players.length - 1
+      for (let i = 0; i < ekCount; i++) {
+        baseDeck.push(ekCode)
+      }
+
+      if (expansions.includes('imploding_kittens')) {
+        baseDeck.push('IK')
+      }
+
+      baseDeck = shuffleArray(baseDeck)
+
       const firstPlayer = players[0];
-
       if (!firstPlayer) throw new Error("No players available to start game");
 
       const gameSession = await tx.gameSession.create({
@@ -387,36 +379,31 @@ export const roomService = {
           current_turn_player_id: firstPlayer.player_id,
           turn_number: 1,
           start_time: new Date(),
-
         },
       });
       console.log("✅ GameSession created:", gameSession.session_id);
 
-      // ── 8. สร้าง DeckState เริ่มต้นสำหรับ Session นี้
       await tx.deckState.create({
         data: {
           session_id: gameSession.session_id,
-          deck_order: baseDeck,         // array ของ card_code เรียงจากล่าง→บน
+          deck_order: baseDeck,
           discard_pile: [],
           cards_remaining: baseDeck.length,
         },
       });
       console.log("✅ DeckState created");
 
-      // ── 9. สร้าง CardHand ให้ทุกผู้เล่น   
       await tx.cardHand.createMany({
         data: players.map((p) => ({
           player_id: p.player_id,
           session_id: gameSession.session_id,
-          cards: hands[p.player_id] ?? [],   // ✅ แก้ตรงนี้
+          cards: hands[p.player_id] ?? [],
           card_count: (hands[p.player_id] ?? []).length,
         })),
       });
       console.log("✅ CardHand created");
 
-      // ── 10. สร้าง GameLog: GAME_STARTED 
       const hostPlayer = players.find((p) => p.player_token === playerToken) ?? players[0];
-
       if (!hostPlayer) throw new Error("Host player not found");
 
       await tx.gameLog.create({
@@ -442,15 +429,13 @@ export const roomService = {
       });
       console.log("✅ GameLog created");
 
-      // ── 11. อัปเดต Room status → PLAYING 
       const updatedRoom = await tx.room.update({
         where: { room_id: roomId },
         data: { status: RoomStatus.PLAYING },
         include: { players: true, deck_config: true },
       });
       console.log("✅ Room updated to PLAYING");
-      
-      // ── 12. ดึง DeckState และ CardHand มาแนบ response
+
       const deckState = await tx.deckState.findUnique({
         where: { session_id: gameSession.session_id },
       });
@@ -461,5 +446,33 @@ export const roomService = {
 
       return { room: updatedRoom, session: gameSession, deckState, cardHands };
     });
+  },
+
+  // ── Update Deck Config (host only, before game starts) ───────────────────
+  async updateDeckConfig(
+    roomId: string,
+    playerToken: string,
+    cardVersion: string,
+    expansions: string[]
+  ) {
+    const room = await prisma.room.findUnique({
+      where: { room_id: roomId },
+      include: { deck_config: true },
+    });
+
+    if (!room) throw new Error("Room not found");
+    if (room.host_token !== playerToken) throw new Error("Only the host can change deck config");
+    if (room.status !== RoomStatus.WAITING) throw new Error("Cannot change deck config after game has started");
+
+    const updated = await prisma.deckConfig.update({
+      where: { room_id: roomId },
+      data: {
+        card_version: cardVersion,
+        expansions: expansions,
+        last_modified: new Date(),
+      },
+    });
+
+    return updated;
   },
 };

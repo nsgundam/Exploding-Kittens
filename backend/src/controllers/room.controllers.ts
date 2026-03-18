@@ -52,8 +52,6 @@ export const getCurrentRoom = async (req: Request, res: Response) => {
     }
 
     const currentRoom = await roomService.getCurrentRoom(playerToken);
-
-    // Return empty object if no room, or the room id if there is one
     res.status(200).json(currentRoom || {});
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -74,12 +72,7 @@ export const joinRoom = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "displayName is required" });
     }
 
-    const player = await roomService.joinRoom(
-      roomId,
-      playerToken,
-      displayName
-    );
-
+    const player = await roomService.joinRoom(roomId, playerToken, displayName);
     return res.status(201).json(player);
 
   } catch (error: any) {
@@ -101,12 +94,7 @@ export const selectSeat = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "seatNumber is required" });
     }
 
-    const player = await roomService.selectSeat(
-      roomId,
-      playerToken,
-      Number(seatNumber)
-    );
-
+    const player = await roomService.selectSeat(roomId, playerToken, Number(seatNumber));
     return res.status(200).json(player);
 
   } catch (error: any) {
@@ -151,6 +139,49 @@ export const startGame = async (req: Request, res: Response) => {
 
     const room = await roomService.startGame(roomId, playerToken);
     return res.status(200).json(room);
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export const unseatPlayer = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req);
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    const player = await roomService.unseatPlayer(roomId, playerToken);
+    return res.status(200).json(player);
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export const updateDeckConfig = async (req: Request, res: Response) => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = getPlayerToken(req);
+    const { cardVersion, expansions } = req.body;
+
+    if (!playerToken) {
+      return res.status(401).json({ message: "playerToken is required" });
+    }
+
+    if (!cardVersion) {
+      return res.status(400).json({ message: "cardVersion is required" });
+    }
+
+    const updated = await roomService.updateDeckConfig(
+      roomId,
+      playerToken,
+      cardVersion,
+      expansions ?? []
+    );
+
+    return res.status(200).json(updated);
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

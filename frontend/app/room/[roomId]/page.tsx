@@ -2,6 +2,8 @@
 
 import { useRoomSocket, Player } from "@/hooks/useRoomSocket";
 import { useParams } from "next/navigation";
+import { useState } from "react";
+import DeckConfigModal from "@/app/components/DeckConfigModal";
 
 const avatarColors: Record<number, string> = {
   1: "#e07b39",
@@ -45,27 +47,36 @@ function PlayerSlot({
         {/* Crown for host */}
         {isHostSeat && occupied && (
           <div
-            className="absolute -top-8 left-1/2 z-20 text-lg"
+            className="absolute -top-4 left-1/2 z-20 text-lg"
             style={{ transform: "translateX(-50%)", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}
           >
             👑
           </div>
         )}
-        {/* Turn timer ring (SVG circle) */}
+        {/* Turn timer ring (SVG circle) — วงนอก avatar */}
         {isCurrentTurn && (
           <svg
-            className="absolute inset-0 w-full h-full"
-            viewBox="0 0 72 72"
-            style={{ transform: "rotate(-90deg)" }}
+            className="absolute"
+            viewBox="0 0 84 84"
+            style={{
+              width: "84px",
+              height: "84px",
+              top: "-10px",
+              left: "-10px",
+              transform: "rotate(-90deg)",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
           >
-            <circle cx="36" cy="36" r="32" fill="none" stroke="rgba(245,166,35,0.15)" strokeWidth="4" />
+            <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(245,166,35,0.2)" strokeWidth="3" />
             <circle
-              cx="36" cy="36" r="32" fill="none"
-              stroke="#f5a623" strokeWidth="4"
-              strokeDasharray={`${2 * Math.PI * 32}`}
-              strokeDashoffset={`${2 * Math.PI * 32 * (1 - (timeLeft ?? 30) / 30)}`}
+              cx="42" cy="42" r="38" fill="none"
+              stroke={timeLeft && timeLeft <= 10 ? "#ef4444" : "#3b82f6"}
+              strokeWidth="3"
+              strokeDasharray={`${2 * Math.PI * 38}`}
+              strokeDashoffset={`${2 * Math.PI * 38 * (1 - (timeLeft ?? 30) / 30)}`}
               strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 1s linear" }}
+              style={{ transition: "stroke-dashoffset 1s linear, stroke 0.3s" }}
             />
           </svg>
         )}
@@ -108,20 +119,6 @@ function PlayerSlot({
           )}
         </button>
 
-        {/* Timer countdown badge */}
-        {isCurrentTurn && (
-          <div
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border-2"
-            style={{
-              background: "#f5a623",
-              borderColor: "#2a1a0a",
-              color: "#1a0a02",
-              fontFamily: "'Fredoka One',cursive",
-            }}
-          >
-            {timeLeft ?? 30}
-          </div>
-        )}
       </div>
 
       {/* Name */}
@@ -186,7 +183,8 @@ function PlayerSlot({
 export default function RoomPage() {
   const params = useParams();
   const roomId = params.roomId as string;
-  const { roomData, isConnected, selectSeat, startGame, drawCard, myCards, gameLogs } = useRoomSocket(roomId);
+  const { roomData, isConnected, selectSeat, startGame, drawCard, playCard, myCards, gameLogs, currentTurnPlayerId, timeLeft, lastPlayedCard } = useRoomSocket(roomId);
+  const [showDeckConfig, setShowDeckConfig] = useState(false);
 
   if (!roomData) {
     return (
@@ -253,7 +251,19 @@ export default function RoomPage() {
 
   // เช็ค host จาก host_token ใน roomData เทียบกับ player_token ใน localStorage
   const isHost = !!myPlayerToken && myPlayerToken === (roomData as any).host_token;
-  const currentTurnSeat: number | null = (roomData as any).current_turn_seat ?? null;
+  // ใช้ currentTurnPlayerId จาก hook แทน current_turn_seat
+  const getIsCurrentTurn = (seat: number): boolean => {
+    if (!currentTurnPlayerId) return false;
+    const player = getPlayerAtSeat(seat);
+    return !!(player && (player as any).player_id === currentTurnPlayerId);
+  };
+
+  // เช็คว่าเป็นเทิร์นของเราหรือเปล่า
+  const myPlayerInRoom = roomData.players.find(
+    (p: Player) => p.player_token === myPlayerToken
+  );
+  const isMyTurn = !!currentTurnPlayerId && !!myPlayerInRoom && 
+    (myPlayerInRoom as any).player_id === currentTurnPlayerId;
 
   return (
     <>
@@ -304,7 +314,7 @@ export default function RoomPage() {
           {/* Left: Leave button */}
           <div className="flex-1 flex items-center">
             <a
-              href="/Lobby"
+              href="/lobby"
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black tracking-wider uppercase transition-all duration-150"
               style={{
                 fontFamily: "'Fredoka One', cursive",
@@ -335,7 +345,7 @@ export default function RoomPage() {
           </div>
 
           {/* Center: Room info — absolute center */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5" style={{ top: "8%" }}>
+          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5" style={{ top: "60%" }}>
             <div
               className="text-xs tracking-[0.25em] uppercase"
               style={{ color: "rgba(100,50,0,0.7)" }}
@@ -398,19 +408,25 @@ export default function RoomPage() {
               </span>
             </div>
 
-            {/* Settings — host only */}
-            {isHost && (
-              <button
-                className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
-                style={{
-                  background: "rgba(120,70,10,0.18)",
-                  border: "2px solid rgba(120,70,10,0.45)",
-                  color: "#5c2d00",
-                }}
-              >
-                ⚙️
-              </button>
-            )}
+            {/* Settings — visible to all but clickable only by host */}
+            <button
+              className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
+              style={{
+                background: "rgba(120,70,10,0.18)",
+                border: "2px solid rgba(120,70,10,0.45)",
+                color: isHost ? "#5c2d00" : "rgba(120,70,10,0.3)",
+                cursor: isHost && !["playing","PLAYING"].includes((roomData as any).status) ? "pointer" : "not-allowed",
+                opacity: isHost ? 1 : 0.5,
+              }}
+              onClick={() => {
+                if (isHost && !["playing","PLAYING"].includes((roomData as any).status)) {
+                  setShowDeckConfig(true);
+                }
+              }}
+              title={!isHost ? "เฉพาะหัวหน้าห้องเท่านั้น" : ["playing","PLAYING"].includes((roomData as any).status) ? "ไม่สามารถเปลี่ยนได้หลังเริ่มเกม" : "ตั้งค่าสำรับไพ่"}
+            >
+              ⚙️
+            </button>
           </div>
         </header>
 
@@ -477,8 +493,8 @@ export default function RoomPage() {
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={!!(roomData as any).host_token && (getPlayerAtSeat(5) as any)?.player_token === (roomData as any).host_token}
-                isCurrentTurn={currentTurnSeat === 5}
-                timeLeft={(roomData as any).time_left}
+                isCurrentTurn={getIsCurrentTurn(5)}
+                timeLeft={timeLeft}
               />
             </div>
 
@@ -492,8 +508,8 @@ export default function RoomPage() {
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={!!(roomData as any).host_token && (getPlayerAtSeat(1) as any)?.player_token === (roomData as any).host_token}
-                isCurrentTurn={currentTurnSeat === 1}
-                timeLeft={(roomData as any).time_left}
+                isCurrentTurn={getIsCurrentTurn(1)}
+                timeLeft={timeLeft}
               />
             </div>
 
@@ -507,14 +523,14 @@ export default function RoomPage() {
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={!!(roomData as any).host_token && (getPlayerAtSeat(2) as any)?.player_token === (roomData as any).host_token}
-                isCurrentTurn={currentTurnSeat === 2}
-                timeLeft={(roomData as any).time_left}
+                isCurrentTurn={getIsCurrentTurn(2)}
+                timeLeft={timeLeft}
               />
             </div>
 
             {/* DECK + PLAY CARD — center of oval — แสดงเฉพาะตอน playing */}
             {["playing","PLAYING"].includes((roomData as any).status) && (
-            <div className="absolute flex items-center justify-center gap-10" style={{ left: "50%", top: "54.5%", transform: "translate(-50%,-50%)" }}>
+            <div className="absolute flex items-center justify-center gap-10" style={{ left: "50%", top: "53.5%", transform: "translate(-50%,-50%)" }}>
               {/* DECK */}
               <div className="flex flex-col items-center gap-2">
                 <div
@@ -526,15 +542,16 @@ export default function RoomPage() {
                     fontFamily: "'Fredoka One',cursive",
                   }}
                 >
-                  💣 <span>{(roomData as any).deck_count ?? 56} ใบ</span>
+                  💣 <span>{(roomData as any).deck_count ?? "?"} ใบ</span>
                 </div>
                 <div
-                  className="relative w-28 h-40 rounded-xl card-shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform"
-                  title="จั่วไพ่"
-                  onClick={() => drawCard()}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${isMyTurn ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  title={isMyTurn ? "จั่วไพ่" : "ยังไม่ถึงเทิร์นของคุณ"}
+                  onClick={() => { if (isMyTurn) drawCard(); }}
                   style={{
                     background: "linear-gradient(135deg, #8b4a1a, #5c2d0a)",
-                    border: "3px solid #c47a3a",
+                    border: isMyTurn ? "3px solid #f5a623" : "3px solid #c47a3a",
+                    boxShadow: isMyTurn ? "0 0 20px rgba(245,166,35,0.6)" : undefined,
                   }}
                 >
                   <div
@@ -561,15 +578,29 @@ export default function RoomPage() {
               <div className="flex flex-col items-center gap-2">
                 <div className="h-7" />
                 <div
-                  className="w-28 h-40 rounded-xl flex items-center justify-center"
+                  className="w-28 h-40 rounded-xl flex items-center justify-center relative overflow-hidden"
                   style={{
-                    border: "2px dashed rgba(255,220,150,0.5)",
-                    background: "rgba(0,0,0,0.15)",
+                    border: lastPlayedCard ? `2px solid ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}88` : "2px dashed rgba(255,220,150,0.5)",
+                    background: lastPlayedCard ? `linear-gradient(160deg, ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}22, rgba(0,0,0,0.4))` : "rgba(0,0,0,0.15)",
+                    boxShadow: lastPlayedCard ? `0 0 16px ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}44` : undefined,
                   }}
                 >
-                  <span className="text-sm text-center leading-tight px-2" style={{ color: "rgba(255,240,200,0.4)" }}>
-                    PLAY<br />CARD
-                  </span>
+                  {lastPlayedCard ? (
+                    <div className="flex flex-col items-center justify-center gap-1.5 p-2">
+                      <span className="text-5xl">{CARD_CONFIG[lastPlayedCard.cardCode]?.emoji ?? "🃏"}</span>
+                      <span className="text-xs font-black tracking-wider text-center leading-none"
+                        style={{ color: CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623" }}>
+                        {CARD_CONFIG[lastPlayedCard.cardCode]?.label ?? lastPlayedCard.cardCode}
+                      </span>
+                      <span className="text-[9px] text-center" style={{ color: "rgba(255,240,200,0.5)" }}>
+                        {lastPlayedCard.playedByDisplayName}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-center leading-tight px-2" style={{ color: "rgba(255,240,200,0.4)" }}>
+                      PLAY<br />CARD
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs tracking-widest uppercase font-bold" style={{ color: "rgba(255,240,200,0.6)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
                   PLAY CARD
@@ -588,8 +619,8 @@ export default function RoomPage() {
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={!!(roomData as any).host_token && (getPlayerAtSeat(4) as any)?.player_token === (roomData as any).host_token}
-                isCurrentTurn={currentTurnSeat === 4}
-                timeLeft={(roomData as any).time_left}
+                isCurrentTurn={getIsCurrentTurn(4)}
+                timeLeft={timeLeft}
               />
             </div>
 
@@ -603,8 +634,8 @@ export default function RoomPage() {
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={!!(roomData as any).host_token && (getPlayerAtSeat(3) as any)?.player_token === (roomData as any).host_token}
-                isCurrentTurn={currentTurnSeat === 3}
-                timeLeft={(roomData as any).time_left}
+                isCurrentTurn={getIsCurrentTurn(3)}
+                timeLeft={timeLeft}
               />
             </div>
           </div>
@@ -655,17 +686,26 @@ export default function RoomPage() {
               return (
               <div
                 key={i}
-                className="relative w-24 h-36 rounded-xl cursor-pointer transition-all duration-200 card-shadow"
+                className="relative w-24 h-36 rounded-xl transition-all duration-200 card-shadow"
                 style={{
                   background: `linear-gradient(160deg, ${cfg.color}33, #1a0a02)`,
                   border: `2px solid ${cfg.color}88`,
                   transform: `rotate(${(i - 2) * 5}deg) translateY(${Math.abs(i - 2) * 4}px)`,
                   marginLeft: i === 0 ? 0 : "-16px",
                   zIndex: i === Math.floor(myCards.length/2) ? 5 : i,
+                  cursor: isMyTurn && cardCode !== "DF" && cardCode !== "EK" && cardCode !== "GVE_EK" ? "pointer" : "default",
+                  opacity: isMyTurn && cardCode !== "DF" && cardCode !== "EK" && cardCode !== "GVE_EK" ? 1 : 0.75,
+                }}
+                onClick={() => {
+                  if (isMyTurn && cardCode !== "DF" && cardCode !== "EK" && cardCode !== "GVE_EK") {
+                    playCard(cardCode);
+                  }
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = `rotate(0deg) translateY(-24px) scale(1.12)`;
-                  (e.currentTarget as HTMLElement).style.zIndex = "10";
+                  if (isMyTurn && cardCode !== "DF" && cardCode !== "EK" && cardCode !== "GVE_EK") {
+                    (e.currentTarget as HTMLElement).style.transform = `rotate(0deg) translateY(-24px) scale(1.12)`;
+                    (e.currentTarget as HTMLElement).style.zIndex = "10";
+                  }
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.transform = `rotate(${(i - 2) * 5}deg) translateY(${Math.abs(i - 2) * 4}px)`;
@@ -722,6 +762,19 @@ export default function RoomPage() {
           </div>
         </footer>
       </div>
+      {/* Deck Config Modal */}
+      {showDeckConfig && (
+        <DeckConfigModal
+          isOpen={showDeckConfig}
+          roomId={roomId}
+          currentCardVersion={(roomData as any).deck_config?.card_version ?? "classic"}
+          currentExpansions={(roomData as any).deck_config?.expansions ?? []}
+          onClose={() => setShowDeckConfig(false)}
+          onSaved={(cardVersion: string, expansions: string[]) => {
+            console.log("✅ Deck config updated:", cardVersion, expansions);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -5,6 +5,29 @@ import { prisma } from "../config/prisma";
 
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
+// ── Helper: สร้าง roomWithMeta พร้อม deck_count, hand_count, current_turn ──
+async function buildRoomWithMeta(roomId: string) {
+  const updatedRoom = await roomService.getRoomById(roomId);
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: "IN_PROGRESS" },
+    orderBy: { start_time: "desc" },
+    include: { hands: true },
+  });
+  const deckState = session
+    ? await prisma.deckState.findUnique({ where: { session_id: session.session_id } })
+    : null;
+
+  return {
+    ...updatedRoom,
+    current_turn_player_id: session?.current_turn_player_id ?? null,
+    deck_count: deckState?.cards_remaining ?? null,
+    players: updatedRoom.players.map((p: any) => {
+      const hand = session?.hands.find((h: any) => h.player_id === p.player_id);
+      return { ...p, hand_count: hand?.card_count ?? 0 };
+    }),
+  };
+}
+
 export const registerRoomSocket = (io: Server) => {
 
   io.on("connection", (socket: Socket) => {
@@ -23,8 +46,8 @@ export const registerRoomSocket = (io: Server) => {
           disconnectTimeouts.delete(playerToken);
         }
 
-        const updatedRoom = await roomService.getRoomById(roomId);
-        io.to(roomId).emit("roomUpdated", updatedRoom);
+        const roomWithMeta = await buildRoomWithMeta(roomId);
+        io.to(roomId).emit("roomUpdated", roomWithMeta);
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Join failed");
       }
@@ -34,8 +57,8 @@ export const registerRoomSocket = (io: Server) => {
     socket.on("selectSeat", async ({ roomId, playerToken, seatNumber }) => {
       try {
         await roomService.selectSeat(roomId, playerToken, seatNumber);
-        const updatedRoom = await roomService.getRoomById(roomId);
-        io.to(roomId).emit("roomUpdated", updatedRoom);
+        const roomWithMeta = await buildRoomWithMeta(roomId);
+        io.to(roomId).emit("roomUpdated", roomWithMeta);
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Seat selection failed");
       }
@@ -45,8 +68,8 @@ export const registerRoomSocket = (io: Server) => {
     socket.on("unseatPlayer", async ({ roomId, playerToken }) => {
       try {
         await roomService.unseatPlayer(roomId, playerToken);
-        const updatedRoom = await roomService.getRoomById(roomId);
-        io.to(roomId).emit("roomUpdated", updatedRoom);
+        const roomWithMeta = await buildRoomWithMeta(roomId);
+        io.to(roomId).emit("roomUpdated", roomWithMeta);
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Unseat failed");
       }
@@ -57,9 +80,15 @@ export const registerRoomSocket = (io: Server) => {
       try {
         const { room, session, cardHands } = await roomService.startGame(roomId, playerToken);
 
-        // แนบ hand_count เข้าแต่ละ player ตั้งแต่เริ่มเกม
+        // ดึง deck_count จาก DeckState
+        const deckStateAfterStart = await prisma.deckState.findUnique({
+          where: { session_id: session.session_id },
+        });
+
         const roomWithHandCount = {
           ...room,
+          current_turn_player_id: session.current_turn_player_id,
+          deck_count: deckStateAfterStart?.cards_remaining ?? 0,
           players: room.players.map((p: any) => {
             const hand = cardHands?.find((h: any) => h.player_id === p.player_id);
             return { ...p, hand_count: hand?.card_count ?? 0 };
@@ -82,7 +111,36 @@ export const registerRoomSocket = (io: Server) => {
     socket.on("playCard", async ({ roomId, playerToken, cardCode, targetPlayerToken }) => {
       try {
         const result = await gameService.playCard(roomId, playerToken, cardCode, targetPlayerToken);
-        io.to(roomId).emit("cardPlayed", result);
+
+        // ดึง session + hands หลังเล่นไพ่
+        const session = await prisma.gameSession.findFirst({
+          where: { room_id: roomId, status: "IN_PROGRESS" },
+          orderBy: { start_time: "desc" },
+          include: { hands: true },
+        });
+
+        const player = await prisma.player.findFirst({
+          where: { room_id: roomId, player_token: playerToken },
+        });
+        const myHand = session?.hands.find((h: any) => h.player_id === player?.player_id);
+
+        const deckStateAfterPlay = session
+          ? await prisma.deckState.findUnique({ where: { session_id: session.session_id } })
+          : null;
+
+        // broadcast การ์ดที่เล่นพร้อม hand ที่อัปเดต
+        io.to(roomId).emit("cardPlayed", {
+          ...result,
+          cardCode,
+          playedByPlayerId: player?.player_id,
+          playedByDisplayName: player?.display_name,
+          hand: myHand ? { cards: myHand.cards, card_count: myHand.card_count } : null,
+        });
+
+        // roomUpdated พร้อม deck_count และ hand_count
+        const roomMeta = await buildRoomWithMeta(roomId);
+        io.to(roomId).emit("roomUpdated", roomMeta);
+
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to play card");
       }
@@ -92,26 +150,29 @@ export const registerRoomSocket = (io: Server) => {
     socket.on("drawCard", async ({ roomId, playerToken }) => {
       try {
         const result = await gameService.drawCard(roomId, playerToken);
-        io.to(roomId).emit("cardDrawn", result);
 
-        // ดึง session + hands มาแนบ hand_count ให้ทุก player
+        // ดึง session + hands หลังจั่วแล้ว
         const session = await prisma.gameSession.findFirst({
           where: { room_id: roomId, status: "IN_PROGRESS" },
           orderBy: { start_time: "desc" },
           include: { hands: true },
         });
 
-        const updatedRoom = await roomService.getRoomById(roomId);
+        // หา hand ของผู้เล่นที่เพิ่งจั่ว
+        const player = await prisma.player.findFirst({
+          where: { room_id: roomId, player_token: playerToken },
+        });
+        const myHand = session?.hands.find((h: any) => h.player_id === player?.player_id);
 
-        const roomWithHandCount = {
-          ...updatedRoom,
-          players: updatedRoom.players.map((p: any) => {
-            const hand = session?.hands.find((h: any) => h.player_id === p.player_id);
-            return { ...p, hand_count: hand?.card_count ?? 0 };
-          }),
-        };
+        // ส่ง cardDrawn พร้อม hand ของผู้เล่นที่จั่ว
+        io.to(roomId).emit("cardDrawn", {
+          ...result,
+          hand: myHand ? { cards: myHand.cards, card_count: myHand.card_count } : null,
+          drawnByPlayerId: player?.player_id,
+        });
 
-        io.to(roomId).emit("roomUpdated", roomWithHandCount);
+        const updatedRoom = await buildRoomWithMeta(roomId);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
       } catch (err: any) {
         socket.emit("errorMessage", err.message || "Failed to draw card");
       }
