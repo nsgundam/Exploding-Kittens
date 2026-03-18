@@ -101,6 +101,8 @@ model GameSession {
   room_id                String
   current_turn_player_id String?
   turn_number            Int               @default(1)
+  direction              Int               @default(1)
+  pending_attacks        Int               @default(0)
   start_time             DateTime?
   end_time               DateTime?
   status                 GameSessionStatus @default(WAITING)

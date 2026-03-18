@@ -2,7 +2,18 @@ import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
 import { gameService } from "../services/game.service";
 
+import { CardHand } from "@prisma/client";
+
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
+
+const sanitizeCardHands = (cardHands: CardHand[], playerId: string | undefined) => {
+  return cardHands.map(hand => {
+    if (playerId && hand.player_id === playerId) {
+      return hand; // Can see own cards
+    }
+    return { ...hand, cards: [] }; // Hide cards of others, keep card_count
+  });
+};
 
 export const registerRoomSocket = (io: Server) => {
 
@@ -68,19 +79,31 @@ export const registerRoomSocket = (io: Server) => {
     // Start Game
     socket.on("startGame", async ({ roomId, playerToken }) => {
       try {
-        const { room, session } = await roomService.startGame(roomId, playerToken);
+        const { room, session, cardHands } = await roomService.startGame(roomId, playerToken);
 
         // broadcast ห้องที่อัปเดตแล้วให้ทุกคนในห้อง
         io.to(roomId).emit("roomUpdated", room);
 
-        // บอกทุกคนว่าเกมเริ่มแล้ว พร้อมส่ง session_id ไปด้วย
-        io.to(roomId).emit("gameStarted", {
-          room,
-          session_id: session.session_id,
-          first_turn_player_id: session.current_turn_player_id,
-        });
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Failed to start game");
+        // Fetch all connected sockets in the room
+        const sockets = await io.in(roomId).fetchSockets();
+
+        for (const s of sockets) {
+          const sToken = s.data.playerToken;
+          const player = room.players.find(p => p.player_token === sToken);
+
+          // Sanitize card hands for Anti-Cheat
+          const sanitizedHands = sanitizeCardHands(cardHands, player?.player_id);
+
+          // Send individualized payload
+          s.emit("gameStarted", {
+            room,
+            session_id: session.session_id,
+            first_turn_player_id: session.current_turn_player_id,
+            cardHands: sanitizedHands
+          });
+        }
+      } catch (err: unknown) {
+        socket.emit("errorMessage", err instanceof Error ? err.message : "Failed to start game");
       }
     });
 

@@ -1,6 +1,6 @@
 import { prisma } from "../config/prisma";
 import { roomService } from "./room.service";
-import { RoomStatus, PlayerRole, GameSessionStatus } from "@prisma/client";
+import { Prisma, RoomStatus, PlayerRole, GameSessionStatus, GameSession, Player, Room } from "@prisma/client";
 
 export const gameService = {
 
@@ -32,28 +32,8 @@ export const gameService = {
 
       // ── 3. AFK tracking ───
       if (isAutoDrawn) {
-        const newAfkCount = player.afk_count + 1
-        await tx.player.update({
-          where: { player_id: player.player_id },
-          data: { afk_count: newAfkCount }
-        })
-        if (newAfkCount >= 3) {
-          await tx.player.update({
-            where: { player_id: player.player_id },
-            data: { is_alive: false, role: PlayerRole.SPECTATOR }
-          })
-          await tx.gameLog.create({
-            data: {
-              session_id: session.session_id,
-              player_id: player.player_id,
-              player_display_name: player.display_name,
-              action_type: 'PLAYER_AFK_KICKED',
-              action_details: { afk_count: newAfkCount },
-              turn_number: session.turn_number,
-            }
-          })
-          return await gameService.advanceTurn(tx, session, roomId, player.player_id)
-        }
+        const afkResult = await gameService.handleAFK(tx, session, player, roomId)
+        if (afkResult) return afkResult
       }
 
       // ── 4. ดึง DeckState ───
@@ -90,45 +70,12 @@ export const gameService = {
           }
         })
 
-        // IK → ตายทันที ไม่มีทางเลือก
         if (isIK) {
-          await tx.player.update({
-            where: { player_id: player.player_id },
-            data: { is_alive: false }
-          })
-          await tx.gameLog.create({
-            data: {
-              session_id: session.session_id,
-              player_id: player.player_id,
-              player_display_name: player.display_name,
-              action_type: 'PLAYER_ELIMINATED',
-              action_details: { card: drawnCard, reason: 'imploding_kitten' },
-              turn_number: session.turn_number,
-            }
-          })
-          return await gameService.checkWinner(tx, session, roomId, player.player_id, drawnCard)
+          return await gameService.handleImplodingKitten(tx, session, player, roomId, drawnCard)
         }
 
-        // EK → เช็คว่ามี Defuse ไหม แล้ว return ให้ client
-        // client มี 10 วิ กด defuse หรือ timer หมด = ตาย
-        const hand = await tx.cardHand.findUnique({
-          where: { player_id_session_id: {
-            player_id: player.player_id,
-            session_id: session.session_id
-          }}
-        })
-        const cards = (hand?.cards ?? []) as string[]
-        const dfCode = room.deck_config?.card_version === 'good_and_evil' ? 'GVE_DF' : 'DF'
-        const hasDefuse = cards.includes(dfCode)
-
-        return {
-          success: true,
-          action: 'DREW_EXPLODING_KITTEN',
-          drawnCard,
-          hasDefuse,
-          // client ใช้ hasDefuse เพื่อแสดง UI:
-          // true  → แสดงปุ่ม "เล่น Defuse" + countdown 10 วิ
-          // false → แสดง countdown 10 วิ อย่างเดียว timeout = ตาย
+        if (isEK) {
+           return await gameService.handleExplodingKitten(tx, session, player, room, drawnCard)
         }
       }
 
@@ -200,7 +147,7 @@ export const gameService = {
         throw new Error("No Exploding Kitten to defuse")
       }
 
-      const ekCard = (lastLog.action_details as any).card
+      const ekCard = (lastLog.action_details as { card: string }).card
       const dfCode = room.deck_config?.card_version === 'good_and_evil' ? 'GVE_DF' : 'DF'
 
       // ── ลบ Defuse ออกจากมือ ───
@@ -287,7 +234,7 @@ export const gameService = {
         throw new Error("No pending Exploding Kitten")
       }
 
-      const ekCard = (lastLog.action_details as any).card
+      const ekCard = (lastLog.action_details as { card: string }).card
 
       await tx.player.update({
         where: { player_id: player.player_id },
@@ -309,18 +256,88 @@ export const gameService = {
     })
   },
 
+  // ── Helper: Handle AFK ───
+  async handleAFK(tx: Prisma.TransactionClient, session: GameSession, player: Player, roomId: string) {
+    const newAfkCount = player.afk_count + 1
+    await tx.player.update({
+      where: { player_id: player.player_id },
+      data: { afk_count: newAfkCount }
+    })
+    if (newAfkCount >= 3) {
+      await tx.player.update({
+        where: { player_id: player.player_id },
+        data: { is_alive: false, role: PlayerRole.SPECTATOR }
+      })
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: 'PLAYER_AFK_KICKED',
+          action_details: { afk_count: newAfkCount },
+          turn_number: session.turn_number,
+        }
+      })
+      return await gameService.advanceTurn(tx, session, roomId, player.player_id)
+    }
+    return null
+  },
+
+  // ── Helper: Handle Imploding Kitten ───
+  async handleImplodingKitten(tx: Prisma.TransactionClient, session: GameSession, player: Player, roomId: string, drawnCard: string) {
+    await tx.player.update({
+      where: { player_id: player.player_id },
+      data: { is_alive: false }
+    })
+    await tx.gameLog.create({
+      data: {
+        session_id: session.session_id,
+        player_id: player.player_id,
+        player_display_name: player.display_name,
+        action_type: 'PLAYER_ELIMINATED',
+        action_details: { card: drawnCard, reason: 'imploding_kitten' },
+        turn_number: session.turn_number,
+      }
+    })
+    return await gameService.checkWinner(tx, session, roomId, player.player_id, drawnCard)
+  },
+
+  // ── Helper: Handle Exploding Kitten ───
+  async handleExplodingKitten(tx: Prisma.TransactionClient, session: GameSession, player: Player, room: any, drawnCard: string) {
+    const hand = await tx.cardHand.findUnique({
+      where: { player_id_session_id: {
+        player_id: player.player_id,
+        session_id: session.session_id
+      }}
+    })
+    const cards = (hand?.cards ?? []) as string[]
+    const dfCode = room.deck_config?.card_version === 'good_and_evil' ? 'GVE_DF' : 'DF'
+    const hasDefuse = cards.includes(dfCode)
+
+    return {
+      success: true,
+      action: 'DREW_EXPLODING_KITTEN',
+      drawnCard,
+      hasDefuse,
+    }
+  },
+
   // ── Helper: advance to next turn ───
   // advanceTurn จะถูกเรียกเมื่อจั่วไพ่ปกติ หรือจั่ว EK แล้ว defuse สำเร็จ หรือผู้เล่นคนก่อนถูกกำจัดไปแล้ว เพื่อเปลี่ยนเทิร์นไปยังผู้เล่นคนถัดไปที่ยังมีชีวิตอยู่
-  async advanceTurn(tx: any, session: any, roomId: string, currentPlayerId: string) {
+  async advanceTurn(tx: Prisma.TransactionClient, session: GameSession, roomId: string, currentPlayerId: string) {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
       orderBy: { seat_number: 'asc' }
     })
 
-    const currentIndex = alivePlayers.findIndex((p: any) => p.player_id === currentPlayerId)
+    const currentIndex = alivePlayers.findIndex((p: { player_id: string }) => p.player_id === currentPlayerId)
     const direction = session.direction ?? 1
     const nextIndex = ((currentIndex + direction) + alivePlayers.length) % alivePlayers.length
     const nextPlayer = alivePlayers[nextIndex]
+
+    if (!nextPlayer) {
+      throw new Error("Cannot determine next player, no alive players found");
+    }
 
     const pendingAttacks = session.pending_attacks ?? 0
     const nextPendingAttacks = pendingAttacks > 0 ? pendingAttacks - 1 : 0
@@ -347,13 +364,15 @@ export const gameService = {
   },
 
   // ── Helper: check winner ───
-  async checkWinner(tx: any, session: any, roomId: string, eliminatedPlayerId: string, byCard: string) {
+  async checkWinner(tx: Prisma.TransactionClient, session: GameSession, roomId: string, eliminatedPlayerId: string, byCard: string) {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true }
     })
 
     if (alivePlayers.length === 1) {
       const winner = alivePlayers[0]
+      if (!winner) throw new Error("Winner not found");
+
       await tx.gameSession.update({
         where: { session_id: session.session_id },
         data: {

@@ -10,6 +10,9 @@ export interface Player {
   seat_number: number | null;
   role: string;
   profile_picture?: string | null;
+  avatar_url?: string | null;
+  hand_count?: number;
+  session_id?: string;
 }
 
 export interface CardHand {
@@ -27,6 +30,10 @@ interface RoomData {
   max_players: number;
   host_token: string;
   players: Player[];
+  deck_name?: string;
+  time_left?: number;
+  deck_count?: number;
+  current_turn_seat?: number | null;
 }
 
 export const useRoomSocket = (roomId: string) => {
@@ -80,7 +87,7 @@ export const useRoomSocket = (roomId: string) => {
       setRoomData(updatedRoom);
     });
 
-    newSocket.on("gameStarted", (data: any) => {
+    newSocket.on("gameStarted", (data: { room: RoomData, session_id: string, first_turn_player_id: string, cardHands: CardHand[] }) => {
       console.log("🎮 Game Started:", data);
 
       if (data?.room) setRoomData(data.room);
@@ -107,7 +114,7 @@ export const useRoomSocket = (roomId: string) => {
       }
     });
 
-    newSocket.on("cardDrawn", (data: any) => {
+    newSocket.on("cardDrawn", (data: { hand?: { cards: string[] }, success?: boolean, drawnByDisplayName?: string, isExplodingKitten?: boolean, eliminated?: boolean }) => {
       console.log("🃏 Card Drawn:", data);
       if (data?.hand?.cards) {
         setMyCards(data.hand.cards);

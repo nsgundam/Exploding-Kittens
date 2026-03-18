@@ -400,6 +400,8 @@ export const roomService = {
           current_turn_player_id: firstPlayer.player_id,
           turn_number: 1,
           start_time: new Date(),
+          direction: 1,
+          pending_attacks: 0,
 
         },
       });
