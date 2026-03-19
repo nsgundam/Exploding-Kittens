@@ -94,10 +94,10 @@ export function PlayerAvatar({
         >
           {/* Avatar image */}
           {occupied ? (
-            ((player as any).avatar_url || (player as any).profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName))) ? (
+            (player!.avatar_url || player!.profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName))) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={(player as any).avatar_url || (player as any).profile_picture || myPicture!}
+                src={player!.avatar_url || player!.profile_picture || myPicture!}
                 alt={player!.display_name}
                 className="w-full h-full rounded-full object-cover"
               />
@@ -144,7 +144,7 @@ export function PlayerAvatar({
           }}
         >
           <span>🃏</span>
-          <span>{(player as any).hand_count ?? 0}</span>
+          <span>{player!.hand_count ?? 0}</span>
         </div>
       )}
 

@@ -23,7 +23,7 @@ export default function DeckConfigModal({
     currentCardVersion === "good_and_evil" ? 2 : 1
   );
   const [addonEnabled, setAddonEnabled] = useState(
-    currentExpansions == ["imploding"]
+    currentExpansions.includes("imploding_kittens")
   );
   const [loading, setLoading] = useState(false);
 
@@ -53,8 +53,8 @@ export default function DeckConfigModal({
 
       onSaved(cardVersion, expansions);
       onClose();
-    } catch (err: any) {
-      alert(`เกิดข้อผิดพลาด: ${err.message}`);
+    } catch (err) {
+      alert(`เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }

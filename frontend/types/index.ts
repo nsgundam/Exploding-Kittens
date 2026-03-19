@@ -44,7 +44,7 @@ export interface DeckConfig {
   config_id?: string;
   room_id?: string;
   card_version: CardVersion;
-  expansions: DeckExpansions;
+  expansions: string[];
 }
 
 export type CardVersion = "classic" | "good_and_evil";

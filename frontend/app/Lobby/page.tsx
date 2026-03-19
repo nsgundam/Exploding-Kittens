@@ -17,7 +17,7 @@ const mapApiRoomToUi = (r: ApiRoom): LobbyRoom => {
     id: r.room_id,
     name: r.room_name,
     cardVersion: r.deck_config?.card_version === "good_and_evil" ? "Good vs. Evil" : "Original",
-    addon: Boolean(r.deck_config?.expansions?.imploding),
+    addon: Boolean(r.deck_config?.expansions?.includes("imploding_kittens")),
     players: playerCount,
     maxPlayers: r.max_players,
     status: r.status === "PLAYING" ? "playing" : "waiting",
@@ -164,8 +164,8 @@ export default function LobbyPage() {
       <AnimatedBackground />
       
       {/* ═══ HEADER ═══ */}
-      <div className="relative flex items-center justify-center min-h-[110px] px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
+      <div className="relative flex items-center justify-center min-h-27.5 px-16 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_8px_32px_rgba(255,215,0,0.2)] z-10 shrink-0">
+        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
         <span className="absolute top-3 left-5 text-4xl animate-float">🐱</span>
         <span className="absolute top-3 right-5 text-4xl animate-float" style={{ animationDelay: "1s" }}>🐱</span>
         <h1 className="relative z-10 text-4xl md:text-5xl text-yellow-400 font-bungee tracking-wider drop-shadow-md">
@@ -207,13 +207,13 @@ export default function LobbyPage() {
         
         <button
           onClick={handleBack}
-          className="bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-8 min-h-[55px] text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
+          className="bg-linear-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-8 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           <span className="relative z-10">◄ BACK</span>
         </button>
 
-        <div className="flex-1 flex items-center bg-white border-4 border-black rounded-full px-5 min-h-[55px] shadow-inner">
+        <div className="flex-1 flex items-center bg-white border-4 border-black rounded-full px-5 min-h-13.75 shadow-inner">
           <span className="text-2xl mr-3">🔍</span>
           <input
             type="text"
@@ -234,9 +234,9 @@ export default function LobbyPage() {
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-12 min-h-[55px] text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
+          className="bg-linear-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           <span className="relative z-10">CREATE ROOM</span>
         </button>
       </div>

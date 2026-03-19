@@ -27,8 +27,8 @@ export const createRoom = async (req: Request, res: Response): Promise<void> => 
 
 export const getAllRooms = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status } = req.query;
-    const rooms = await roomService.getAllRooms(status as RoomStatus | undefined);
+    const { status, card_version } = req.query;
+    const rooms = await roomService.getAllRooms(status as RoomStatus, card_version as string);
     res.status(200).json(rooms);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
