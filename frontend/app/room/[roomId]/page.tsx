@@ -50,7 +50,7 @@ export default function RoomPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,_#3d1f0a_0%,_#1a0d04_100%)] font-bungee">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
         <div className="text-6xl mb-4">😿</div>
         <p className="text-red-500 text-2xl tracking-widest">{error}</p>
         <p className="text-orange-300 mt-4 animate-pulse">กำลังกลับสู่ Lobby...</p>
@@ -60,7 +60,7 @@ export default function RoomPage() {
 
   if (!roomData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#3d1f0a_0%,_#1a0d04_100%)] font-bungee">
+      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">💣</div>
           <div className="flex items-center justify-center gap-3 text-[#f5a623] text-xl tracking-widest animate-pulse">
@@ -347,7 +347,7 @@ export default function RoomPage() {
                   (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
                 }}
                 onClick={() => startGame()}
-                disabled={!roomData.players || roomData.players.filter((p: any) => p.seat_number !== null).length < 2}
+                disabled={!roomData.players || roomData.players.filter((p) => p.seat_number !== null).length < 2}
               >
                 🚀 เริ่มเกม
               </button>
@@ -359,8 +359,8 @@ export default function RoomPage() {
         <DeckConfigModal
           isOpen={showDeckConfig}
           roomId={roomId}
-          currentCardVersion={(roomData as any).deck_config?.card_version ?? "classic"}
-          currentExpansions={(roomData as any).deck_config?.expansions ?? []}
+          currentCardVersion={roomData.deck_config?.card_version ?? "classic"}
+          currentExpansions={roomData.deck_config?.expansions ?? []}
           onClose={() => setShowDeckConfig(false)}
           onSaved={(cardVersion: string, expansions: string[]) => {
             console.log("Deck config updated locally", cardVersion, expansions);

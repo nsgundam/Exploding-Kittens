@@ -53,8 +53,8 @@ export default function DeckConfigModal({
 
       onSaved(cardVersion, expansions);
       onClose();
-    } catch (err: any) {
-      alert(`เกิดข้อผิดพลาด: ${err.message}`);
+    } catch (err) {
+      alert(`เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }

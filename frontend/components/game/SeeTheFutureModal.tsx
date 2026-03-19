@@ -32,7 +32,7 @@ export function SeeTheFutureModal({ cards, isOpen, onClose }: SeeTheFutureModalP
   if (!isOpen || cards.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] animate-fade-in backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-2000 animate-fade-in backdrop-blur-sm">
       <div className="bg-zinc-900/90 border-2 border-cyan-500 rounded-3xl p-8 flex flex-col items-center gap-6 shadow-[0_0_50px_rgba(6,182,212,0.4)] animate-scale-in max-w-2xl w-full mx-4">
         
         <div className="text-center">
@@ -66,7 +66,7 @@ export function SeeTheFutureModal({ cards, isOpen, onClose }: SeeTheFutureModalP
 
         <button
           onClick={onClose}
-          className="mt-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bungee py-3 px-12 rounded-xl text-lg shadow-lg transition-transform hover:scale-105 active:scale-95 border-2 border-cyan-400"
+          className="mt-2 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bungee py-3 px-12 rounded-xl text-lg shadow-lg transition-transform hover:scale-105 active:scale-95 border-2 border-cyan-400"
         >
           ตกลง ({timeLeft}s)
         </button>
