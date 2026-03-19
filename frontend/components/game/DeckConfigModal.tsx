@@ -23,7 +23,7 @@ export default function DeckConfigModal({
     currentCardVersion === "good_and_evil" ? 2 : 1
   );
   const [addonEnabled, setAddonEnabled] = useState(
-    currentExpansions == ["imploding"]
+    currentExpansions.includes("imploding_kittens")
   );
   const [loading, setLoading] = useState(false);
 
