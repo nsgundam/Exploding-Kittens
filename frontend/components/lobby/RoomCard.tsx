@@ -41,9 +41,7 @@ export default function RoomCard({
       onClick={isClickable ? onClick : undefined}
     >
       {/* Deck badge — รูปภาพ */}
-      <div
-        className="rounded-2xl w-20 h-20 shrink-0 relative overflow-hidden shadow-md border-2 border-[#d4b896]/50"
-      >
+      <div className="rounded-2xl w-20 h-20 shrink-0 relative overflow-hidden shadow-md border-2 border-[#d4b896]/50">
         <Image
           src={deckImage}
           alt={isGoodEvil ? "Good and Evil" : "Original"}
