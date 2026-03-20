@@ -162,7 +162,7 @@ model GameLog {
   timestamp           DateTime @default(now())
   turn_number         Int
 
-  player  Player      @relation(fields: [player_id], references: [player_id])
+  player  Player      @relation(fields: [player_id], references: [player_id], onDelete: Cascade)
   session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
   @@index([session_id])

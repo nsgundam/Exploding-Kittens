@@ -122,7 +122,7 @@ export function PlayerAvatar({
 
       {/* Name */}
       <span
-        className="text-xs font-bold tracking-wider truncate w-[80px] text-center"
+        className="text-xs font-bold tracking-wider truncate w-20 text-center"
         style={{
           color: occupied ? color : "rgba(80,40,0,0.45)",
           fontFamily: "'Fredoka One', cursive",

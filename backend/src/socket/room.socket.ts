@@ -120,6 +120,25 @@ export const registerRoomSocket = (io: Server): void => {
       }
     });
 
+    socket.on("leaveRoom", async (payload: { roomId: string; playerToken: string }) => {
+      try {
+        const { roomId, playerToken } = payload;
+
+        io.to(roomId).emit("playerDisconnected", { playerToken });
+
+        const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
+        if (updatedRoom) {
+          io.to(roomId).emit("roomUpdated", updatedRoom);
+        } else {
+          io.to(roomId).emit("roomDeleted");
+        }
+        // Broadcast lobby update for real-time room list (S1-24)
+        io.emit("roomListUpdated");
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
     // ── Disconnect / Reconnect Logic ───────────────────────────
     // FR-09-1/2: Hold state for 60 seconds, allow reconnect
     socket.on("disconnect", async () => {

@@ -120,7 +120,7 @@ export default function Home() {
       <AnimatedBackground />
 
       <div className="text-center space-y-4 z-10 pt-10 mt-10">
-        <h1 className="text-5xl md:text-7xl font-bungee tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
+        <h1 className="text-5xl md:text-7xl font-bungee tracking-wider text-transparent bg-clip-text bg-linear-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
           EXPLODING KITTENS
         </h1>
         <p className="text-zinc-200 text-xl md:text-2xl font-bold drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
@@ -163,7 +163,7 @@ export default function Home() {
         <Button 
           type="submit" 
           disabled={!name.trim() || isLoading}
-          className="w-full h-16 text-xl font-bungee tracking-widest bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white border-2 border-orange-400/50 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all rounded-2xl"
+          className="w-full h-16 text-xl font-bungee tracking-widest bg-linear-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white border-2 border-orange-400/50 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all rounded-2xl"
         >
           {isLoading ? (
             <Loader2 className="mr-2 h-8 w-8 animate-spin" />
