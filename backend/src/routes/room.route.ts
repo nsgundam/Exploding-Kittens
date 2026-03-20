@@ -1,30 +1,56 @@
 import { Router } from "express";
 import * as roomControllers from "../controllers/room.controllers";
+import * as gameControllers from "../controllers/game.controllers";
+import { extractPlayerToken } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// GET /api/rooms
+// ── Public routes (no token required) ──────────────────────────
+
+// GET /api/rooms — list rooms (optionally filter by status)
 router.get("/", roomControllers.getAllRooms);
 
-// GET /api/rooms/current
-router.get("/current", roomControllers.getCurrentRoom);
-
-// GET /api/rooms/:roomId
+// GET /api/rooms/:roomId — get room details
 router.get("/:roomId", roomControllers.getRoom);
 
-// POST /api/rooms
-router.post("/", roomControllers.createRoom);
+// ── Authenticated routes (token required) ──────────────────────
 
-// POST /api/rooms/:roomId/join
-router.post("/:roomId/join", roomControllers.joinRoom);
+// GET /api/rooms/current — check if player is in a room
+router.get("/current", extractPlayerToken, roomControllers.getCurrentRoom);
 
-// PATCH /api/rooms/:roomId/seat
-router.patch("/:roomId/seat", roomControllers.selectSeat);
+// POST /api/rooms — create a new room
+router.post("/", extractPlayerToken, roomControllers.createRoom);
 
-// POST /api/rooms/:roomId/leave
-router.post("/:roomId/leave", roomControllers.leaveRoom);
+// POST /api/rooms/:roomId/join — join a room as spectator
+router.post("/:roomId/join", extractPlayerToken, roomControllers.joinRoom);
 
-// POST /api/rooms/:roomId/start
-router.post("/:roomId/start", roomControllers.startGame);
+// PATCH /api/rooms/:roomId/seat — select a seat
+router.patch("/:roomId/seat", extractPlayerToken, roomControllers.selectSeat);
+
+// PATCH /api/rooms/:roomId/unseat — leave seat (back to spectator)
+router.patch("/:roomId/unseat", extractPlayerToken, roomControllers.unseatPlayer);
+
+// PATCH /api/rooms/:roomId/config — update deck config (host only) [S2-03]
+router.patch("/:roomId/config", extractPlayerToken, roomControllers.updateDeckConfig);
+
+// POST /api/rooms/:roomId/leave — leave room
+router.post("/:roomId/leave", extractPlayerToken, roomControllers.leaveRoom);
+
+// ── Game action routes ─────────────────────────────────────────
+
+// POST /api/rooms/:roomId/start — start game (host only)
+router.post("/:roomId/start", extractPlayerToken, gameControllers.startGame);
+
+// POST /api/rooms/:roomId/draw — draw a card
+router.post("/:roomId/draw", extractPlayerToken, gameControllers.drawCard);
+
+// POST /api/rooms/:roomId/defuse — use Defuse card
+router.post("/:roomId/defuse", extractPlayerToken, gameControllers.defuseCard);
+
+// POST /api/rooms/:roomId/eliminate — eliminate player (called by socket timer)
+router.post("/:roomId/eliminate", extractPlayerToken, gameControllers.eliminatePlayer);
+
+// POST /api/rooms/:roomId/play — play an action card [S2-18]
+router.post("/:roomId/play", extractPlayerToken, gameControllers.playCard);
 
 export default router;

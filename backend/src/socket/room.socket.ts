@@ -1,29 +1,37 @@
+// ============================================================
+// Room Socket Handler — Room-related events only
+// ============================================================
+// AI Rule 2.1: Socket Handlers MUST NOT contain business logic.
+// They extract params and delegate to the Service layer.
+
 import { Server, Socket } from "socket.io";
 import { roomService } from "../services/room.service";
-import { gameService } from "../services/game.service";
+import {
+  JoinRoomPayload,
+  SelectSeatPayload,
+  UnseatPlayerPayload,
+  UpdateDeckConfigPayload,
+} from "../types/types";
+import { getErrorMessage } from "../utils/errors";
+import { prisma } from "../config/prisma";
 
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
-export const registerRoomSocket = (io: Server) => {
-
+export const registerRoomSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
-    console.log("Connected:", socket.id);
 
-    // Join Room
-    socket.on("joinRoom", async ({ roomId, playerToken, displayName }) => {
+    // ── Join Room ──────────────────────────────────────────────
+    socket.on("joinRoom", async (payload: JoinRoomPayload) => {
       try {
-        await roomService.joinRoom(
-          roomId,
-          playerToken,
-          displayName
-        );
+        const { roomId, playerToken, displayName } = payload;
+
+        await roomService.joinRoom(roomId, playerToken, displayName);
 
         socket.data.playerToken = playerToken;
         socket.data.roomId = roomId;
-
         socket.join(roomId);
 
-        // Cancel pending disconnect removal if the user reconnected
+        // Cancel pending disconnect timeout on reconnect (FR-09-3)
         if (disconnectTimeouts.has(playerToken)) {
           clearTimeout(disconnectTimeouts.get(playerToken)!);
           disconnectTimeouts.delete(playerToken);
@@ -32,96 +40,124 @@ export const registerRoomSocket = (io: Server) => {
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
 
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Join failed");
+        if (updatedRoom?.status === "PLAYING") {
+          const session = await prisma.gameSession.findFirst({
+            where: { room_id: roomId, status: "IN_PROGRESS" }
+          });
+          if (session) {
+            const cardHands = await prisma.cardHand.findMany({
+              where: { session_id: session.session_id }
+            });
+            const deckState = await prisma.deckState.findUnique({
+              where: { session_id: session.session_id }
+            });
+            const player = updatedRoom.players.find(p => p.player_token === playerToken);
+            
+            const sanitizedHands = cardHands.map((hand: any) => {
+              if (player && hand.player_id === player.player_id) {
+                return { ...hand, cards: (hand.cards ?? []) as string[] };
+              }
+              return { ...hand, cards: [] };
+            });
+
+            socket.emit("gameStarted", {
+              room: updatedRoom,
+              session_id: session.session_id,
+              first_turn_player_id: session.current_turn_player_id,
+              cardHands: sanitizedHands,
+              deck_count: deckState?.cards_remaining,
+            });
+          }
+        }
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // Select Seat
-    socket.on("selectSeat", async ({ roomId, playerToken, seatNumber }) => {
+    // ── Select Seat ────────────────────────────────────────────
+    socket.on("selectSeat", async (payload: SelectSeatPayload) => {
       try {
-        await roomService.selectSeat(
-          roomId,
-          playerToken,
-          seatNumber
-        );
+        const { roomId, playerToken, seatNumber } = payload;
+
+        await roomService.selectSeat(roomId, playerToken, seatNumber);
 
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
-
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Seat selection failed");
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // Unseat
-    socket.on("unseatPlayer", async ({ roomId, playerToken }) => {
+    // ── Unseat Player ──────────────────────────────────────────
+    socket.on("unseatPlayer", async (payload: UnseatPlayerPayload) => {
       try {
+        const { roomId, playerToken } = payload;
+
         await roomService.unseatPlayer(roomId, playerToken);
+
         const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Unseat failed");
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // Start Game
-    socket.on("startGame", async ({ roomId, playerToken }) => {
+    // ── Update Deck Config (S2-04) ─────────────────────────────
+    socket.on("updateDeckConfig", async (payload: UpdateDeckConfigPayload) => {
       try {
-        const { room, session } = await roomService.startGame(roomId, playerToken);
+        const { roomId, playerToken, cardVersion, expansions } = payload;
 
-        // broadcast ห้องที่อัปเดตแล้วให้ทุกคนในห้อง
-        io.to(roomId).emit("roomUpdated", room);
-
-        // บอกทุกคนว่าเกมเริ่มแล้ว พร้อมส่ง session_id ไปด้วย
-        io.to(roomId).emit("gameStarted", {
-          room,
-          session_id: session.session_id,
-          first_turn_player_id: session.current_turn_player_id,
+        const updatedRoom = await roomService.updateDeckConfig(roomId, playerToken, {
+          cardVersion,
+          expansions,
         });
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Failed to start game");
+
+        // FR-03-5: broadcast config change to all players in room
+        io.to(roomId).emit("deckConfigUpdated", updatedRoom);
+        io.to(roomId).emit("roomUpdated", updatedRoom);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // Play Card
-    socket.on("playCard", async ({ roomId, playerToken, cardCode, targetPlayerToken }) => {
+    socket.on("leaveRoom", async (payload: { roomId: string; playerToken: string }) => {
       try {
-        const result = await gameService.playCard(roomId, playerToken, cardCode, targetPlayerToken);
-        io.to(roomId).emit("cardPlayed", result);
-        // Note: Real implementation will likely broadcast full room state
-        // via roomUpdated depending on the card effect.
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Failed to play card");
+        const { roomId, playerToken } = payload;
+
+        io.to(roomId).emit("playerDisconnected", { playerToken });
+
+        const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
+        if (updatedRoom) {
+          io.to(roomId).emit("roomUpdated", updatedRoom);
+        } else {
+          io.to(roomId).emit("roomDeleted");
+        }
+        // Broadcast lobby update for real-time room list (S1-24)
+        io.emit("roomListUpdated");
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // Draw Card
-    socket.on("drawCard", async ({ roomId, playerToken }) => {
-      try {
-        const result = await gameService.drawCard(roomId, playerToken);
-        io.to(roomId).emit("cardDrawn", result);
-        // Note: Real implementation will likely broadcast full room state
-        // via roomUpdated after turn changes.
-      } catch (err: any) {
-        socket.emit("errorMessage", err.message || "Failed to draw card");
-      }
-    });
-
-    // Leave Room / Disconnect Logic
-    // Allow a 30-second grace period for reconnections
+    // ── Disconnect / Reconnect Logic ───────────────────────────
+    // FR-09-1/2: Hold state for 60 seconds, allow reconnect
     socket.on("disconnect", async () => {
-      console.log("Disconnected:", socket.id);
       try {
-        const { roomId, playerToken } = socket.data;
+        const { roomId, playerToken } = socket.data as {
+          roomId?: string;
+          playerToken?: string;
+        };
 
         if (roomId && playerToken) {
-          // Clear any existing timeout for this player to avoid race conditions
+          // Clear any existing timeout to avoid race conditions
           if (disconnectTimeouts.has(playerToken)) {
             clearTimeout(disconnectTimeouts.get(playerToken)!);
           }
 
-          // Delay the leave mapping for 30 seconds
+          // FR-09-5: Notify other players about disconnect
+          io.to(roomId).emit("playerDisconnected", { playerToken });
+
+          // FR-09-2: Delay removal by 60 seconds
           const timeoutId = setTimeout(async () => {
             try {
               const updatedRoom = await roomService.leaveRoom(roomId, playerToken);
@@ -130,6 +166,8 @@ export const registerRoomSocket = (io: Server) => {
               } else {
                 io.to(roomId).emit("roomDeleted");
               }
+              // Broadcast lobby update for real-time room list (S1-24)
+              io.emit("roomListUpdated");
             } catch (err) {
               console.error("Leave room error during disconnect timeout:", err);
             } finally {
@@ -139,11 +177,9 @@ export const registerRoomSocket = (io: Server) => {
 
           disconnectTimeouts.set(playerToken, timeoutId);
         }
-
       } catch (err) {
         console.error("Disconnect error:", err);
       }
     });
-
   });
 };

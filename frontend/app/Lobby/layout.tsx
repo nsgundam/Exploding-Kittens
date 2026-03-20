@@ -11,20 +11,7 @@ export default function LobbyLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        fontFamily: "'Bungee', cursive",
-        background:
-          "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%)",
-        color: "white",
-        height: "100vh",
-        overflow: "hidden",
-        width: "100%",
-        display: "flex",
-        alignItems: "stretch",
-        justifyContent: "center",
-      }}
-    >
+    <div className="font-bungee bg-gradient-to-br from-[#0a0a0a] via-[#1a1a2e] to-[#16213e] text-white h-screen overflow-hidden w-full flex items-stretch justify-center">
       {children}
     </div>
   );

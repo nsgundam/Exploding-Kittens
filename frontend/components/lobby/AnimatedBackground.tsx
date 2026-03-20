@@ -21,7 +21,7 @@ export const AnimatedBackground = () => {
     <motion.div 
       className="fixed inset-[-5%] w-[110%] h-[110%] z-0 bg-cover bg-center pointer-events-none"
       style={{
-        backgroundImage: "url('images/background.jpg')",
+        backgroundImage: "url('/images/background.jpg')",
       }}
       animate={{
         x: mousePosition.x * -1.5,

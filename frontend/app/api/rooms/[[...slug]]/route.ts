@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-
 // Catch-all API Route for /api/rooms and /api/rooms/*
 export async function matchAndProxy(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> | { slug?: string[] } }) {
     try {
         const slugParams = await params;
         const path = slugParams?.slug ? slugParams.slug.join("/") : "";
-        const targetUrl = `${BACKEND_URL}/api/rooms${path ? `/${path}` : ""}`;
+        const targetUrl = `/api/rooms${path ? `/${path}` : ""}`;
 
         const playerToken = req.headers.get("x-player-token");
 
