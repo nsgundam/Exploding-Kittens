@@ -112,6 +112,17 @@ export interface CardPlayedPayload {
   target?: string | null;
   message?: string;
   timestamp?: string;
+  effect?: {
+    type: string;
+    topCards?: string[];
+    extraTurns?: number;
+  };
+  nextTurn?: {
+    player_id: string;
+    display_name: string;
+    turn_number: number;
+    pending_attacks?: number;
+  };
 }
 
 export interface DeckConfigChangedPayload {

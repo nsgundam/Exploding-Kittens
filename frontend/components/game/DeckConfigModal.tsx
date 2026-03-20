@@ -35,9 +35,7 @@ export default function DeckConfigModal({
       const playerToken = localStorage.getItem("player_token");
       const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
       const expansions = addonEnabled ? ["imploding_kittens"] : [];
-
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-      const res = await fetch(`${BACKEND_URL}/api/rooms/${roomId}/deck-config`, {
+      const res = await fetch(`/api/rooms/${roomId}/config`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

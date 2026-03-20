@@ -13,26 +13,27 @@ export default function RoomPage() {
   const params = useParams();
   const roomId = params.roomId as string;
   const router = useRouter();
-  
-  const { 
-    roomData, 
-    selectSeat, 
-    startGame, 
-    drawCard, 
+
+  const {
+    roomData,
+    selectSeat,
+    startGame,
+    drawCard,
     playCard,
     leaveRoom,
-    myCards, 
-    gameLogs, 
+    myCards,
+    gameLogs,
     gamePhase,
     ekBombState,
     seeTheFutureCards,
+    closeSeeTheFuture,
     error,
     timeLeft,
     lastPlayedCard,
     currentTurnPlayerId,
     deckCount,
   } = useRoomSocket(roomId);
-  
+
   const [isMounted, setIsMounted] = useState(false);
   const [showDeckConfig, setShowDeckConfig] = useState(false);
 
@@ -53,7 +54,9 @@ export default function RoomPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
         <div className="text-6xl mb-4">😿</div>
         <p className="text-red-500 text-2xl tracking-widest">{error}</p>
-        <p className="text-orange-300 mt-4 animate-pulse">กำลังกลับสู่ Lobby...</p>
+        <p className="text-orange-300 mt-4 animate-pulse">
+          กำลังกลับสู่ Lobby...
+        </p>
       </div>
     );
   }
@@ -72,9 +75,10 @@ export default function RoomPage() {
     );
   }
 
-  const getPlayerAtSeat = (seat: number) => roomData.players?.find((p) => p.seat_number === seat);
+  const getPlayerAtSeat = (seat: number) =>
+    roomData.players?.find((p) => p.seat_number === seat);
   const myPlayer = roomData.players?.find((p) => p.role === "ME");
-  
+
   const mySessionId = localStorage.getItem("session_id");
   const myPlayerToken = localStorage.getItem("player_token");
   const myProfilePicture = localStorage.getItem("profile_picture");
@@ -92,7 +96,9 @@ export default function RoomPage() {
   };
 
   const isHost = !!myPlayerToken && myPlayerToken === roomData.host_token;
-  const currentTurnSeat = roomData.players?.find(p => p.player_id === currentTurnPlayerId)?.seat_number ?? null;
+  const currentTurnSeat =
+    roomData.players?.find((p) => p.player_id === currentTurnPlayerId)
+      ?.seat_number ?? null;
   const isMyTurn = currentTurnSeat !== null && isMySeat(currentTurnSeat);
 
   const handleLeaveRoom = () => {
@@ -152,19 +158,26 @@ export default function RoomPage() {
                 boxShadow: "0 4px 0 #641e16, 0 6px 12px rgba(0,0,0,0.3)",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 0 #641e16, 0 8px 16px rgba(0,0,0,0.4)";
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(-2px)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                  "0 6px 0 #641e16, 0 8px 16px rgba(0,0,0,0.4)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 0 #641e16, 0 6px 12px rgba(0,0,0,0.3)";
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(0)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                  "0 4px 0 #641e16, 0 6px 12px rgba(0,0,0,0.3)";
               }}
               onMouseDown={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(2px)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 2px 0 #641e16";
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(2px)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                  "0 2px 0 #641e16";
               }}
               onMouseUp={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(-2px)";
               }}
             >
               ← ออกจากห้อง
@@ -172,7 +185,10 @@ export default function RoomPage() {
           </div>
 
           {/* Center: Room info */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5" style={{ top: "60%" }}>
+          <div
+            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5"
+            style={{ top: "60%" }}
+          >
             <div
               className="text-xs tracking-[0.25em] uppercase"
               style={{ color: "rgba(100,50,0,0.7)" }}
@@ -207,13 +223,15 @@ export default function RoomPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black tracking-wider uppercase"
               style={{
                 fontFamily: "'Fredoka One', cursive",
-                background: roomData.status === "PLAYING"
-                  ? "linear-gradient(135deg, #4ade80, #16a34a)"
-                  : "linear-gradient(135deg, #f5a623, #d45f00)",
+                background:
+                  roomData.status === "PLAYING"
+                    ? "linear-gradient(135deg, #4ade80, #16a34a)"
+                    : "linear-gradient(135deg, #f5a623, #d45f00)",
                 color: "#fff",
-                boxShadow: roomData.status === "PLAYING"
-                  ? "0 3px 0 #14532d"
-                  : "0 3px 0 #7a2f00",
+                boxShadow:
+                  roomData.status === "PLAYING"
+                    ? "0 3px 0 #14532d"
+                    : "0 3px 0 #7a2f00",
               }}
             >
               {roomData.status === "PLAYING" ? "🎮 Playing" : "⏳ Waiting"}
@@ -227,9 +245,11 @@ export default function RoomPage() {
                 color: "#5c2d00",
               }}
             >
-              <span>🃏</span>
               <span style={{ fontFamily: "'Fredoka One',cursive" }}>
-                {roomData.deck_name ?? "Standard Deck"}
+                {roomData.deck_config?.card_version ?? "classic"}
+                {roomData.deck_config?.expansions.length
+                  ? " + " + roomData.deck_config.expansions.join(", ")
+                  : ""}
               </span>
             </div>
 
@@ -239,7 +259,10 @@ export default function RoomPage() {
                 background: "rgba(120,70,10,0.18)",
                 border: "2px solid rgba(120,70,10,0.45)",
                 color: isHost ? "#5c2d00" : "rgba(120,70,10,0.3)",
-                cursor: isHost && roomData.status !== "PLAYING" ? "pointer" : "not-allowed",
+                cursor:
+                  isHost && roomData.status !== "PLAYING"
+                    ? "pointer"
+                    : "not-allowed",
                 opacity: isHost ? 1 : 0.5,
               }}
               onClick={() => {
@@ -247,7 +270,13 @@ export default function RoomPage() {
                   setShowDeckConfig(true);
                 }
               }}
-              title={!isHost ? "เฉพาะหัวหน้าห้องเท่านั้น" : roomData.status === "PLAYING" ? "ไม่สามารถเปลี่ยนได้หลังเริ่มเกม" : "ตั้งค่าสำรับไพ่"}
+              title={
+                !isHost
+                  ? "เฉพาะหัวหน้าห้องเท่านั้น"
+                  : roomData.status === "PLAYING"
+                    ? "ไม่สามารถเปลี่ยนได้หลังเริ่มเกม"
+                    : "ตั้งค่าสำรับไพ่"
+              }
             >
               ⚙️
             </button>
@@ -264,6 +293,7 @@ export default function RoomPage() {
             gamePhase={gamePhase}
             ekBombState={ekBombState}
             seeTheFutureCards={seeTheFutureCards}
+            onCloseSeeTheFuture={closeSeeTheFuture}
             selectSeat={selectSeat}
             drawCard={drawCard}
             playCard={playCard}
@@ -274,7 +304,7 @@ export default function RoomPage() {
             deckCount={deckCount}
           />
         </div>
-        
+
         {/* ── FOOTER / PLAYER HAND AREA ────────────────────────────────── */}
         <footer
           className="px-6 py-4 flex items-end justify-between gap-4 z-50 relative h-48"
@@ -294,28 +324,47 @@ export default function RoomPage() {
               }}
             >
               {myProfilePicture || myPlayer?.avatar_url ? (
-                <Image src={myProfilePicture || myPlayer?.avatar_url || ""} alt={myDisplayName || myPlayer?.display_name || "Avatar"} width={80} height={80} className="w-full h-full object-cover rounded-full" />
+                <Image
+                  src={myProfilePicture || myPlayer?.avatar_url || ""}
+                  alt={myDisplayName || myPlayer?.display_name || "Avatar"}
+                  width={80}
+                  height={80}
+                  className="w-full h-full object-cover rounded-full"
+                />
               ) : (
-                <span className="text-lg font-black" style={{ color: "#f5a623" }}>
-                  {(myDisplayName || myPlayer?.display_name || "?").charAt(0).toUpperCase()}
+                <span
+                  className="text-lg font-black"
+                  style={{ color: "#f5a623" }}
+                >
+                  {(myDisplayName || myPlayer?.display_name || "?")
+                    .charAt(0)
+                    .toUpperCase()}
                 </span>
               )}
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider" style={{color:"#7a4000"}}>My Profile</div>
-              <div className="text-lg leading-tight font-bold" style={{color:"#3d1a00"}}>
+              <div
+                className="text-xs uppercase tracking-wider"
+                style={{ color: "#7a4000" }}
+              >
+                My Profile
+              </div>
+              <div
+                className="text-lg leading-tight font-bold"
+                style={{ color: "#3d1a00" }}
+              >
                 {myDisplayName || myPlayer?.display_name || "USER"}
               </div>
-              <div className="text-xs" style={{color:"#7a4000"}}>
+              <div className="text-xs" style={{ color: "#7a4000" }}>
                 {myCards.length} cards left
               </div>
             </div>
           </div>
 
           {/* Center: Hand cards */}
-          <PlayerHand 
-            myCards={myCards} 
-            status={roomData.status} 
+          <PlayerHand
+            myCards={myCards}
+            status={roomData.status}
             isMyTurn={isMyTurn}
             onPlayCard={playCard}
           />
@@ -327,27 +376,39 @@ export default function RoomPage() {
                 className="px-6 py-2 rounded-xl text-white font-black tracking-wider text-sm uppercase drop-shadow-lg"
                 style={{
                   fontFamily: "'Fredoka One', cursive",
-                  background: "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)",
+                  background:
+                    "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)",
                   boxShadow: "0 4px 0 #14532d, 0 6px 12px rgba(0,0,0,0.4)",
                   transition: "all 0.1s",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 0 #14532d, 0 8px 16px rgba(0,0,0,0.5)";
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "translateY(-2px)";
+                  (e.currentTarget as HTMLElement).style.boxShadow =
+                    "0 6px 0 #14532d, 0 8px 16px rgba(0,0,0,0.5)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 0 #14532d, 0 6px 12px rgba(0,0,0,0.4)";
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "translateY(0)";
+                  (e.currentTarget as HTMLElement).style.boxShadow =
+                    "0 4px 0 #14532d, 0 6px 12px rgba(0,0,0,0.4)";
                 }}
                 onMouseDown={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(2px)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 0 #14532d";
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "translateY(2px)";
+                  (e.currentTarget as HTMLElement).style.boxShadow =
+                    "0 2px 0 #14532d";
                 }}
                 onMouseUp={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "translateY(-2px)";
                 }}
                 onClick={() => startGame()}
-                disabled={!roomData.players || roomData.players.filter((p) => p.seat_number !== null).length < 2}
+                disabled={
+                  !roomData.players ||
+                  roomData.players.filter((p) => p.seat_number !== null)
+                    .length < 2
+                }
               >
                 🚀 เริ่มเกม
               </button>
