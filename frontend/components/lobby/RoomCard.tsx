@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import Image from "next/image";
 
 interface RoomCardProps {
   id: string;
@@ -16,7 +16,6 @@ interface RoomCardProps {
 
 export default function RoomCard({
   name,
-  deck,
   addon,
   players,
   maxPlayers,
@@ -31,31 +30,29 @@ export default function RoomCard({
   return (
     <div
       className={[
-        "border border-[#d4b896] rounded-3xl",
+        "border-2 border-black rounded-3xl bg-[#FAF2DF]",
         "px-4 py-4 flex items-center gap-4 shrink-0",
         "transition-all duration-300 animate-slide-in",
         "shadow-[0_4px_16px_rgba(0,0,0,0.1)]",
         isClickable
           ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(180,120,60,0.3)] hover:border-orange-400/60"
-          : "opacity-60 cursor-not-allowed grayscale-[50%]",
+          : "opacity-60 cursor-not-allowed grayscale-50",
       ].join(" ")}
-      style={{ background: "#fdf6ec" }}
       onClick={isClickable ? onClick : undefined}
     >
       {/* Deck badge — รูปภาพ */}
       <div
-        className="rounded-2xl w-20 h-20 shrink-0 relative overflow-hidden shadow-md"
-        style={{
-          border: "2px solid rgba(255,255,255,0.25)",
-        }}
+        className="rounded-2xl w-20 h-20 shrink-0 relative overflow-hidden shadow-md border-2 border-[#d4b896]/50"
       >
-        <img
+        <Image
           src={deckImage}
           alt={isGoodEvil ? "Good and Evil" : "Original"}
+          width={300}
+          height={300}
           className="w-full h-full object-cover scale-110"
         />
         {addon && (
-          <span className="absolute bottom-0.5 right-1 font-bold text-[7px] text-white/90 leading-tight drop-shadow">
+          <span className="absolute bottom-0.5 right-0 font-bold text-[15px] text-white/90 leading-tight drop-shadow">
             +ADD
           </span>
         )}
@@ -78,17 +75,15 @@ export default function RoomCard({
       <div
         className={[
           status === "waiting"
-            ? "bg-gradient-to-br from-[#ea580c] to-[#dc2626]"
-            : "bg-gradient-to-br from-[#d97706] to-[#a16207]",
+            ? "bg-linear-to-br from-[#ea580c] to-[#dc2626]"
+            : "bg-linear-to-br from-[#d97706] to-[#a16207]",
           "border-2 border-black/20 rounded-xl px-4 w-28 h-14 flex items-center justify-center relative shrink-0",
           status === "waiting" ? "animate-pulse" : "",
         ].join(" ")}
       >
-        <span className="absolute -top-1.5 left-2 text-sm text-yellow-300">★</span>
-        <span className="text-xs font-bold text-white italic uppercase tracking-wide">
+        <span className="text-md font-bold text-white italic uppercase tracking-wide">
           {status === "waiting" ? "WAITING" : "PLAYING"}
         </span>
-        <span className="absolute -bottom-1.5 right-2 text-sm text-yellow-300">★</span>
       </div>
     </div>
   );

@@ -5,19 +5,27 @@ import { useRouter } from "next/navigation";
 import { AnimatedBackground } from "@/components/lobby/AnimatedBackground";
 import RoomCard from "@/components/lobby/RoomCard";
 import JoinModal from "@/components/lobby/JoinModal";
-import CreateRoomModal, { RoomCreatePayload } from "@/components/lobby/CreateRoomModal";
+import CreateRoomModal, {
+  RoomCreatePayload,
+} from "@/components/lobby/CreateRoomModal";
 import type { LobbyRoom, ApiRoom } from "@/types";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-
 const mapApiRoomToUi = (r: ApiRoom): LobbyRoom => {
-  const playerCount = (r.players ?? []).filter((p) => p.role === "PLAYER").length;
+  const playerCount = (r.players ?? []).filter(
+    (p) => p.role === "PLAYER",
+  ).length;
   return {
     id: r.room_id,
     name: r.room_name,
-    cardVersion: r.deck_config?.card_version === "good_and_evil" ? "Good vs. Evil" : "Original",
-    addon: Array.isArray(r.deck_config?.expansions) &&
-      (r.deck_config.expansions as string[]).some((e: string) => e.includes("imploding")),
+    cardVersion:
+      r.deck_config?.card_version === "good_and_evil"
+        ? "Good vs. Evil"
+        : "Original",
+    addon:
+      Array.isArray(r.deck_config?.expansions) &&
+      (r.deck_config.expansions as string[]).some((e: string) =>
+        e.includes("imploding"),
+      ),
     players: playerCount,
     maxPlayers: r.max_players,
     status: r.status === "PLAYING" ? "playing" : "waiting",
@@ -38,7 +46,9 @@ export default function LobbyPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/rooms`, { cache: "no-store" });
+        const res = await fetch(`/api/rooms?status=WAITING`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
         const data: ApiRoom[] = await res.json();
         setRooms(data.map(mapApiRoomToUi));
@@ -57,7 +67,10 @@ export default function LobbyPage() {
       (activeTab === "Original" && room.cardVersion === "Original") ||
       (activeTab === "Good" && room.cardVersion === "Good vs. Evil");
     const q = searchQuery.toLowerCase();
-    const matchSearch = !q || room.name.toLowerCase().includes(q) || room.id.includes(q) ||
+    const matchSearch =
+      !q ||
+      room.name.toLowerCase().includes(q) ||
+      room.id.includes(q) ||
       `${room.id}.${room.name}`.toLowerCase().includes(q);
     return matchTab && matchSearch;
   });
@@ -79,7 +92,10 @@ export default function LobbyPage() {
       try {
         const res = await fetch(`/api/rooms/${selectedRoom.id}/join`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-player-token": playerToken },
+          headers: {
+            "Content-Type": "application/json",
+            "x-player-token": playerToken,
+          },
           body: JSON.stringify({ displayName }),
         });
         if (!res.ok) {
@@ -105,16 +121,23 @@ export default function LobbyPage() {
         return;
       }
       const maxPlayers = 5;
-      const hostName = localStorage.getItem("display_name") || "Player_" + Math.floor(Math.random() * 1000);
+      const hostName =
+        localStorage.getItem("display_name") ||
+        "Player_" + Math.floor(Math.random() * 1000);
       const res = await fetch("/api/rooms", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-player-token": playerToken },
+        headers: {
+          "Content-Type": "application/json",
+          "x-player-token": playerToken,
+        },
         body: JSON.stringify({
           roomName: name,
           hostName,
           maxPlayers,
           cardVersion,
-          expansions: expansions.includes("imploding") ? ["imploding_kittens"] : [],
+          expansions: expansions.includes("imploding")
+            ? ["imploding_kittens"]
+            : [],
         }),
       });
       if (!res.ok) {
@@ -175,9 +198,8 @@ export default function LobbyPage() {
       >
         {/* ── TABS section — สี #FFFAF0 ── */}
         <div
-          className="shrink-0 flex px-5 pt-4 pb-3"
+          className="shrink-0 flex px-5 pt-4 pb-3 bg-[#FAF2DF]"
           style={{
-            background: "#FAF2DF",
             borderRadius: "22px 22px 0 0",
           }}
         >
@@ -197,15 +219,17 @@ export default function LobbyPage() {
                 onClick={() => setActiveTab(tab.value)}
                 className="px-6 py-1.5 font-bold text-sm transition-all duration-200 font-bungee"
                 style={{
-                  background: activeTab === tab.value
-                    ? "linear-gradient(135deg, #f5c842, #e8a020)"
-                    : "transparent",
+                  background:
+                    activeTab === tab.value
+                      ? "linear-gradient(135deg, #f5c842, #e8a020)"
+                      : "transparent",
                   color: activeTab === tab.value ? "#3d1a00" : "#7a5030",
                   border: "none",
                   borderRadius: "9px",
-                  boxShadow: activeTab === tab.value
-                    ? "0 2px 6px rgba(0,0,0,0.15)"
-                    : "none",
+                  boxShadow:
+                    activeTab === tab.value
+                      ? "0 2px 6px rgba(0,0,0,0.15)"
+                      : "none",
                   fontWeight: activeTab === tab.value ? "900" : "600",
                 }}
               >
@@ -252,14 +276,18 @@ export default function LobbyPage() {
       </div>
 
       {/* ═══ CONTROLS ═══ */}
-<div className="relative flex gap-4 items-center px-8 py-6 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0 flex-wrap md:flex-nowrap" style={{ background: "#BE491F", border: "2px solid #8b2d0e" }}>        <button
+      <div
+        className="relative flex gap-4 items-center px-8 py-6 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0 flex-wrap md:flex-nowrap"
+        style={{ background: "#BE491F", border: "2px solid #8b2d0e" }}
+      >
+        {" "}
+        <button
           onClick={() => router.push("/")}
-          className="bg-linear-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-8 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
+          className="bg-[#FAF2DF] border-4 border-black rounded-2xl px-8 min-h-13.75 text-xl font-bold text-black whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
           <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           <span className="relative z-10">◄ BACK</span>
         </button>
-
         <div className="flex-1 flex items-center bg-white border-4 border-black rounded-full px-5 min-h-13.75 shadow-inner">
           <span className="text-2xl mr-3">🔍</span>
           <input
@@ -273,10 +301,11 @@ export default function LobbyPage() {
             <span
               className="cursor-pointer text-2xl text-gray-500 hover:text-black hover:scale-125 transition-all"
               onClick={() => setSearchQuery("")}
-            >✕</span>
+            >
+              ✕
+            </span>
           )}
         </div>
-
         <button
           onClick={() => setIsCreateModalOpen(true)}
           className="bg-linear-to-br from-yellow-400 via-yellow-500 to-orange-500 border-4 border-black rounded-2xl px-12 min-h-13.75 text-xl font-bold text-black font-bungee whitespace-nowrap shadow-md transition-all hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
