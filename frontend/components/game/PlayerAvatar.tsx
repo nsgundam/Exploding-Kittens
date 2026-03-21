@@ -36,6 +36,7 @@ export function PlayerAvatar({
   const occupied = !!player;
   const color = avatarColors[seat];
   const isMe = !!onLeaveSeat;
+  const isDead = occupied && (player as any).is_alive === false;
 
   return (
     <div className="flex flex-col items-center gap-1 z-10 w-24">
@@ -85,13 +86,19 @@ export function PlayerAvatar({
           className="relative w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 group focus:outline-none hover:scale-110"
           disabled={occupied && !isMe}
           style={{
-            borderColor: isCurrentTurn ? "#f5a623" : occupied ? color : "rgba(255,255,255,0.2)",
-            background: occupied ? `${color}33` : "rgba(0,0,0,0.3)",
-            boxShadow: isCurrentTurn
-              ? `0 0 24px #f5a62399`
-              : occupied ? `0 0 18px ${color}88` : "none",
+            borderColor: isDead ? "#6b7280" : isCurrentTurn ? "#f5a623" : occupied ? color : "rgba(255,255,255,0.2)",
+            background: isDead ? "rgba(0,0,0,0.5)" : occupied ? `${color}33` : "rgba(0,0,0,0.3)",
+            boxShadow: isDead ? "none" : isCurrentTurn ? `0 0 24px #f5a62399` : occupied ? `0 0 18px ${color}88` : "none",
+            opacity: isDead ? 0.5 : 1,
+            filter: isDead ? "grayscale(100%)" : "none",
           }}
         >
+          {/* Dead overlay */}
+          {isDead && (
+            <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/50 z-10">
+              <span className="text-2xl">💀</span>
+            </div>
+          )}
           {/* Avatar image */}
           {occupied ? (
             (player!.avatar_url || player!.profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName))) ? (

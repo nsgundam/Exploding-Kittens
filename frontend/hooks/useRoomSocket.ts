@@ -34,6 +34,8 @@ export const useRoomSocket = (roomId: string) => {
   const [gamePhase, setGamePhase] = useState<GamePhase>("WAITING");
   const [ekBombState, setEkBombState] = useState<EKBombState | null>(null);
   const [seeTheFutureCards, setSeeTheFutureCards] = useState<string[]>([]);
+  const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(null);
+  const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [lastPlayedCard, setLastPlayedCard] = useState<{
     cardCode: string;
@@ -45,9 +47,14 @@ export const useRoomSocket = (roomId: string) => {
   const [deckCount, setDeckCount] = useState<number | null>(null);
   // Store roomData in a ref to avoid callback dependency loops or double-invocations in Strict Mode
   const roomDataRef = useRef<RoomData | null>(null);
+  const currentTurnPlayerIdRef = useRef<string | null>(null);
+  const pendingNextTurnRef = useRef<string | null>(null);
   useEffect(() => {
     roomDataRef.current = roomData;
   }, [roomData]);
+  useEffect(() => {
+    currentTurnPlayerIdRef.current = currentTurnPlayerId;
+  }, [currentTurnPlayerId]);
   useEffect(() => {
     if (!roomId) return;
     const playerToken = localStorage.getItem("player_token");
@@ -244,6 +251,90 @@ export const useRoomSocket = (roomId: string) => {
         `⚙️ Deck เปลี่ยนเป็น ${versionName}${addonLabel}`,
       ]);
     });
+    // ── cardDefused ──
+    newSocket.on("cardDefused", (data: any) => {
+      console.log("🛡️ Card Defused:", data);
+      setEkBombState(null);
+
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find(
+        (p: Player) => p.player_token === myPlayerToken,
+      );
+
+      // คนที่ defuse คือคนที่ถึงเทิร์นอยู่ตอนนี้
+      const defuserPlayerId = currentTurnPlayerIdRef.current;
+      const isMe = me && me.player_id === defuserPlayerId;
+
+      if (isMe) {
+        // คนที่ defuse เอง → เปิด modal เลือกตำแหน่งใส่ EK กลับ
+        setGamePhase("DEFUSE_INSERT");
+        // เก็บ nextTurn ไว้ใช้ตอนปิด modal
+        pendingNextTurnRef.current = data?.nextTurn?.player_id ?? null;
+        // ลบ DF ออกจากมือ
+        setMyCards((prev) => {
+          const dfCode = prev.includes("GVE_DF") ? "GVE_DF" : "DF";
+          const idx = prev.indexOf(dfCode);
+          if (idx !== -1) {
+            const next = [...prev];
+            next.splice(idx, 1);
+            return next;
+          }
+          return prev;
+        });
+      } else {
+        // คนอื่น → กลับไปเล่นต่อปกติ
+        setGamePhase("PLAYING");
+        if (data?.nextTurn?.player_id) {
+          setCurrentTurnPlayerId(data.nextTurn.player_id);
+        }
+      }
+
+      const defusingPlayer = roomDataRef.current?.players?.find(
+        (p: Player) => p.player_id === defuserPlayerId,
+      );
+      const displayName = defusingPlayer?.display_name ?? "ผู้เล่น";
+      setGameLogs((prev) => [...prev.slice(-19), `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`]);
+    });
+
+    // ── playerEliminated ──
+    newSocket.on("playerEliminated", (data: any) => {
+      console.log("💀 Player Eliminated:", data);
+      setEkBombState(null);
+      setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+
+      // อัปเดต is_alive = false ของคนที่ตาย ทันทีโดยไม่รอ roomUpdated
+      const eliminatedId = currentTurnPlayerIdRef.current;
+      if (eliminatedId) {
+        setEliminatedPlayerId(eliminatedId);
+        setRoomData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            players: prev.players?.map((p: Player) =>
+              p.player_id === eliminatedId
+                ? { ...p, is_alive: false }
+                : p
+            ),
+          };
+        });
+      }
+
+      // ถ้า GAME_OVER เก็บ winner
+      if (data.action === "GAME_OVER" && data?.winner) {
+        setWinner(data.winner);
+      }
+
+      if (data?.nextTurn?.player_id) {
+        setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+
+      const eliminatedPlayer = roomDataRef.current?.players?.find(
+        (p: Player) => p.player_id === eliminatedId,
+      );
+      const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
+      setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
+    });
+
     // ── errorMessage ──
     newSocket.on("errorMessage", (msg: string) => {
       console.error("❌ Socket Error:", msg);
@@ -262,6 +353,8 @@ export const useRoomSocket = (roomId: string) => {
       newSocket.off("cardDrawn");
       newSocket.off("cardPlayed");
       newSocket.off("deck_config_changed");
+      newSocket.off("cardDefused");
+      newSocket.off("playerEliminated");
       newSocket.off("errorMessage");
       newSocket.off("disconnect");
       newSocket.disconnect();
@@ -328,11 +421,49 @@ export const useRoomSocket = (roomId: string) => {
     }
     return () => clearInterval(interval);
   }, [currentTurnPlayerId, gamePhase]);
+  // ── closeInsertEK — ปิด modal หลังเลือกตำแหน่งแล้ว ──
+  const closeInsertEK = useCallback(() => {
+    setGamePhase("PLAYING");
+    if (pendingNextTurnRef.current) {
+      setCurrentTurnPlayerId(pendingNextTurnRef.current);
+      pendingNextTurnRef.current = null;
+    }
+  }, []);
+
   // ── closeSeeTheFuture ──
   const closeSeeTheFuture = useCallback(() => {
     setSeeTheFutureCards([]);
     setGamePhase("PLAYING");
   }, []);
+
+  // ── dismissEliminated ──
+  const dismissEliminated = useCallback(() => {
+    setEliminatedPlayerId(null);
+  }, []);
+
+  // ── defuseCard ──
+  const defuseCard = useCallback(() => {
+    if (!socket) return;
+    const playerToken = localStorage.getItem("player_token");
+    socket.emit("defuseCard", { roomId, playerToken });
+    setMyCards((prev) => {
+      const dfCode = prev.includes("GVE_DF") ? "GVE_DF" : "DF";
+      const idx = prev.indexOf(dfCode);
+      if (idx !== -1) {
+        const next = [...prev];
+        next.splice(idx, 1);
+        return next;
+      }
+      return prev;
+    });
+  }, [socket, roomId]);
+
+  // ── eliminatePlayer ──
+  const eliminatePlayer = useCallback(() => {
+    if (!socket) return;
+    const playerToken = localStorage.getItem("player_token");
+    socket.emit("eliminatePlayer", { roomId, playerToken });
+  }, [socket, roomId]);
 
   // ── leaveRoom ──
   const leaveRoom = useCallback(() => {
@@ -366,10 +497,16 @@ export const useRoomSocket = (roomId: string) => {
     seeTheFutureCards,
     setSeeTheFutureCards,
     closeSeeTheFuture,
+    closeInsertEK,
     selectSeat,
     startGame,
     drawCard,
     playCard,
+    defuseCard,
+    eliminatePlayer,
+    eliminatedPlayerId,
+    dismissEliminated,
+    winner,
     leaveRoom,
     timeLeft,
     currentTurnPlayerId,
