@@ -36,7 +36,7 @@ export function PlayerAvatar({
   const occupied = !!player;
   const color = avatarColors[seat];
   const isMe = !!onLeaveSeat;
-  const isDead = occupied && (player as any).is_alive === false;
+  const isDead = occupied && player?.is_alive === false;
 
   return (
     <div className="flex flex-col items-center gap-1 z-10 w-24">
@@ -67,9 +67,19 @@ export function PlayerAvatar({
               zIndex: 10,
             }}
           >
-            <circle cx="42" cy="42" r="38" fill="none" stroke="rgba(245,166,35,0.2)" strokeWidth="3" />
             <circle
-              cx="42" cy="42" r="38" fill="none"
+              cx="42"
+              cy="42"
+              r="38"
+              fill="none"
+              stroke="rgba(245,166,35,0.2)"
+              strokeWidth="3"
+            />
+            <circle
+              cx="42"
+              cy="42"
+              r="38"
+              fill="none"
               stroke={timeLeft && timeLeft <= 10 ? "#ef4444" : "#3b82f6"}
               strokeWidth="3"
               strokeDasharray={`${2 * Math.PI * 38}`}
@@ -86,9 +96,25 @@ export function PlayerAvatar({
           className="relative w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 group focus:outline-none hover:scale-110"
           disabled={occupied && !isMe}
           style={{
-            borderColor: isDead ? "#6b7280" : isCurrentTurn ? "#f5a623" : occupied ? color : "rgba(255,255,255,0.2)",
-            background: isDead ? "rgba(0,0,0,0.5)" : occupied ? `${color}33` : "rgba(0,0,0,0.3)",
-            boxShadow: isDead ? "none" : isCurrentTurn ? `0 0 24px #f5a62399` : occupied ? `0 0 18px ${color}88` : "none",
+            borderColor: isDead
+              ? "#6b7280"
+              : isCurrentTurn
+                ? "#f5a623"
+                : occupied
+                  ? color
+                  : "rgba(255,255,255,0.2)",
+            background: isDead
+              ? "rgba(0,0,0,0.5)"
+              : occupied
+                ? `${color}33`
+                : "rgba(0,0,0,0.3)",
+            boxShadow: isDead
+              ? "none"
+              : isCurrentTurn
+                ? `0 0 24px #f5a62399`
+                : occupied
+                  ? `0 0 18px ${color}88`
+                  : "none",
             opacity: isDead ? 0.5 : 1,
             filter: isDead ? "grayscale(100%)" : "none",
           }}
@@ -101,20 +127,29 @@ export function PlayerAvatar({
           )}
           {/* Avatar image */}
           {occupied ? (
-            (player!.avatar_url || player!.profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName))) ? (
+            player!.avatar_url ||
+            player!.profile_picture ||
+            (myPicture && (isMe || player!.display_name === myDisplayName)) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={player!.avatar_url || player!.profile_picture || myPicture!}
+                src={
+                  player!.avatar_url || player!.profile_picture || myPicture!
+                }
                 alt={player!.display_name}
                 className="w-full h-full rounded-full object-cover"
               />
             ) : (
-              <span className="text-lg font-black select-none font-bungee" style={{ color }}>
+              <span
+                className="text-lg font-black select-none font-bungee"
+                style={{ color }}
+              >
                 {player!.display_name?.charAt(0)?.toUpperCase() ?? "?"}
               </span>
             )
           ) : (
-            <span className="text-white/30 text-xl group-hover:text-white/70 transition-colors">+</span>
+            <span className="text-white/30 text-xl group-hover:text-white/70 transition-colors">
+              +
+            </span>
           )}
 
           {/* Online dot */}
@@ -167,10 +202,12 @@ export function PlayerAvatar({
             transition: "all 0.15s",
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(180,30,10,0.35)";
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(180,30,10,0.35)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(180,30,10,0.18)";
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(180,30,10,0.18)";
           }}
           onClick={() => onLeaveSeat()}
         >

@@ -8,6 +8,8 @@ import type {
   CardDrawnPayload,
   CardPlayedPayload,
   DeckConfigChangedPayload,
+  CardDefusedPayload,
+  PlayerEliminatedPayload,
 } from "@/types";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 // ── Game Phase — tracks current UI state during gameplay ──
@@ -34,8 +36,13 @@ export const useRoomSocket = (roomId: string) => {
   const [gamePhase, setGamePhase] = useState<GamePhase>("WAITING");
   const [ekBombState, setEkBombState] = useState<EKBombState | null>(null);
   const [seeTheFutureCards, setSeeTheFutureCards] = useState<string[]>([]);
-  const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(null);
-  const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
+  const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(
+    null,
+  );
+  const [winner, setWinner] = useState<{
+    player_id: string;
+    display_name: string;
+  } | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [lastPlayedCard, setLastPlayedCard] = useState<{
     cardCode: string;
@@ -252,7 +259,7 @@ export const useRoomSocket = (roomId: string) => {
       ]);
     });
     // ── cardDefused ──
-    newSocket.on("cardDefused", (data: any) => {
+    newSocket.on("cardDefused", (data: CardDefusedPayload) => {
       console.log("🛡️ Card Defused:", data);
       setEkBombState(null);
 
@@ -293,11 +300,14 @@ export const useRoomSocket = (roomId: string) => {
         (p: Player) => p.player_id === defuserPlayerId,
       );
       const displayName = defusingPlayer?.display_name ?? "ผู้เล่น";
-      setGameLogs((prev) => [...prev.slice(-19), `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`]);
+      setGameLogs((prev) => [
+        ...prev.slice(-19),
+        `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`,
+      ]);
     });
 
     // ── playerEliminated ──
-    newSocket.on("playerEliminated", (data: any) => {
+    newSocket.on("playerEliminated", (data: PlayerEliminatedPayload) => {
       console.log("💀 Player Eliminated:", data);
       setEkBombState(null);
       setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
@@ -311,9 +321,7 @@ export const useRoomSocket = (roomId: string) => {
           return {
             ...prev,
             players: prev.players?.map((p: Player) =>
-              p.player_id === eliminatedId
-                ? { ...p, is_alive: false }
-                : p
+              p.player_id === eliminatedId ? { ...p, is_alive: false } : p,
             ),
           };
         });
