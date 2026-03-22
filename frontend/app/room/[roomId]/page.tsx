@@ -20,6 +20,11 @@ export default function RoomPage() {
     startGame,
     drawCard,
     playCard,
+    defuseCard,
+    eliminatePlayer,
+    eliminatedPlayerId,
+    dismissEliminated,
+    winner,
     leaveRoom,
     myCards,
     gameLogs,
@@ -27,12 +32,14 @@ export default function RoomPage() {
     ekBombState,
     seeTheFutureCards,
     closeSeeTheFuture,
+    closeInsertEK,
     error,
     timeLeft,
     lastPlayedCard,
     currentTurnPlayerId,
     deckCount,
   } = useRoomSocket(roomId);
+
 
   const [isMounted, setIsMounted] = useState(false);
   const [showDeckConfig, setShowDeckConfig] = useState(false);
@@ -297,6 +304,13 @@ export default function RoomPage() {
             selectSeat={selectSeat}
             drawCard={drawCard}
             playCard={playCard}
+            defuseCard={defuseCard}
+            eliminatePlayer={eliminatePlayer}
+            closeInsertEK={closeInsertEK}
+            eliminatedPlayerId={eliminatedPlayerId}
+            dismissEliminated={dismissEliminated}
+            winner={winner}
+            myPlayerToken={myPlayerToken}
             isMySeat={isMySeat}
             gameLogs={gameLogs}
             timeLeft={timeLeft}

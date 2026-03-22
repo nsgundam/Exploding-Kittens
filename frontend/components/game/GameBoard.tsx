@@ -1,11 +1,93 @@
 "use client";
 
+import { useEffect } from "react";
+import confetti from "canvas-confetti";
 import { Player, RoomData } from "@/types";
+import { getCardConfig } from "@/types/cards";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
+
+function WinnerPopup({
+  isMe,
+  displayName,
+}: {
+  isMe: boolean;
+  displayName: string;
+}) {
+  useEffect(() => {
+    const duration = 5 * 1000;
+    const animationEnd = Date.now() + duration;
+    const defaults = {
+      startVelocity: 30,
+      spread: 360,
+      ticks: 60,
+      zIndex: 9999,
+    };
+    const randomInRange = (min: number, max: number) =>
+      Math.random() * (max - min) + min;
+
+    const interval = window.setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+      if (timeLeft <= 0) return clearInterval(interval);
+      const particleCount = 50 * (timeLeft / duration);
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+      });
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-2000 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
+        style={{
+          width: "420px",
+          background: "rgba(0,10,0,0.95)",
+          border: "2px solid rgba(250,204,21,0.6)",
+          boxShadow:
+            "0 0 80px rgba(250,204,21,0.3), 0 24px 60px rgba(0,0,0,0.8)",
+        }}
+      >
+        <div className="text-7xl animate-bounce">🏆</div>
+        <h2
+          className="text-4xl font-black text-yellow-400 font-bungee uppercase tracking-wider"
+          style={{ textShadow: "0 0 30px rgba(250,204,21,0.8)" }}
+        >
+          {isMe ? "คุณชนะ!" : `${displayName} ชนะ!`}
+        </h2>
+        <p className="text-gray-300 text-base">
+          {isMe
+            ? "เยี่ยมมาก! คุณเป็นผู้รอดชีวิตคนสุดท้าย 🎉"
+            : `${displayName} เป็นผู้รอดชีวิตคนสุดท้าย`}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-2 px-8 py-3 rounded-2xl font-black text-black font-bungee text-lg transition-all hover:scale-105 active:scale-95"
+          style={{
+            background: "linear-gradient(135deg, #fbbf24, #d97706)",
+            border: "2px solid rgba(250,204,21,0.8)",
+            boxShadow: "0 4px 0 #92400e",
+          }}
+        >
+          กลับสู่ห้อง
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export interface GameBoardProps {
   roomData: RoomData;
@@ -20,6 +102,13 @@ export interface GameBoardProps {
   selectSeat: (seat_number: number) => void;
   drawCard: () => void;
   playCard: (cardCode: string, target?: string) => void;
+  defuseCard: () => void;
+  eliminatePlayer: () => void;
+  closeInsertEK: () => void;
+  eliminatedPlayerId: string | null;
+  dismissEliminated: () => void;
+  winner: { player_id: string; display_name: string } | null;
+  myPlayerToken: string | null;
   isMySeat: (seat: number) => boolean;
   timeLeft?: number;
   lastPlayedCard?: { cardCode: string; playedByDisplayName: string } | null;
@@ -38,58 +127,30 @@ export function GameBoard({
   onCloseSeeTheFuture,
   selectSeat,
   drawCard,
-  playCard,
+  defuseCard,
+  eliminatePlayer,
+  closeInsertEK,
+  eliminatedPlayerId,
+  dismissEliminated,
+  winner,
+  myPlayerToken,
   isMySeat,
   timeLeft,
   lastPlayedCard,
   deckCount,
 }: GameBoardProps) {
-  const CARD_CONFIG: Record<
-    string,
-    { emoji: string; label: string; color: string }
-  > = {
-    DF: { emoji: "🛡️", label: "DEFUSE", color: "#4ade80" },
-    GVE_DF: { emoji: "🛡️", label: "DEFUSE", color: "#4ade80" },
-    EK: { emoji: "💣", label: "EK", color: "#ef4444" },
-    GVE_EK: { emoji: "💣", label: "EK", color: "#ef4444" },
-    AT: { emoji: "⚡", label: "ATTACK", color: "#f97316" },
-    SK: { emoji: "⏭️", label: "SKIP", color: "#3b82f6" },
-    SHF: { emoji: "🔀", label: "SHUFFLE", color: "#8b5cf6" },
-    FV: { emoji: "🔭", label: "SEE FUTURE", color: "#06b6d4" },
-    NP: { emoji: "🚫", label: "NOPE", color: "#dc2626" },
-    CAT_TACO: { emoji: "🌮", label: "TACO CAT", color: "#f59e0b" },
-    CAT_BEARD: { emoji: "🐱", label: "BEARD CAT", color: "#a78bfa" },
-    CAT_MELO: { emoji: "🍉", label: "CATTER MELON", color: "#34d399" },
-    CAT_POTATO: { emoji: "🥔", label: "POTATO CAT", color: "#fbbf24" },
-    CAT_RC: { emoji: "🚀", label: "RAINBOW CAT", color: "#f472b6" },
-    SF: { emoji: "🔮", label: "SEE FUTURE", color: "#06b6d4" },
-    DR: { emoji: "🎲", label: "DRAW", color: "#84cc16" },
-    IK: { emoji: "💥", label: "IMPLODING", color: "#ef4444" },
-  };
-
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
 
   const handleDefuse = () => {
-    // Tells the backend we want to use our Defuse card
-    // The backend should then transition us to inserting the EK
-    const dfCode =
-      roomData.deck_config?.card_version === "good_and_evil" ? "GVE_DF" : "DF";
-    playCard(dfCode);
+    defuseCard();
   };
-
   const handleExplode = () => {
-    // If timer runs out or user clicks explode, they just draw the bomb
-    // Actually, in our current flow, drawing the card triggers the bomb if we do nothing
-    // We can emit an explicit "eliminate/explode" event if needed, or just let timer run out.
-    // For now, drawing the card without defusing eliminates.
-    drawCard();
+    eliminatePlayer();
   };
-
   const handleInsertEK = (position: number) => {
-    // Custom socket event would go here for S2-39
-    // e.g. socket.emit("insertEK", { position })
     console.log("Inserting EK at position", position);
+    closeInsertEK();
   };
 
   return (
@@ -114,6 +175,7 @@ export function GameBoard({
         hasDefuse={ekBombState?.hasDefuse || false}
         onDefuse={handleDefuse}
         onExplode={handleExplode}
+        isMyBomb={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
       />
 
       <InsertEKModal
@@ -128,6 +190,67 @@ export function GameBoard({
         cards={seeTheFutureCards}
         onClose={onCloseSeeTheFuture}
       />
+
+      {/* ── ELIMINATED POPUP ── แสดงเฉพาะคนที่แพ้เท่านั้น */}
+      {eliminatedPlayerId &&
+        !winner &&
+        (() => {
+          const eliminatedPlayer = roomData.players?.find(
+            (p: Player) => p.player_id === eliminatedPlayerId,
+          );
+          const isMe = eliminatedPlayer?.player_token === myPlayerToken;
+          if (!isMe) return null;
+          const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
+          return (
+            <div className="fixed inset-0 z-2000 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+              <div
+                className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
+                style={{
+                  width: "380px",
+                  background: "rgba(10,0,0,0.93)",
+                  border: "2px solid rgba(239,68,68,0.5)",
+                  boxShadow:
+                    "0 0 60px rgba(239,68,68,0.3), 0 24px 60px rgba(0,0,0,0.8)",
+                }}
+              >
+                <div className="text-6xl animate-bounce">💥</div>
+                <h2
+                  className="text-3xl font-black text-white font-bungee uppercase tracking-wider"
+                  style={{ textShadow: "0 0 20px rgba(239,68,68,0.8)" }}
+                >
+                  {isMe ? "คุณแพ้แล้ว!" : `${displayName} แพ้แล้ว!`}
+                </h2>
+                <p className="text-gray-400 text-base">
+                  {isMe
+                    ? "คุณถูกระเบิด Exploding Kitten!"
+                    : `${displayName} ถูกระเบิดหลุดออกจากเกม`}
+                </p>
+                <button
+                  onClick={dismissEliminated}
+                  className="mt-2 px-8 py-3 rounded-2xl font-black text-white font-bungee text-lg transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: "linear-gradient(135deg, #dc2626, #7f1d1d)",
+                    border: "2px solid rgba(239,68,68,0.5)",
+                    boxShadow: "0 4px 0 #450a0a",
+                  }}
+                >
+                  ตกลง
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* ── WINNER POPUP ── */}
+      {winner &&
+        (() => {
+          const isMe =
+            roomData.players?.find(
+              (p: Player) => p.player_id === winner.player_id,
+            )?.player_token === myPlayerToken;
+          return <WinnerPopup isMe={isMe} displayName={winner.display_name} />;
+        })()}
 
       {/* ── LOG PANEL ── */}
       {roomData.status === "PLAYING" && gameLogs.length > 0 && (
@@ -226,11 +349,6 @@ export function GameBoard({
               </div>
               <div
                 className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
-                title={
-                  currentTurnSeat !== null && isMySeat(currentTurnSeat)
-                    ? "จั่วไพ่"
-                    : "ยังไม่ถึงเทิร์นของคุณ"
-                }
                 onClick={() => {
                   if (currentTurnSeat !== null && isMySeat(currentTurnSeat))
                     drawCard();
@@ -293,31 +411,28 @@ export function GameBoard({
                 className="w-28 h-40 rounded-xl flex items-center justify-center relative overflow-hidden"
                 style={{
                   border: lastPlayedCard
-                    ? `2px solid ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}88`
+                    ? `2px solid ${getCardConfig(lastPlayedCard.cardCode).color}88`
                     : "2px dashed rgba(255,220,150,0.5)",
                   background: lastPlayedCard
-                    ? `linear-gradient(160deg, ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}22, rgba(0,0,0,0.4))`
+                    ? `linear-gradient(160deg, ${getCardConfig(lastPlayedCard.cardCode).color}22, rgba(0,0,0,0.4))`
                     : "rgba(0,0,0,0.15)",
                   boxShadow: lastPlayedCard
-                    ? `0 0 16px ${CARD_CONFIG[lastPlayedCard.cardCode]?.color ?? "#f5a623"}44`
+                    ? `0 0 16px ${getCardConfig(lastPlayedCard.cardCode).color}44`
                     : undefined,
                 }}
               >
                 {lastPlayedCard ? (
                   <div className="flex flex-col items-center justify-center gap-1.5 p-2">
                     <span className="text-5xl">
-                      {CARD_CONFIG[lastPlayedCard.cardCode]?.emoji ?? "🃏"}
+                      {getCardConfig(lastPlayedCard.cardCode).emoji}
                     </span>
                     <span
                       className="text-xs font-black tracking-wider text-center leading-none"
                       style={{
-                        color:
-                          CARD_CONFIG[lastPlayedCard.cardCode]?.color ??
-                          "#f5a623",
+                        color: getCardConfig(lastPlayedCard.cardCode).color,
                       }}
                     >
-                      {CARD_CONFIG[lastPlayedCard.cardCode]?.label ??
-                        lastPlayedCard.cardCode}
+                      {getCardConfig(lastPlayedCard.cardCode).label}
                     </span>
                     <span
                       className="text-[9px] text-center"

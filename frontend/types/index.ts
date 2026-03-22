@@ -131,6 +131,27 @@ export interface DeckConfigChangedPayload {
   expansions: DeckExpansions;
 }
 
+export interface CardDefusedPayload {
+  nextTurn?: {
+    player_id: string;
+    display_name?: string;
+    turn_number?: number;
+  };
+}
+
+export interface PlayerEliminatedPayload {
+  action: string;
+  winner?: {
+    player_id: string;
+    display_name: string;
+  };
+  nextTurn?: {
+    player_id: string;
+    display_name?: string;
+    turn_number?: number;
+  };
+}
+
 // ── Lobby API Types ─────────────────────────────────────────
 export interface ApiRoom {
   room_id: string;

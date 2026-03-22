@@ -7,7 +7,7 @@ interface InsertEKModalProps {
   onConfirm: (position: number) => void;
 }
 
-export function InsertEKModal({ drawnCard, deckCount, isOpen, onConfirm }: InsertEKModalProps) {
+export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalProps) {
   const [selectedPosition, setSelectedPosition] = useState<number>(Math.floor(deckCount / 2));
 
   if (!isOpen) return null;
@@ -24,7 +24,7 @@ export function InsertEKModal({ drawnCard, deckCount, isOpen, onConfirm }: Inser
       : `ใบที่ ${selectedPosition + 1} จากบนสุด`;
 
   return (
-    <div className="fixed inset-0 z-[3000] flex items-center justify-center">
+    <div className="fixed inset-0 z-3000 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
