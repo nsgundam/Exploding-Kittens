@@ -41,13 +41,16 @@ function shuffleArray<T>(arr: T[]): T[] {
 /**
  * Build the initial deck from CardMaster based on card version and expansions.
  * Returns the base deck (without EK, DF, IK which are handled separately).
- * FR-04-1, S2-07
  */
 async function buildBaseDeck(
   tx: Prisma.TransactionClient,
   cardVersion: string,
-  expansions: string[]
-): Promise<{ baseDeck: string[]; totalDF: number; cardMasters: Awaited<ReturnType<typeof tx.cardMaster.findMany>> }> {
+  expansions: string[],
+): Promise<{
+  baseDeck: string[];
+  totalDF: number;
+  cardMasters: Awaited<ReturnType<typeof tx.cardMaster.findMany>>;
+}> {
   const basePackFilter =
     cardVersion === "good_and_evil"
       ? { expansion_pack: "good_and_evil" }
@@ -65,9 +68,8 @@ async function buildBaseDeck(
   });
 
   const totalDF =
-    cardMasters.find(
-      (c) => c.card_code === "DF" || c.card_code === "GVE_DF"
-    )?.quantity_in_deck ?? 6;
+    cardMasters.find((c) => c.card_code === "DF" || c.card_code === "GVE_DF")
+      ?.quantity_in_deck ?? 6;
 
   const baseDeck: string[] = [];
 
@@ -89,13 +91,12 @@ async function buildBaseDeck(
 /**
  * Deal cards to players: 1 Defuse + 4 random cards each.
  * Returns the remaining deck and the player hands map.
- * FR-04-1, S2-08
  */
 function dealCards(
   baseDeck: string[],
   players: Player[],
   dfCode: string,
-  cardsPerHand = 4
+  cardsPerHand = 4,
 ): { remainingDeck: string[]; hands: PlayerHandsMap } {
   const deck = [...baseDeck];
   const hands: PlayerHandsMap = {};
@@ -114,7 +115,6 @@ function dealCards(
 
 /**
  * Finalize the deck by inserting remaining Defuse cards, EK cards, and IK.
- * FR-04-1, S2-07
  */
 function finalizeDeck(
   remainingDeck: string[],
@@ -122,7 +122,7 @@ function finalizeDeck(
   totalDF: number,
   dfCode: string,
   ekCode: string,
-  expansions: string[]
+  expansions: string[],
 ): string[] {
   const deck = [...remainingDeck];
 
@@ -148,7 +148,6 @@ function finalizeDeck(
 
 /**
  * Create GameSession, DeckState, CardHands, and GameLog in a single transaction step.
- * S2-06, S2-07
  */
 async function createGameSession(
   tx: Prisma.TransactionClient,
@@ -156,10 +155,11 @@ async function createGameSession(
   players: Player[],
   finalDeck: string[],
   hands: PlayerHandsMap,
-  hostPlayerToken: string
+  hostPlayerToken: string,
 ): Promise<{ session: GameSession; cardHands: CardHand[] }> {
   const firstPlayer = players[0];
-  if (!firstPlayer) throw new BadRequestError("No players available to start game");
+  if (!firstPlayer)
+    throw new BadRequestError("No players available to start game");
 
   const session = await tx.gameSession.create({
     data: {
@@ -226,17 +226,16 @@ async function createGameSession(
   return { session, cardHands };
 }
 
-// ── Card Effect Handlers (Sprint 2: AT, SK, SF, SH) ───────────
+// ── Card Effect Handlers ───────────
 
 /**
  * Handle Attack card: end turn without drawing, next player gets +2 turns.
- * FR-05-A1, S2-14
  */
 async function handleAttackEffect(
   tx: Prisma.TransactionClient,
   session: GameSession,
   roomId: string,
-  currentPlayerId: string
+  currentPlayerId: string,
 ): Promise<TurnAdvancedResult> {
   const newPending = (session.pending_attacks ?? 0) + 2;
 
@@ -247,18 +246,22 @@ async function handleAttackEffect(
 
   // Update session with new pending attacks before advancing turn
   const updatedSession = { ...session, pending_attacks: newPending };
-  return await gameService.advanceTurn(tx, updatedSession, roomId, currentPlayerId);
+  return await gameService.advanceTurn(
+    tx,
+    updatedSession,
+    roomId,
+    currentPlayerId,
+  );
 }
 
 /**
  * Handle Skip card: end turn without drawing.
- * FR-05, S2-15
  */
 async function handleSkipEffect(
   tx: Prisma.TransactionClient,
   session: GameSession,
   roomId: string,
-  currentPlayerId: string
+  currentPlayerId: string,
 ): Promise<TurnAdvancedResult> {
   // If there are pending attacks, Skip only cancels one turn
   const pendingAttacks = session.pending_attacks ?? 0;
@@ -289,17 +292,16 @@ async function handleSkipEffect(
     tx,
     { ...session, pending_attacks: 0 },
     roomId,
-    currentPlayerId
+    currentPlayerId,
   );
 }
 
 /**
  * Handle See The Future: peek at top 3 cards (private).
- * FR-05, S2-16
  */
 async function handleSeeTheFutureEffect(
   tx: Prisma.TransactionClient,
-  sessionId: string
+  sessionId: string,
 ): Promise<CardEffectResult> {
   const deckState = await tx.deckState.findUnique({
     where: { session_id: sessionId },
@@ -318,11 +320,10 @@ async function handleSeeTheFutureEffect(
 
 /**
  * Handle Shuffle: randomly shuffle the draw pile.
- * FR-05, S2-17
  */
 async function handleShuffleEffect(
   tx: Prisma.TransactionClient,
-  sessionId: string
+  sessionId: string,
 ): Promise<CardEffectResult> {
   const deckState = await tx.deckState.findUnique({
     where: { session_id: sessionId },
@@ -346,11 +347,11 @@ async function handleShuffleEffect(
 // ── Game Service ───────────────────────────────────────────────
 
 export const gameService = {
-  /**
-   * Start a game: validate, build deck, deal cards, create session.
-   * FR-03-10, FR-04-1, S2-06/07/08/09
-   */
-  async startGame(roomId: string, playerToken: string): Promise<StartGameResult> {
+  //Start a game: validate, build deck, deal cards, create session.
+  async startGame(
+    roomId: string,
+    playerToken: string,
+  ): Promise<StartGameResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and host permissions
       const room = await tx.room.findUnique({
@@ -379,7 +380,11 @@ export const gameService = {
         ? (room.deck_config!.expansions as string[])
         : [];
 
-      const { baseDeck, totalDF } = await buildBaseDeck(tx, cardVersion, expansions);
+      const { baseDeck, totalDF } = await buildBaseDeck(
+        tx,
+        cardVersion,
+        expansions,
+      );
 
       // 4. Determine version-specific codes
       const dfCode = cardVersion === "good_and_evil" ? "GVE_DF" : "DF";
@@ -395,7 +400,7 @@ export const gameService = {
         totalDF,
         dfCode,
         ekCode,
-        expansions
+        expansions,
       );
 
       // 7. Create game session, deck state, card hands, and game log
@@ -405,7 +410,7 @@ export const gameService = {
         players,
         finalDeck,
         hands,
-        playerToken
+        playerToken,
       );
 
       // 8. Update room status to PLAYING
@@ -424,14 +429,11 @@ export const gameService = {
     });
   },
 
-  /**
-   * Draw a card from the top of the deck.
-   * S2-07, S2-19/20
-   */
+  //Draw a card from the top of the deck.
   async drawCard(
     roomId: string,
     playerToken: string,
-    isAutoDrawn = false
+    isAutoDrawn = false,
   ): Promise<TurnAdvancedResult | GameOverResult | ExplodingKittenDrawnResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and session
@@ -459,8 +461,18 @@ export const gameService = {
 
       // 3. AFK tracking
       if (isAutoDrawn) {
-        const afkResult = await gameService.handleAFK(tx, session, player, roomId);
+        const afkResult = await gameService.handleAFK(
+          tx,
+          session,
+          player,
+          roomId,
+        );
         if (afkResult) return afkResult;
+      } else if (player.afk_count > 0) {
+        await tx.player.update({
+          where: { player_id: player.player_id },
+          data: { afk_count: 0 },
+        });
       }
 
       // 4. Get deck state
@@ -503,7 +515,7 @@ export const gameService = {
             session,
             player,
             roomId,
-            drawnCard
+            drawnCard,
           );
           return { ...res, deck_count: newDeck.length };
         }
@@ -514,7 +526,7 @@ export const gameService = {
             session,
             player,
             room,
-            drawnCard
+            drawnCard,
           );
           return { ...res, deck_count: newDeck.length };
         }
@@ -554,7 +566,12 @@ export const gameService = {
       });
 
       // 8. Advance turn
-      const turnResult = await gameService.advanceTurn(tx, session, roomId, player.player_id);
+      const turnResult = await gameService.advanceTurn(
+        tx,
+        session,
+        roomId,
+        player.player_id,
+      );
       return {
         ...turnResult,
         drawnCard,
@@ -572,7 +589,7 @@ export const gameService = {
    */
   async defuseCard(
     roomId: string,
-    playerToken: string
+    playerToken: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     return await prisma.$transaction(async (tx) => {
       const room = await tx.room.findUnique({
@@ -673,7 +690,7 @@ export const gameService = {
         tx,
         session,
         roomId,
-        player.player_id
+        player.player_id,
       );
     });
   },
@@ -684,7 +701,7 @@ export const gameService = {
    */
   async eliminatePlayer(
     roomId: string,
-    playerToken: string
+    playerToken: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     return await prisma.$transaction(async (tx) => {
       const session = await tx.gameSession.findFirst({
@@ -732,7 +749,7 @@ export const gameService = {
         session,
         roomId,
         player.player_id,
-        ekCard
+        ekCard,
       );
     });
   },
@@ -746,7 +763,7 @@ export const gameService = {
     roomId: string,
     playerToken: string,
     cardCode: string,
-    targetPlayerToken?: string
+    targetPlayerToken?: string,
   ): Promise<PlayCardResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and session
@@ -770,6 +787,14 @@ export const gameService = {
       if (!player) throw new NotFoundError("Player");
       if (session.current_turn_player_id !== player.player_id) {
         throw new BadRequestError("It's not your turn");
+      }
+
+      // Reset AFK count on manual play
+      if (player.afk_count > 0) {
+        await tx.player.update({
+          where: { player_id: player.player_id },
+          data: { afk_count: 0 },
+        });
       }
 
       // 3. Validate card is in hand
@@ -832,7 +857,7 @@ export const gameService = {
             tx,
             session,
             roomId,
-            player.player_id
+            player.player_id,
           );
           effect = { type: "ATTACK", extraTurns: 2 };
           break;
@@ -844,7 +869,7 @@ export const gameService = {
             tx,
             session,
             roomId,
-            player.player_id
+            player.player_id,
           );
           effect = { type: "SKIP" };
           break;
@@ -873,14 +898,14 @@ export const gameService = {
         case "DB":
         case "FC":
           throw new BadRequestError(
-            `Card ${cardCode} action is not yet implemented (planned for Sprint 3/4)`
+            `Card ${cardCode} action is not yet implemented (planned for Sprint 3/4)`,
           );
 
         default: {
           // Cat cards used for combo — Sprint 3
           if (cardCode.startsWith("CAT_") || normalizedCode === "MC") {
             throw new BadRequestError(
-              `Combo cards are not yet implemented (planned for Sprint 3)`
+              `Combo cards are not yet implemented (planned for Sprint 3)`,
             );
           }
           throw new BadRequestError(`Unknown card: ${cardCode}`);
@@ -924,7 +949,7 @@ export const gameService = {
     session: GameSession,
     player: Player,
     roomId: string
-  ): Promise<TurnAdvancedResult | null> {
+  ): Promise<TurnAdvancedResult | GameOverResult | null> {
     const newAfkCount = player.afk_count + 1;
     await tx.player.update({
       where: { player_id: player.player_id },
@@ -947,11 +972,12 @@ export const gameService = {
           turn_number: session.turn_number,
         },
       });
-      return await gameService.advanceTurn(
+      return await gameService.checkWinner(
         tx,
         session,
         roomId,
-        player.player_id
+        player.player_id,
+        "AFK_TIMEOUT"
       );
     }
     return null;
@@ -965,7 +991,7 @@ export const gameService = {
     session: GameSession,
     player: Player,
     roomId: string,
-    drawnCard: string
+    drawnCard: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     await tx.player.update({
       where: { player_id: player.player_id },
@@ -986,7 +1012,7 @@ export const gameService = {
       session,
       roomId,
       player.player_id,
-      drawnCard
+      drawnCard,
     );
   },
 
@@ -998,7 +1024,7 @@ export const gameService = {
     session: GameSession,
     player: Player,
     room: RoomWithDeckConfig,
-    drawnCard: string
+    drawnCard: string,
   ): Promise<ExplodingKittenDrawnResult> {
     const hand = await tx.cardHand.findUnique({
       where: {
@@ -1028,7 +1054,7 @@ export const gameService = {
     tx: Prisma.TransactionClient,
     session: GameSession,
     roomId: string,
-    currentPlayerId: string
+    currentPlayerId: string,
   ): Promise<TurnAdvancedResult> {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
@@ -1036,16 +1062,16 @@ export const gameService = {
     });
 
     const currentIndex = alivePlayers.findIndex(
-      (p) => p.player_id === currentPlayerId
+      (p) => p.player_id === currentPlayerId,
     );
     const direction = session.direction ?? 1;
     const nextIndex =
-      ((currentIndex + direction) + alivePlayers.length) % alivePlayers.length;
+      (currentIndex + direction + alivePlayers.length) % alivePlayers.length;
     const nextPlayer = alivePlayers[nextIndex];
 
     if (!nextPlayer) {
       throw new BadRequestError(
-        "Cannot determine next player, no alive players found"
+        "Cannot determine next player, no alive players found",
       );
     }
 
@@ -1082,7 +1108,7 @@ export const gameService = {
     session: GameSession,
     roomId: string,
     eliminatedPlayerId: string,
-    byCard: string
+    byCard: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
@@ -1139,7 +1165,7 @@ export const gameService = {
       tx,
       session,
       roomId,
-      eliminatedPlayerId
+      eliminatedPlayerId,
     );
   },
 };

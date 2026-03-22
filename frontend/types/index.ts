@@ -96,6 +96,7 @@ export interface CardDrawnPayload {
   isExplodingKitten?: boolean;
   eliminated?: boolean;
   player_id?: string;
+  isAutoDraw?: boolean;
   nextTurn?: {
     player_id: string;
     display_name: string;

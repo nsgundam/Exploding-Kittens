@@ -84,9 +84,9 @@ export interface PlayCardResult {
 
 export interface CardEffectResult {
   type: string;
-  topCards?: string[];       // See the Future
-  shuffled?: boolean;        // Shuffle
-  extraTurns?: number;       // Attack
+  topCards?: string[]; // See the Future
+  shuffled?: boolean; // Shuffle
+  extraTurns?: number; // Attack
 }
 
 export interface TurnInfo {
@@ -155,6 +155,7 @@ export interface StartGamePayload {
 export interface DrawCardPayload {
   roomId: string;
   playerToken: string;
+  isAutoDraw?: boolean;
 }
 
 export interface PlayCardPayload {
@@ -195,7 +196,7 @@ export interface SanitizedCardHand {
   hand_id: string;
   player_id: string;
   session_id: string;
-  cards: string[] | [];       // Empty for other players (anti-cheat)
+  cards: string[] | []; // Empty for other players (anti-cheat)
   card_count: number;
   updated_at: Date;
 }

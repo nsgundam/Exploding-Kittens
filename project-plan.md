@@ -2,7 +2,7 @@
 **Based on:** SRS v2.0 (Approved)  
 **Model:** Agile Scrum + DevOps  
 **Last Updated:** Sprint 2  
-**Version:** 2.2 (Triple Check — 10 Gaps Fixed)
+**Version:** 2.4 (Nope Window + AFK Kick + Armageddon Lock + Imploding Kittens Complete)
 
 ---
 
@@ -188,8 +188,9 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 **Acceptance Criteria:**
 - Host กด Start Game เมื่อมี PLAYER ≥ 2 → เกมเริ่ม
 - ผู้เล่นแต่ละคนได้รับไพ่ 4 ใบ + Defuse 1 ใบ (private)
+- แต่ละเทิร์นมีตัวนับถอยหลัง **30 วิ** แสดงให้ทุกคนเห็น และ reset เมื่อเล่นไพ่
 - เล่น Attack / Skip / See The Future / Shuffle ได้
-- จั่วได้ EK → 20 วิ → ใช้ Defuse หรือตาย
+- จั่วได้ EK → **10 วิ** ตัดสินใจ → ใช้ Defuse หรือตาย
 - ผู้เล่นรอดคนสุดท้ายชนะ → Auto Reset → WAITING
 - Host เปลี่ยน DeckConfig ได้ขณะ WAITING + แจ้งเตือนทุกคน
 
@@ -216,6 +217,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | S2-07 | Game Logic: สุ่มไพ่ตาม version + expansions → บันทึก DeckState | FR-04-1 | SA | 1.5 วัน |
 | S2-08 | Game Logic: แจกไพ่ 4+1 ต่อคน → สร้าง CardHand | FR-04-1 | BE | 1 วัน |
 | S2-09 | Game Logic: Turn management — เวียนตามที่นั่ง + เปลี่ยนเทิร์น | FR-04-3 | SA | 1 วัน |
+| S2-09a | **[NEW]** Game Logic: Turn timer 30 วิ — เริ่มนับเมื่อเทิร์นเริ่ม, reset เมื่อเล่นไพ่ — **ถ้า disconnect ขณะเวลาเดิน ให้ Force Draw เมื่อหมดเวลา** | FR-04-4a/4b/4c/FR-09-8 | SA | 1 วัน |
 
 #### 🔌 Socket — Game Start & Turn
 
@@ -224,6 +226,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | S2-10 | Socket: start_game → validate → broadcast game_started | FR-03-10 | PM | 1 วัน |
 | S2-11 | Socket: deal_hand → ส่งไพ่ private ให้แต่ละคน | FR-04-1/2/NFR-03 | PM | 0.5 วัน |
 | S2-12 | Socket: turn_changed → broadcast ใครเทิร์นถัดไป | FR-04-3 | PM | 0.5 วัน |
+| S2-12a | **[NEW]** Socket: turn_timer_tick → broadcast countdown ให้ทุกคนเห็น + turn_timer_reset เมื่อเล่นไพ่ | FR-04-4a/4b | PM | 0.5 วัน |
 
 #### 🃏 Game Logic — Basic Cards
 
@@ -242,7 +245,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 |--------|-----|--------|------|----------|
 | S2-19 | Game Logic: draw_card — จั่วไพ่บนสุด ตรวจ EK | FR-04-4 | SA | 1 วัน |
 | S2-20 | Socket: draw_card event + card_drawn (private) + deck_updated | FR-04-4/NFR-03 | PM | 0.5 วัน |
-| S2-21 | Game Logic: EK drawn → เปิด 20 วิ timer | FR-04-6 | SA | 1 วัน |
+| S2-21 | Game Logic: EK drawn → เปิด **10 วิ** timer (แก้จาก 20 วิ) | FR-04-6 | SA | 1 วัน |
 | S2-22 | Socket: exploding_kitten_drawn → broadcast + defuse_required (private) | FR-04-6/7/8 | PM | 0.5 วัน |
 | S2-23 | Game Logic: Defuse ใช้ได้ → เลือกตำแหน่ง + insert EK กลับ | FR-04-9 | BE | 1 วัน |
 | S2-24 | Socket: insert_exploding_kitten + exploding_kitten_inserted | FR-04-9 | PM | 0.5 วัน |
@@ -263,13 +266,14 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 |--------|-----|--------|------|----------|
 | S2-30 | UI: ปุ่ม Start Game (Host only) + validate ≥ 2 PLAYER | FR-03-10 | FE | 0.5 วัน |
 | S2-31 | UI: แสดงไพ่ในมือตัวเอง (private) | FR-04-2 | FE | 1.5 วัน |
-| S2-32 | UI: แสดง deck count + discard pile top | FR-04-4 | FE | 0.5 วัน |
+| S2-32 | UI: แสดง deck count + **discard pile top (แสดงเฉพาะไพ่ใบล่าสุดที่ถูกทิ้ง)** | FR-04-4/FR-04-10 | FE | 0.5 วัน |
 | S2-33 | UI: แสดงจำนวนไพ่คนอื่น (ไม่รู้ว่าอะไร) | FR-04-2 | FE | 0.5 วัน |
-| S2-34 | UI: Turn indicator — ใครเทิร์น + เวลาเหลือ | FR-04-3 | QA | 1 วัน |
+| S2-34 | UI: Turn indicator — ใครเทิร์น | FR-04-3 | QA | 0.5 วัน |
+| S2-34a | **[NEW]** UI: Turn countdown timer 30 วิ + **Nope Timer 3 วิ สำหรับทุก Action** แสดงให้ทุกคนเห็น | FR-04-4a/4b/FR-05-N1/N2 | FE | 1 วัน |
 | S2-35 | **[G07]** UI: ปุ่ม Draw Card (จั่วไพ่ button เพื่อจบเทิร์น) | FR-04-4 | FE | 0.5 วัน |
 | S2-36 | **[G08]** UI: Card play interaction — เลือก card จากมือ + กด play (select & play mechanism) | FR-05 | FE | 1.5 วัน |
 | S2-37 | **[G09]** UI: See The Future — modal แสดง 3 ใบบนสุด (private เฉพาะคนเล่น) | FR-05 | FE | 0.5 วัน |
-| S2-38 | UI: EK Bomb sequence — 20 วิ countdown + ปุ่ม Defuse / ระเบิด | FR-04-6/7/8 | FE | 1.5 วัน |
+| S2-38 | UI: EK Bomb sequence — **10 วิ** countdown + ปุ่ม Defuse / ระเบิด (แก้จาก 20 วิ) | FR-04-6/7/8 | FE | 1.5 วัน |
 | S2-39 | UI: เลือกตำแหน่งใส่ EK กลับกอง | FR-04-9 | FE | 1 วัน |
 | S2-40 | UI: Player eliminated + ประกาศผู้ชนะ | FR-08-1 | QA | 1 วัน |
 | S2-41 | UI: ปุ่ม Leave กลับ Lobby หลังเกมจบ | FR-08-8 | FE/QA | 0.5 วัน |
@@ -281,9 +285,10 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
 | S2-44 | Test Case: Game Start + Deal Cards | FR-04-1 | QA | 0.5 วัน |
-| S2-45 | Test Case: EK Bomb Sequence ทุก path | FR-04-6/7/8/9 | QA | 1 วัน |
-| S2-46 | Test Case: Basic Cards (AT/SK/SF/SH) + Card play interaction | FR-05 | FE/QA | 0.5 วัน |
-| S2-47 | Manual Test: Full gameplay flow | — | QA + FE/QA | 1 วัน |
+| S2-45 | Test Case: Turn Timer — 30 วิ countdown + reset เมื่อเล่นไพ่ + force draw เมื่อหมดเวลา | FR-04-4a/4b/4c | QA | 0.5 วัน |
+| S2-46 | Test Case: EK Bomb Sequence ทุก path (10 วิ) | FR-04-6/7/8/9 | QA | 1 วัน |
+| S2-47 | Test Case: Basic Cards (AT/SK/SF/SH) + Card play interaction | FR-05 | FE/QA | 0.5 วัน |
+| S2-48 | Manual Test: Full gameplay flow | — | QA + FE/QA | 1 วัน |
 
 ---
 
@@ -304,9 +309,9 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
-| S3-01 | Game Logic: Favor — เลือก target → Nope Window 5 วิ | FR-05-FV/N2/N3 | SA | 1 วัน |
+| S3-01 | Game Logic: เปิด **Nope Window 3 วิ สำหรับทุก Action Card** (Attack, Skip, SF, SH, Favor, Combo ฯลฯ) | FR-05-N1/N2/N3 | SA | 1 วัน |
 | S3-02 | Game Logic: Favor — target เลือกไพ่ให้เอง (ถ้าไม่ Nope) | FR-05-FV | BE | 0.5 วัน |
-| S3-03 | Socket: favor_requested (private) + favor_response | FR-05-FV | PM | 1 วัน |
+| S3-03 | Socket: broadcast **action_pending** (รอ 3 วิ ทุก Action) + **action_executed** เมื่อไม่มีใค่ Nope | FR-05-N1/N2 | PM | 1 วัน |
 | S3-04 | Game Logic: Nope card — validate + บันทึก chain count | FR-05-N1/N4 | SA | 1 วัน |
 | S3-05 | Socket: play_nope + nope_played (chain logic) | FR-05-N4 | PM | 1 วัน |
 | S3-06 | Game Logic: Nope Chain resolve — คี่ = cancel, คู่ = pass | FR-05-N4 | BE | 0.5 วัน |
@@ -344,7 +349,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 |--------|-----|--------|------|----------|
 | S3-19 | Game Logic: AFK timer 30 วิ per turn | FR-10-1 | SA | 1 วัน |
 | S3-20 | Socket: afk_warning (private) → แจ้งเตือนก่อนหมดเวลา | FR-10-2 | PM | 0.5 วัน |
-| S3-21 | Game Logic: หมดเวลา → force draw + update afk_count | FR-10-3/4 | BE | 0.5 วัน |
+| S3-21 | Game Logic: หมดเวลา → force draw + afk_count +1 — **ถ้า afk_count == 2 → Kick ออกทันที** ข้ามเทิร์นให้คนถัดไป | FR-10-3/4 | BE | 0.5 วัน |
 
 #### 🔑 Token Expiry
 
@@ -363,7 +368,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | S3-27 | UI: Combo — เลือก 2x หรือ 3x + เลือก target | FR-05-C1/C2 | FE/QA | 1 วัน |
 | S3-28 | **[G10]** UI: Combo 3x — modal แสดงการ์ดในมือ target ให้คนเล่นเลือกใบที่ต้องการ | FR-05-C2 | FE/QA | 1 วัน |
 | S3-29 | UI: Combo — Nope Window 5 วิ สำหรับผู้ถูกขโมย | FR-05-C3 | FE/QA | 0.5 วัน |
-| S3-30 | UI: Attack Chain indicator (turns remaining) | FR-05-A2 | QA | 0.5 วัน |
+| S3-30 | UI: Attack Chain indicator — แสดงตัวเลขชัดเจน เช่น **"เทิร์นของคุณ (1/4)"** | FR-05-A3 | QA | 0.5 วัน |
 | S3-31 | UI: Reconnect notice + countdown | FR-09-3 | FE | 0.5 วัน |
 | S3-32 | UI: AFK warning countdown | FR-10-2 | FE/QA | 0.5 วัน |
 
@@ -406,7 +411,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
-| S4-11 | Game Logic: Armageddon เล่นจากมือ → เลือก Player B | FR-06-ARM step 1 | SA | 1 วัน |
+| S4-11 | Game Logic: Armageddon เล่นจากมือ → **Validate ล็อคการ์ด Armageddon ทุกใบถ้า Godcat หรือ Devilcat ไม่อยู่บน Playmat** | FR-06-ARM step 0/1 | SA | 1 วัน |
 | S4-12 | Game Logic: Player A เลือกให้ God หรือ Evil | FR-06-ARM step 2 | SA | 0.5 วัน |
 | S4-13 | Game Logic: Player B ตัดสินใจเก็บหรือสลับ | FR-06-ARM step 3 | BE | 0.5 วัน |
 | S4-14 | Game Logic: ผู้ได้ Evil → trigger EK bomb sequence | FR-06-ARM step 4 | BE | 1 วัน |
@@ -419,23 +424,29 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
-| S4-19 | Seed: เพิ่มการ์ด Imploding Kittens ลง CardMaster | FR-07 | BE | 0.5 วัน |
+| S4-19 | Seed: เพิ่มการ์ด Imploding Kittens **ครบ 6 ประเภท / 20 ใบ** ลง CardMaster | FR-07 | BE | 1 วัน |
 | S4-20 | Game Logic: Alter The Future — ดู+สลับ 3 ใบบน (private) | FR-07 | BE | 1 วัน |
-| S4-21 | Game Logic: Draw From The Bottom — จั่วล่างสุด + จบเทิร์น | FR-07 | BE | 0.5 วัน |
-| S4-22 | Game Logic: Imploding Kitten — คว่ำหน้า/หงายหน้า state | FR-07-IK1/2 | SA | 1.5 วัน |
-| S4-23 | Game Logic: IK หงายหน้า จั่วได้ → ตายทันที ไม่มี Defuse | FR-07-IK4 | BE | 0.5 วัน |
-| S4-24 | Socket: imploding_kitten_* events ครบ | FR-07-IK3 | PM | 1 วัน |
+| S4-21 | Game Logic: Draw From The Bottom — จั่วล่างสุด + จบเทิร์น (Attack = จบ 1 จาก 2 เทิร์น) | FR-07 | BE | 0.5 วัน |
+| S4-21a | **[NEW]** Game Logic: Feral Cat (IK) — ใช้แทน Cat Card ใบไหนก็ได้ใน Combo | FR-07 | BE | 0.5 วัน |
+| S4-21b | **[NEW]** Game Logic: Reverse — กลับทิศ + จบเทิร์น (2 ผู้เล่น = Skip, Attack = จบ 1 จาก 2 เทิร์น) | FR-07 | BE | 1 วัน |
+| S4-21c | **[NEW]** Game Logic: Targeted Attack (IK) — เลือก target ใดก็ได้ chain ได้ตาม FR-05-A2 | FR-07 | BE | 0.5 วัน |
+| S4-22 | Game Logic: Imploding Kitten — คว่ำหน้า/หงายหน้า state + กรอบพิเศษ | FR-07-IK1/2 | SA | 1.5 วัน |
+| S4-23 | Game Logic: IK หงายหน้า จั่วได้ → ตายทันที Defuse ใช้ไม่ได้ + ทิ้ง Discard | FR-07-IK4/5 | BE | 0.5 วัน |
+| S4-23a | **[NEW]** Game Logic: Shuffle ขณะ IK หงายหน้าบนสุด → สับกองปกติ (IK อาจลงกองได้) | FR-07-IK6 | BE | 0.5 วัน |
+| S4-24 | Socket: imploding_kitten_* events ครบ + reverse_played + targeted_attack_ik | FR-07-IK3 | PM | 1.5 วัน |
 | S4-25 | UI: Imploding Kitten face-up/down deck indicator | FR-07-IK3 | FE/QA | 1 วัน |
 | S4-26 | UI: Alter The Future — drag-to-reorder 3 ใบบน (private) | FR-07 | FE | 1.5 วัน |
 | S4-27 | UI: Draw From Bottom — แสดงไพ่ที่จั่วได้ + เลือกเก็บหรือวางบน | FR-07 | FE/QA | 0.5 วัน |
+| S4-27a | **[NEW]** UI: Reverse — แสดงทิศทางการเล่นที่เปลี่ยนให้ทุกคนเห็น | FR-07 | FE/QA | 0.5 วัน |
+| S4-27b | **[NEW]** UI: Targeted Attack (IK) — กดที่นั่งเพื่อเลือก target | FR-07 | FE/QA | 0.5 วัน |
 
 #### 🧪 QA Sprint 4
 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
-| S4-28 | Test Case: Good vs. Evil cards ทุกใบ + Feral Cat Combo | FR-06 | QA | 1 วัน |
-| S4-29 | Test Case: Armageddon ทุก path | FR-06-ARM | QA + FE/QA | 1 วัน |
-| S4-30 | Test Case: Imploding Kittens ทุก path | FR-07 | FE/QA | 1 วัน |
+| S4-28 | Test Case: Good vs. Evil cards ทุกใบ + Feral Cat Combo + Armageddon lock condition | FR-06 | QA | 1.5 วัน |
+| S4-29 | Test Case: Armageddon ทุก path (lock, mini-game, Godcat return, Devilcat defuse no-insert) | FR-06-ARM | QA + FE/QA | 1 วัน |
+| S4-30 | Test Case: Imploding Kittens ทุกใบ ทุก path (IK flip, Reverse 2-player, TA-IK chain, DFB attack) | FR-07 | FE/QA | 1.5 วัน |
 
 ---
 
@@ -490,12 +501,12 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 |--------|------|---------|--------|
 | Sprint 0 | Planning & Setup | 6 | ✅ Done |
 | Sprint 1 | Core Infrastructure | 27 | ✅ 25/27 (QA Debt 2) |
-| Sprint 2 | Basic Gameplay + Room Config | 47 | 🔄 In Progress |
+| Sprint 2 | Basic Gameplay + Room Config | 51 | 🔄 In Progress |
 | Sprint 3 | Advanced Cards + Reconnect + AFK | 36 | ⏳ Planned |
-| Sprint 4 | Expansions (G&E + Imploding) | 30 | ⏳ Planned |
+| Sprint 4 | Expansions (G&E + Imploding) | 37 | ⏳ Planned |
 | Sprint 5 | Polish & UX | 13 | ⏳ Planned |
 | Sprint 6 | Testing & Launch | 8 | ⏳ Planned |
-| **Total** | | **167 tickets** | **25/167** |
+| **Total** | | **178 tickets** | **25/178** |
 
 ---
 
@@ -609,8 +620,9 @@ Push Code → Stage 1: CODE QUALITY (ESLint + TypeScript + Prisma validate)
 | FR-04-2 | Private hand | S2-11/31/33 | ✅ |
 | FR-04-3 | Turn-based เวียนที่นั่ง | S2-09/12/34 | ✅ |
 | FR-04-4 | เล่นหรือจั่ว + UI ปุ่ม Draw | S2-18/20/35 | ✅ |
+| FR-04-4a/4b/4c | Turn timer 30 วิ + reset เมื่อ Action + force draw | S2-09a/12a/34a | ✅ |
 | FR-04-5 | คนสุดท้ายชนะ | S2-26/27 | ✅ |
-| FR-04-6 | EK drawn → 20 วิ | S2-21/22/38 | ✅ |
+| FR-04-6 | EK drawn → **10 วิ** | S2-21/22/38 | ✅ |
 | FR-04-7 | มี Defuse → ใช้หรือไม่ | S2-23/38 | ✅ |
 | FR-04-8 | ไม่มี Defuse → ตาย | S2-25/38 | ✅ |
 | FR-04-9 | ใส่ EK กลับ เลือกตำแหน่ง | S2-23/24/39 | ✅ |
@@ -619,7 +631,7 @@ Push Code → Stage 1: CODE QUALITY (ESLint + TypeScript + Prisma validate)
 | FR-05 SH | Shuffle | S2-17 | ✅ |
 | FR-05-FV | Favor + target เลือกเอง | S3-01/02/03/24/25 | ✅ |
 | FR-05-N1/N4 | Nope + chain | S3-04/05/06/26 | ✅ |
-| FR-05-N2/N3 | Nope Window 5 วิ เฉพาะ target | S3-01/03 | ✅ |
+| FR-05-N2/N3 | Nope Window **3 วิ ทุก Action** ทุกคนเห็น | S3-01/03/S2-34a | ✅ |
 | FR-05-C1 | Combo 2x | S3-07/09/27 | ✅ |
 | FR-05-C2 | Combo 3x + UI เลือกการ์ด | S3-08/09/27/28 | ✅ |
 | FR-05-C3 | Nope Window combo | S3-09/29 | ✅ |
@@ -628,7 +640,8 @@ Push Code → Stage 1: CODE QUALITY (ESLint + TypeScript + Prisma validate)
 | FR-06 TA/RF/RH | Good vs. Evil cards | S4-02/03/05 | ✅ |
 | FR-06-ARM | Armageddon Mini-game | S4-11 to S4-18 | ✅ |
 | FR-07 ALF/DFB | Alter Future / Draw Bottom | S4-20/21/26/27 | ✅ |
-| FR-07-IK | Imploding Kitten | S4-22/23/24/25 | ✅ |
+| FR-07 Feral/Reverse/TA | Feral Cat (IK) / Reverse / Targeted Attack (IK) | S4-21a/21b/21c/27a/27b | ✅ |
+| FR-07-IK | Imploding Kitten + IK-Shuffle rule | S4-22/23/23a/24/25 | ✅ |
 | FR-08-1/2 | ประกาศผู้ชนะ + บันทึก | S2-27/40 | ✅ |
 | FR-08-3/4 | Winner เริ่มก่อน / สุ่มถ้าออก | S2-29 | ✅ |
 | FR-08-5/6/7 | Auto Reset → WAITING | S2-28 | ✅ |
@@ -638,7 +651,7 @@ Push Code → Stage 1: CODE QUALITY (ESLint + TypeScript + Prisma validate)
 | FR-09-4 | เกิน 1 นาที → ลบ | S3-14 | ✅ |
 | FR-09-5 | แจ้งคนอื่น | S3-15 | ✅ |
 | FR-09-6/7 | Host disconnect รอ + migrate | S3-17/18 | ✅ |
-| FR-10-1/2/3/4 | AFK 30 วิ + force draw | S3-19/20/21/32 | ✅ |
+| FR-10-1/2/3/4 | AFK 30 วิ + force draw + **kick ครั้งที่ 2** | S3-19/20/21/32 | ✅ |
 | NFR-01 | Real-time | Socket throughout | ✅ |
 | NFR-02 | Backend validate | S2-13 | ✅ |
 | NFR-03 | Private hand | S2-11 | ✅ |
@@ -653,9 +666,9 @@ Push Code → Stage 1: CODE QUALITY (ESLint + TypeScript + Prisma validate)
 | TR-09 | Test Framework | S2-01/02 | ✅ |
 | CARD_MASTER | Original deck ครบ + seed ถูกต้อง | S1-25 | ✅ |
 
-**SRS Coverage: 60/60 Requirements = 100% ✅**
+**SRS Coverage: 66/66 Requirements = 100% ✅**
 
 ---
 
-*Project Plan v2.2 ใช้ SRS v2.0 เป็น Source of Truth — Triple Checked
+*Project Plan v2.4 ใช้ SRS v2.0 เป็น Source of Truth — Nope 3s + AFK Kick + Armageddon Lock + Imploding Complete
 อัปเดตทุก Sprint Review — ถ้ามี decision เปลี่ยนแปลงต้องแก้ SRS ก่อนเสมอ*
