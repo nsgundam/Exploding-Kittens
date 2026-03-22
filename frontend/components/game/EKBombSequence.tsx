@@ -23,7 +23,6 @@ export function EKBombSequence({
   useEffect(() => {
     if (!active || !isMyBomb) return;
 
-    setTimeLeft(10);
     const fuseInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -35,14 +34,17 @@ export function EKBombSequence({
       });
     }, 1000);
 
-    return () => clearInterval(fuseInterval);
+    return () => {
+      clearInterval(fuseInterval);
+      setTimeLeft(10);
+    };
   }, [active, isMyBomb, onExplode]);
 
   if (!active || !isMyBomb) return null;
 
   return (
     <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md">
-      
+
       {/* Background radial gradient pulsing effect */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
 
@@ -111,7 +113,7 @@ export function EKBombSequence({
             disabled={!hasDefuse}
             className={`flex-1 font-bungee py-3 px-4 rounded-2xl text-base transition-all flex items-center justify-center gap-2 border-2
               ${hasDefuse
-                ? "bg-gradient-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-green-300 text-white shadow-[0_0_16px_rgba(34,197,94,0.4)] hover:scale-105 active:scale-95 cursor-pointer"
+                ? "bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-green-300 text-white shadow-[0_0_16px_rgba(34,197,94,0.4)] hover:scale-105 active:scale-95 cursor-pointer"
                 : "bg-gray-800/80 border-gray-600 text-gray-400 cursor-not-allowed opacity-60"
               }`}
           >
@@ -122,7 +124,7 @@ export function EKBombSequence({
           {/* ปุ่มยอมแพ้ — กดได้เสมอ */}
           <button
             onClick={onExplode}
-            className="flex-1 bg-gradient-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-3 px-4 rounded-2xl text-base shadow-[0_0_16px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 bg-linear-to-br600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-3 px-4 rounded-2xl text-base shadow-[0_0_16px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>💀</span> ยอมแพ้
           </button>
