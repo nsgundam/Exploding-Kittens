@@ -171,7 +171,7 @@ export function GameBoard({
       )}
 
       {/* ── BOARD LAYOUT ── */}
-      <div className="w-full relative h-[520px]">
+      <div className="w-full relative h-130">
         {[5, 1, 2, 4, 3].map((seatNum) => {
           let positionClasses = "";
           if (seatNum === 5)
