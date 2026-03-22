@@ -40,10 +40,10 @@ export function EKBombSequence({
   if (!active) return null;
 
   return (
-    <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-[3000] animate-fade-in backdrop-blur-md">
+    <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md">
       
       {/* Background radial gradient pulsing effect */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
 
       <div className="relative z-10 flex flex-col items-center max-w-2xl w-full p-8">
         
@@ -81,19 +81,19 @@ export function EKBombSequence({
             {hasDefuse ? (
               <button
                 onClick={onDefuse}
-                className="flex-1 max-w-[250px] bg-gradient-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
               >
                 <span>🛡️</span> ใช้ DEFUSE!
               </button>
             ) : (
-              <div className="flex-1 max-w-[250px] bg-gray-800/80 border-2 border-gray-600 text-gray-400 font-bungee py-4 px-6 rounded-2xl text-lg flex items-center justify-center gap-2 cursor-not-allowed">
+              <div className="flex-1 max-w-62.5 bg-gray-800/80 border-2 border-gray-600 text-gray-400 font-bungee py-4 px-6 rounded-2xl text-lg flex items-center justify-center gap-2 cursor-not-allowed">
                 <span>🚫</span> ไม่มี DEFUSE
               </div>
             )}
 
             <button
               onClick={onExplode}
-              className="flex-1 max-w-[250px] bg-gradient-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              className="flex-1 max-w-62.5 bg-linear-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
               <span>💀</span> ยอมแพ้
             </button>
