@@ -72,9 +72,7 @@ export const useRoomSocket = (roomId: string) => {
       return;
     }
     const newSocket = io(BACKEND_URL, {
-      transports: ["websocket"],
       reconnectionAttempts: 5,
-      upgrade: false,
     });
     if (newSocket) {
       setTimeout(() => {
@@ -365,7 +363,9 @@ export const useRoomSocket = (roomId: string) => {
       newSocket.off("playerEliminated");
       newSocket.off("errorMessage");
       newSocket.off("disconnect");
-      newSocket.disconnect();
+      setTimeout(() => {
+        newSocket.disconnect();
+      }, 100);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
