@@ -104,7 +104,7 @@ export interface GameBoardProps {
   playCard: (cardCode: string, target?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
-  closeInsertEK: () => void;
+  insertEK: (position: number) => void;
   eliminatedPlayerId: string | null;
   dismissEliminated: () => void;
   winner: { player_id: string; display_name: string } | null;
@@ -129,7 +129,7 @@ export function GameBoard({
   drawCard,
   defuseCard,
   eliminatePlayer,
-  closeInsertEK,
+  insertEK,
   eliminatedPlayerId,
   dismissEliminated,
   winner,
@@ -150,7 +150,7 @@ export function GameBoard({
   };
   const handleInsertEK = (position: number) => {
     console.log("Inserting EK at position", position);
-    closeInsertEK();
+    insertEK(position);
   };
 
   return (

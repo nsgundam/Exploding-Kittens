@@ -133,10 +133,13 @@ export interface DeckConfigChangedPayload {
 }
 
 export interface CardDefusedPayload {
+  success: true;
+  action: "WAITING_FOR_INSERT";
   nextTurn?: {
     player_id: string;
-    display_name?: string;
-    turn_number?: number;
+    display_name: string;
+    turn_number: number;
+    pending_attacks?: number;
   };
 }
 
@@ -151,6 +154,18 @@ export interface PlayerEliminatedPayload {
     display_name?: string;
     turn_number?: number;
   };
+}
+
+export interface EKInsertedPayload {
+  success: true;
+  action: "TURN_ADVANCED";
+  nextTurn: {
+    player_id: string;
+    display_name: string;
+    turn_number: number;
+    pending_attacks?: number;
+  };
+  deck_count: number;
 }
 
 // ── Lobby API Types ─────────────────────────────────────────

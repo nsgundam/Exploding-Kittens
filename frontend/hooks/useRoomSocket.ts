@@ -10,6 +10,7 @@ import type {
   DeckConfigChangedPayload,
   CardDefusedPayload,
   PlayerEliminatedPayload,
+  EKInsertedPayload,
 } from "@/types";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 // ── Game Phase — tracks current UI state during gameplay ──
@@ -142,6 +143,7 @@ export const useRoomSocket = (roomId: string) => {
         }
       },
     );
+
     // ── cardDrawn ──
     newSocket.on(
       "cardDrawn",
@@ -197,18 +199,6 @@ export const useRoomSocket = (roomId: string) => {
               ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
               : `🃏 ${displayName} จั่วไพ่`;
           setGameLogs((prevLogs) => [...prevLogs.slice(-19), logMsg]);
-
-          if (data.isAutoDraw) {
-            const myPlayerToken = localStorage.getItem("player_token");
-            const myPlayer = roomDataRef.current?.players?.find(
-              (p: Player) => p.player_token === myPlayerToken
-            );
-            if (myPlayer && myPlayer.player_id === data.player_id) {
-              setTimeout(() => {
-                alert("กรุณาจั่วไพ่เพื่อป้องกันการหลุดออกจากห้อง");
-              }, 100);
-            }
-          }
         }
         // Advance turn if provided
         if (data?.nextTurn) {
@@ -326,6 +316,24 @@ export const useRoomSocket = (roomId: string) => {
       ]);
     });
 
+    // ── ekInserted ──
+    newSocket.on("ekInserted", (data: EKInsertedPayload) => {
+      console.log("💣 EK Inserted:", data);
+      if (data?.deck_count !== undefined) setDeckCount(data.deck_count);
+      
+      setGamePhase("PLAYING");
+      setEkBombState(null);
+
+      if (data?.nextTurn?.player_id) {
+        setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+      
+      setGameLogs((prev) => [
+        ...prev.slice(-19),
+        `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`,
+      ]);
+    });
+
     // ── playerEliminated ──
     newSocket.on("playerEliminated", (data: PlayerEliminatedPayload) => {
       console.log("💀 Player Eliminated:", data);
@@ -382,6 +390,7 @@ export const useRoomSocket = (roomId: string) => {
       newSocket.off("cardPlayed");
       newSocket.off("deck_config_changed");
       newSocket.off("cardDefused");
+      newSocket.off("ekInserted");
       newSocket.off("playerEliminated");
       newSocket.off("errorMessage");
       newSocket.off("disconnect");
@@ -486,6 +495,22 @@ export const useRoomSocket = (roomId: string) => {
     }
     return () => clearInterval(interval);
   }, [currentTurnPlayerId, gamePhase, roomId]);
+  // ── insertEK — เรียกเมื่อเลือกตำแหน่งใส่ระเบิดกลับกองเสร็จ ──
+  const insertEK = useCallback(
+    (position: number) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("insertEK", { roomId, playerToken, position });
+      
+      setGamePhase("PLAYING");
+      if (pendingNextTurnRef.current) {
+        setCurrentTurnPlayerId(pendingNextTurnRef.current);
+        pendingNextTurnRef.current = null;
+      }
+    },
+    [socket, roomId],
+  );
+
   // ── closeInsertEK — ปิด modal หลังเลือกตำแหน่งแล้ว ──
   const closeInsertEK = useCallback(() => {
     setGamePhase("PLAYING");
@@ -562,6 +587,7 @@ export const useRoomSocket = (roomId: string) => {
     seeTheFutureCards,
     setSeeTheFutureCards,
     closeSeeTheFuture,
+    insertEK,
     closeInsertEK,
     selectSeat,
     startGame,

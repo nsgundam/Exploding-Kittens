@@ -13,6 +13,7 @@ import {
   DrawCardPayload,
   PlayCardPayload,
   DefuseCardPayload,
+  InsertEKPayload,
   EliminatePlayerPayload,
   SanitizedCardHand,
 } from "../types/types";
@@ -165,11 +166,24 @@ export const registerGameSocket = (io: Server): void => {
     socket.on("defuseCard", async (payload: DefuseCardPayload) => {
       try {
         const { roomId, playerToken } = payload;
-
         const result = await gameService.defuseCard(roomId, playerToken);
-
-        // Defuse result is public (everyone knows EK was defused)
+        // Public: everyone knows the EK was defused; player still needs to choose insert position
         io.to(roomId).emit("cardDefused", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Insert EK (Phase 2 of defuse) ──────────────────────────
+    socket.on("insertEK", async (payload: InsertEKPayload) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.insertEK(
+          roomId,
+          playerToken,
+          position,
+        );
+        io.to(roomId).emit("ekInserted", result);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
