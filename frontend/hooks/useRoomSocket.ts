@@ -9,7 +9,10 @@ import type {
   CardPlayedPayload,
   DeckConfigChangedPayload,
 } from "@/types";
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.BACKEND_URL ||
+  "http://localhost:4000";
 // ── Game Phase — tracks current UI state during gameplay ──
 export type GamePhase =
   | "WAITING"

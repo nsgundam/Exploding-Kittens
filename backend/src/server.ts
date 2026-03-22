@@ -10,16 +10,30 @@ import { AppError, getErrorMessage, getErrorStatusCode } from "./utils/errors";
 
 const app = express();
 
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const allowedOrigins = FRONTEND_URL.split(",");
 
-app.use(cors({ origin: FRONTEND_URL }));
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes("*")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/rooms", roomRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: FRONTEND_URL },
+  cors: corsOptions,
 });
 
 // Register socket handlers (separated per AI Rule 2.1)
