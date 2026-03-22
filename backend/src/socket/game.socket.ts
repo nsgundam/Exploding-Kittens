@@ -24,7 +24,7 @@ import { getErrorMessage } from "../utils/errors";
  */
 function sanitizeCardHands(
   cardHands: CardHand[],
-  viewerPlayerId: string | undefined
+  viewerPlayerId: string | undefined,
 ): SanitizedCardHand[] {
   return cardHands.map((hand) => {
     if (viewerPlayerId && hand.player_id === viewerPlayerId) {
@@ -42,16 +42,13 @@ function sanitizeCardHands(
 
 export const registerGameSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
-
     // ── Start Game (S2-10) ─────────────────────────────────────
     socket.on("startGame", async (payload: StartGamePayload) => {
       try {
         const { roomId, playerToken } = payload;
 
-        const { room, session, cardHands, deckState } = await gameService.startGame(
-          roomId,
-          playerToken
-        );
+        const { room, session, cardHands, deckState } =
+          await gameService.startGame(roomId, playerToken);
 
         // Broadcast room status change to everyone
         io.to(roomId).emit("roomUpdated", room);
@@ -63,7 +60,10 @@ export const registerGameSocket = (io: Server): void => {
           const sToken = s.data.playerToken as string | undefined;
           const player = room.players.find((p) => p.player_token === sToken);
 
-          const sanitizedHands = sanitizeCardHands(cardHands, player?.player_id);
+          const sanitizedHands = sanitizeCardHands(
+            cardHands,
+            player?.player_id,
+          );
 
           s.emit("gameStarted", {
             room,
@@ -90,7 +90,7 @@ export const registerGameSocket = (io: Server): void => {
           roomId,
           playerToken,
           cardCode,
-          targetPlayerToken
+          targetPlayerToken,
         );
 
         // Broadcast card played event to room
@@ -117,23 +117,44 @@ export const registerGameSocket = (io: Server): void => {
     // ── Draw Card (S2-20) ──────────────────────────────────────
     socket.on("drawCard", async (payload: DrawCardPayload) => {
       try {
-        const { roomId, playerToken } = payload;
+        const { roomId, playerToken, isAutoDraw } = payload;
 
-        const result = await gameService.drawCard(roomId, playerToken);
+        const result = await gameService.drawCard(
+          roomId,
+          playerToken,
+          isAutoDraw ?? false,
+        );
 
         // Anti-cheat: drawn card is private (NFR-03)
         if (result.action === "DREW_EXPLODING_KITTEN") {
           // EK drawn is public knowledge
-          io.to(roomId).emit("cardDrawn", result);
+          io.to(roomId).emit("cardDrawn", {
+            ...result,
+            isAutoDraw: isAutoDraw ?? false,
+          });
         } else if (result.action === "TURN_ADVANCED") {
           // Normal draw: send drawn card privately, turn info publicly
-          socket.emit("cardDrawn", result);
+          socket.emit("cardDrawn", {
+            ...result,
+            isAutoDraw: isAutoDraw ?? false,
+          });
           socket.to(roomId).emit("cardDrawn", {
             ...result,
             drawnCard: undefined, // Hide from others
+            isAutoDraw: isAutoDraw ?? false,
           });
         } else {
-          io.to(roomId).emit("cardDrawn", result);
+          io.to(roomId).emit("cardDrawn", {
+            ...result,
+            isAutoDraw: isAutoDraw ?? false,
+          });
+        }
+
+        // After an auto-draw, broadcast the full room state so all clients
+        // see the updated afk_count (and is_alive=false if the player was AFK-kicked).
+        if (isAutoDraw) {
+          const updatedRoom = await roomService.getRoomById(roomId);
+          io.to(roomId).emit("roomUpdated", updatedRoom);
         }
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));

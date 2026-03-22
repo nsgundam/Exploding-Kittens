@@ -37,6 +37,9 @@ export function PlayerAvatar({
   const color = avatarColors[seat];
   const isMe = !!onLeaveSeat;
   const isDead = occupied && player?.is_alive === false;
+  const afkCount = player?.afk_count ?? 0;
+  const isAfk = occupied && !isDead && afkCount >= 1;
+  const isDisconnected = occupied && !isDead && afkCount >= 2;
 
   return (
     <div className="flex flex-col items-center gap-1 z-10 w-24">
@@ -125,6 +128,16 @@ export function PlayerAvatar({
               <span className="text-2xl">💀</span>
             </div>
           )}
+
+          {/* AFK / Disconnect overlay */}
+          {isDisconnected && (
+            <div
+              className="absolute inset-0 rounded-full flex items-center justify-center z-10"
+              style={{ background: "rgba(220,38,38,0.55)" }}
+            >
+              <span className="text-2xl">📵</span>
+            </div>
+          )}
           {/* Avatar image */}
           {occupied ? (
             player!.avatar_url ||
@@ -152,11 +165,17 @@ export function PlayerAvatar({
             </span>
           )}
 
-          {/* Online dot */}
+          {/* Online dot / AFK dot */}
           {occupied && (
             <span
               className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-[#2a1a0a]"
-              style={{ background: "#4ade80" }}
+              style={{
+                background: isDisconnected
+                  ? "#dc2626"
+                  : isAfk
+                    ? "#f59e0b"
+                    : "#4ade80",
+              }}
             />
           )}
         </button>

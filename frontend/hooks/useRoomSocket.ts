@@ -56,12 +56,19 @@ export const useRoomSocket = (roomId: string) => {
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
+  // ── Auto-draw / AFK tracking refs ──────────────────────────────────
+  const socketRef = useRef<Socket | null>(null);
+  const hasAutoDrawnThisTurnRef = useRef(false);
+  
   useEffect(() => {
     roomDataRef.current = roomData;
   }, [roomData]);
   useEffect(() => {
     currentTurnPlayerIdRef.current = currentTurnPlayerId;
   }, [currentTurnPlayerId]);
+  useEffect(() => {
+    socketRef.current = socket;
+  }, [socket]);
   useEffect(() => {
     if (!roomId) return;
     const playerToken = localStorage.getItem("player_token");
@@ -116,6 +123,7 @@ export const useRoomSocket = (roomId: string) => {
         if (data?.deck_count !== undefined) setDeckCount(data.deck_count);
         setGamePhase("PLAYING");
         setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
+        hasAutoDrawnThisTurnRef.current = false;
         if (data?.cardHands && Array.isArray(data.cardHands)) {
           setCardHands(data.cardHands);
           const myPlayerToken = localStorage.getItem("player_token");
@@ -185,8 +193,22 @@ export const useRoomSocket = (roomId: string) => {
             ? data.eliminated
               ? `💥 ${displayName} ระเบิด!`
               : `🛡️ ${displayName} defuse ได้!`
-            : `🃏 ${displayName} จั่วไพ่`;
+            : data.isAutoDraw
+              ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
+              : `🃏 ${displayName} จั่วไพ่`;
           setGameLogs((prevLogs) => [...prevLogs.slice(-19), logMsg]);
+
+          if (data.isAutoDraw) {
+            const myPlayerToken = localStorage.getItem("player_token");
+            const myPlayer = roomDataRef.current?.players?.find(
+              (p: Player) => p.player_token === myPlayerToken
+            );
+            if (myPlayer && myPlayer.player_id === data.player_id) {
+              setTimeout(() => {
+                alert("กรุณาจั่วไพ่เพื่อป้องกันการหลุดออกจากห้อง");
+              }, 100);
+            }
+          }
         }
         // Advance turn if provided
         if (data?.nextTurn) {
@@ -389,11 +411,18 @@ export const useRoomSocket = (roomId: string) => {
     socket.emit("startGame", { roomId, playerToken });
   }, [socket, roomId]);
   // ── drawCard ──
-  const drawCard = useCallback(() => {
-    if (!socket) return;
-    const playerToken = localStorage.getItem("player_token");
-    socket.emit("drawCard", { roomId, playerToken });
-  }, [socket, roomId]);
+  const drawCard = useCallback(
+    (isAutoDraw?: boolean) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("drawCard", {
+        roomId,
+        playerToken,
+        isAutoDraw: isAutoDraw ?? false,
+      });
+    },
+    [socket, roomId],
+  );
   // ── playCard ──
   const playCard = useCallback(
     (cardCode: string, targetPlayerToken?: string) => {
@@ -418,17 +447,45 @@ export const useRoomSocket = (roomId: string) => {
     },
     [socket, roomId],
   );
-  // Handle timer
+  const timeLeftRef = useRef(30);
+
+  // Handle timer and auto-draw
   useEffect(() => {
     setTimeLeft(30);
+    timeLeftRef.current = 30;
+    hasAutoDrawnThisTurnRef.current = false;
+
     let interval: NodeJS.Timeout;
     if (gamePhase === "PLAYING" && currentTurnPlayerId) {
       interval = setInterval(() => {
-        setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+        if (timeLeftRef.current > 0) {
+          timeLeftRef.current -= 1;
+          setTimeLeft(timeLeftRef.current);
+        }
+        
+        if (timeLeftRef.current === 0 && !hasAutoDrawnThisTurnRef.current) {
+          const myToken = localStorage.getItem("player_token");
+          const myPlayer = roomDataRef.current?.players?.find(
+            (p: Player) => p.player_token === myToken,
+          );
+          
+          if (
+            myPlayer &&
+            myPlayer.player_id === currentTurnPlayerId &&
+            myPlayer.is_alive !== false
+          ) {
+            hasAutoDrawnThisTurnRef.current = true;
+            socketRef.current?.emit("drawCard", {
+              roomId,
+              playerToken: myToken,
+              isAutoDraw: true,
+            });
+          }
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [currentTurnPlayerId, gamePhase]);
+  }, [currentTurnPlayerId, gamePhase, roomId]);
   // ── closeInsertEK — ปิด modal หลังเลือกตำแหน่งแล้ว ──
   const closeInsertEK = useCallback(() => {
     setGamePhase("PLAYING");

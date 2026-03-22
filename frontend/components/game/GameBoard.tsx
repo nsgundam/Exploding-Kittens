@@ -100,7 +100,7 @@ export interface GameBoardProps {
   gameLogs: string[];
   onCloseSeeTheFuture: () => void;
   selectSeat: (seat_number: number) => void;
-  drawCard: () => void;
+  drawCard: (isAutoDraw?: boolean) => void;
   playCard: (cardCode: string, target?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
@@ -345,7 +345,7 @@ export function GameBoard({
                   fontFamily: "'Fredoka One',cursive",
                 }}
               >
-                💣 <span>{deckCount ?? roomData.deck_count ?? 56} ใบ</span>
+                💣 <span>{deckCount ?? roomData.deck_count} ใบ</span>
               </div>
               <div
                 className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
