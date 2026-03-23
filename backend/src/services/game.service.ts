@@ -590,7 +590,7 @@ export const gameService = {
   async defuseCard(
     roomId: string,
     playerToken: string,
-  ): Promise<TurnAdvancedResult | GameOverResult> {
+  ): Promise<{ success: true; action: "WAITING_FOR_INSERT" }> {
     return await prisma.$transaction(async (tx) => {
       const room = await tx.room.findUnique({
         where: { room_id: roomId },
@@ -658,17 +658,68 @@ export const gameService = {
         data: { cards: newCards, card_count: newCards.length },
       });
 
-      // Insert EK back at random position
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: "DEFUSED",
+          action_details: { ek_card: ekCard },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return { success: true as const, action: "WAITING_FOR_INSERT" as const };
+    });
+  },
+
+  async insertEK(
+    roomId: string,
+    playerToken: string,
+    position: number,
+  ): Promise<TurnAdvancedResult & { deck_count: number }> {
+    return await prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUnique({
+        where: { room_id: roomId },
+        include: { deck_config: true },
+      });
+      if (!room) throw new NotFoundError("Room");
+      if (room.status !== RoomStatus.PLAYING)
+        throw new BadRequestError("Game is not active");
+
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id)
+        throw new BadRequestError("It's not your turn");
+
+      // Validate last action was DEFUSED (waiting for insert position)
+      const lastLog = await tx.gameLog.findFirst({
+        where: { session_id: session.session_id, player_id: player.player_id },
+        orderBy: { timestamp: "desc" },
+      });
+      if (lastLog?.action_type !== "DEFUSED")
+        throw new BadRequestError("No pending EK insertion");
+
+      const ekCard = (lastLog.action_details as { ek_card: string }).ek_card;
+
       const deckState = await tx.deckState.findUnique({
         where: { session_id: session.session_id },
       });
       const deck = deckState!.deck_order as string[];
-      const insertAt = Math.floor(Math.random() * (deck.length + 1));
-      const deckWithEK = [
-        ...deck.slice(0, insertAt),
-        ekCard,
-        ...deck.slice(insertAt),
-      ];
+
+      let insertIndex = deck.length - position;
+
+      insertIndex = Math.max(0, Math.min(insertIndex, deck.length));
+      
+      const deckWithEK = [...deck];
+      deckWithEK.splice(insertIndex, 0, ekCard);
 
       await tx.deckState.update({
         where: { session_id: session.session_id },
@@ -680,18 +731,19 @@ export const gameService = {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "DEFUSED",
-          action_details: { ek_card: ekCard, insert_at: insertAt },
+          action_type: "EK_INSERTED",
+          action_details: { ek_card: ekCard, insert_at: insertIndex },
           turn_number: session.turn_number,
         },
       });
 
-      return await gameService.advanceTurn(
+      const turnResult = await gameService.advanceTurn(
         tx,
         session,
         roomId,
         player.player_id,
       );
+      return { ...turnResult, deck_count: deckWithEK.length };
     });
   },
 
@@ -948,7 +1000,7 @@ export const gameService = {
     tx: Prisma.TransactionClient,
     session: GameSession,
     player: Player,
-    roomId: string
+    roomId: string,
   ): Promise<TurnAdvancedResult | GameOverResult | null> {
     const newAfkCount = player.afk_count + 1;
     await tx.player.update({
@@ -977,7 +1029,7 @@ export const gameService = {
         session,
         roomId,
         player.player_id,
-        "AFK_TIMEOUT"
+        "AFK_TIMEOUT",
       );
     }
     return null;

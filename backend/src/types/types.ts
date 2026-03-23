@@ -170,6 +170,17 @@ export interface DefuseCardPayload {
   playerToken: string;
 }
 
+export interface InsertEKPayload {
+  roomId: string;
+  playerToken: string;
+  position: number;
+}
+
+export interface DefuseWaitResult {
+  success: true;
+  action: "WAITING_FOR_INSERT";
+}
+
 export interface EliminatePlayerPayload {
   roomId: string;
   playerToken: string;

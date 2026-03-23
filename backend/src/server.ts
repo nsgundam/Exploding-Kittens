@@ -6,7 +6,7 @@ import { Server } from "socket.io";
 import roomRoutes from "./routes/room.route";
 import { registerRoomSocket } from "./socket/room.socket";
 import { registerGameSocket } from "./socket/game.socket";
-import { AppError, getErrorMessage, getErrorStatusCode } from "./utils/errors";
+import { getErrorMessage, getErrorStatusCode } from "./utils/errors";
 
 const app = express();
 
@@ -22,11 +22,9 @@ const io = new Server(server, {
   cors: { origin: FRONTEND_URL },
 });
 
-// Register socket handlers (separated per AI Rule 2.1)
 registerRoomSocket(io);
 registerGameSocket(io);
 
-// Global error handler — typed, no `any`
 app.use(
   (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const statusCode = getErrorStatusCode(err);
