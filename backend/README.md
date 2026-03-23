@@ -244,3 +244,13 @@ Expected output:✅
 ```
 Server running at http://localhost:4000
 ```
+🫵🏻🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🦖🫵🏻
+TO ALL:  prisma/schema.prisma is updated pls run in backend najaaaa
+1.
+```   
+npx prisma migrate dev --name add_last_winner_token_to_room
+```
+2.
+```  
+npx prisma generate
+```

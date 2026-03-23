@@ -55,7 +55,7 @@ model Room {
   created_at           DateTime       @default(now())
   updated_at           DateTime       @updatedAt
   restart_available_at DateTime?
-
+  last_winner_token String?
   players       Player[]      @relation("RoomPlayers")
   deck_config   DeckConfig?
   game_sessions GameSession[]

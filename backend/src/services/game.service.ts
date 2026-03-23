@@ -159,10 +159,22 @@ async function createGameSession(
   hands: PlayerHandsMap,
   hostPlayerToken: string,
 ): Promise<{ session: GameSession; cardHands: CardHand[] }> {
-  const firstPlayer = players[0];
-  if (!firstPlayer)
-    throw new BadRequestError("No players available to start game");
+  const room = await tx.room.findUnique({ where: { room_id: roomId } });
+  // Determine first player: last winner if available, otherwise random
+  let firstPlayer: Player;
 
+  const winner = room?.last_winner_token
+    ? players.find(p => p.player_token === room.last_winner_token)
+    : undefined;
+//เช็คว่ามี winner และยังอยู่ในเกมไหม ถ้าไม่มีให้สุ่มใหม่
+    if (winner) {
+    firstPlayer = winner;
+    // ในกรณีที่ไม่เจอ ก็สุ่มไปเลย
+  } else {
+    const randomIndex = Math.floor(Math.random() * players.length);
+    firstPlayer = players[randomIndex]!;
+  }
+  if (!firstPlayer) throw new BadRequestError("No players available to start game");
   const session = await tx.gameSession.create({
     data: {
       room_id: roomId,
@@ -302,7 +314,10 @@ export const gameService = {
       // 8. Update room status to PLAYING
       const updatedRoom = await tx.room.update({
         where: { room_id: roomId },
-        data: { status: RoomStatus.PLAYING },
+        data: {
+          status: RoomStatus.PLAYING,
+          last_winner_token: null, // ล้างหลังนำไปใช้แล้ว (ถ้าไม่ล้างจะทำให้คนที่ชนะเกมก่อนหน้าได้เริ่มเกมถัดไปทุกครั้ง) ถั่วต้มๆ
+        },
         include: { players: true, deck_config: true },
       });
 
@@ -603,7 +618,7 @@ export const gameService = {
       let insertIndex = deck.length - position;
 
       insertIndex = Math.max(0, Math.min(insertIndex, deck.length));
-      
+
       const deckWithEK = [...deck];
       deckWithEK.splice(insertIndex, 0, ekCard);
 
@@ -1018,9 +1033,23 @@ export const gameService = {
         data: {
           status: RoomStatus.WAITING,
           restart_available_at: new Date(),
+          last_winner_token: winner.player_token,
         },
       });
+      // Auto-reset player states (alive, AFK count) for next game
+      await tx.player.updateMany({
+        where: { room_id: roomId },
+        data: {
+          is_alive: true,
+          afk_count: 0,
+          role: PlayerRole.PLAYER
 
+          //ถ้าให้อยากให้ทุกคนหลุดออกจากที่นั่งตอนจบเกม แล้วเลือกที่นั่งใหม่
+          // Note: SPECTATORs remain spectators, they won't be reset to PLAYER
+          //seat_number: null, // Reset seat numbers, will be reassigned on next game start
+          //role: PlayerRole.SPECTATOR, // Move all players to SPECTATOR, they will be reassigned on next game start
+        },
+      });
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
