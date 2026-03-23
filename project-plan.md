@@ -269,7 +269,7 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | S2-32 | UI: แสดง deck count + **discard pile top (แสดงเฉพาะไพ่ใบล่าสุดที่ถูกทิ้ง)** | FR-04-4/FR-04-10 | FE | 0.5 วัน |
 | S2-33 | UI: แสดงจำนวนไพ่คนอื่น (ไม่รู้ว่าอะไร) | FR-04-2 | FE | 0.5 วัน |
 | S2-34 | UI: Turn indicator — ใครเทิร์น | FR-04-3 | QA | 0.5 วัน |
-| S2-34a | **[NEW]** UI: Turn countdown timer 30 วิ + **Nope Timer 3 วิ สำหรับทุก Action** แสดงให้ทุกคนเห็น | FR-04-4a/4b/FR-05-N1/N2 | FE | 1 วัน |
+| S2-34a | **[NEW]** UI: Turn countdown timer 30 วิ + **Nope Window 3 วิ สำหรับทุกการเล่นการ์ด** — แสดงข้อความ **"Does anyone want to play nope? {time}"** ให้ทุกคนเห็น — หาก Nope ถูกเล่นให้ reset countdown 3 วิใหม่ | FR-04-4a/4b/FR-05-N1/N2 | FE | 1 วัน |
 | S2-35 | **[G07]** UI: ปุ่ม Draw Card (จั่วไพ่ button เพื่อจบเทิร์น) | FR-04-4 | FE | 0.5 วัน |
 | S2-36 | **[G08]** UI: Card play interaction — เลือก card จากมือ + กด play (select & play mechanism) | FR-05 | FE | 1.5 วัน |
 | S2-37 | **[G09]** UI: See The Future — modal แสดง 3 ใบบนสุด (private เฉพาะคนเล่น) | FR-05 | FE | 0.5 วัน |
@@ -297,9 +297,11 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 **Goal:** Favor, Nope Chain, Combo, Attack Chain, Reconnect, AFK, Token Expiry
 
 **Acceptance Criteria:**
-- Favor → ผู้โดนบังคับมี Nope Window 5 วิ + เลือกไพ่เอง
+- ทุกครั้งที่ผู้เล่นเล่นการ์ดใดก็ตาม → แสดง **"Does anyone want to play nope? {time}"** countdown **3 วิ** ให้ทุกคนเห็น
+- Favor → หลัง Nope Window ผ่าน: ผู้โดนบังคับเลือกไพ่ให้เอง
+- หากมีการเล่น Nope ระหว่าง Window → reset countdown **3 วิ** ใหม่
 - Nope Chain: คี่ = ยกเลิก, คู่ = ผ่าน
-- Combo 2x/3x + Nope Window 5 วิ
+- Combo 2x/3x → ผ่าน universal Nope Window **3 วิ** เหมือนกัน
 - Attack Chain +2 เทิร์นต่อครั้ง
 - Disconnect → hold 1 นาที → Reconnect กลับที่นั่งเดิม
 - AFK 30 วิ → force draw
@@ -309,9 +311,9 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
-| S3-01 | Game Logic: เปิด **Nope Window 3 วิ สำหรับทุก Action Card** (Attack, Skip, SF, SH, Favor, Combo ฯลฯ) | FR-05-N1/N2/N3 | SA | 1 วัน |
-| S3-02 | Game Logic: Favor — target เลือกไพ่ให้เอง (ถ้าไม่ Nope) | FR-05-FV | BE | 0.5 วัน |
-| S3-03 | Socket: broadcast **action_pending** (รอ 3 วิ ทุก Action) + **action_executed** เมื่อไม่มีใค่ Nope | FR-05-N1/N2 | PM | 1 วัน |
+| S3-01 | Game Logic: เปิด **Nope Window 3 วิ ทุกครั้งที่มีการเล่นการ์ดใดก็ตาม** (Attack, Skip, SF, SH, Favor, Combo, Reverse, Targeted Attack ฯลฯ) — หากมีการเล่น Nope ให้ reset timer 3 วิใหม่ | FR-05-N1/N2/N3/N4 | SA | 1 วัน |
+| S3-02 | Game Logic: Favor — target เลือกไพ่ให้เอง (หลัง Nope Window ผ่านแล้ว) | FR-05-FV | BE | 0.5 วัน |
+| S3-03 | Socket: broadcast **action_pending** พร้อม payload การ์ดที่เล่น ทุก Action — **ส่ง UI text "Does anyone want to play nope? {time}"** ให้ทุกคน — broadcast **nope_window_reset** เมื่อมีการเล่น Nope (reset countdown 3 วิใหม่) — broadcast **action_executed** เมื่อหมดเวลาและไม่มี Nope | FR-05-N1/N2/N4 | PM | 1 วัน |
 | S3-04 | Game Logic: Nope card — validate + บันทึก chain count | FR-05-N1/N4 | SA | 1 วัน |
 | S3-05 | Socket: play_nope + nope_played (chain logic) | FR-05-N4 | PM | 1 วัน |
 | S3-06 | Game Logic: Nope Chain resolve — คี่ = cancel, คู่ = pass | FR-05-N4 | BE | 0.5 วัน |
@@ -363,11 +365,11 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | Ticket | งาน | FR Ref | Role | Estimate |
 |--------|-----|--------|------|----------|
 | S3-24 | UI: Favor — กดที่นั่งเพื่อเลือก target | FR-05-FV | FE | 1 วัน |
-| S3-25 | UI: Favor — ผู้โดนบังคับ modal เลือกไพ่ + Nope button 5 วิ | FR-05-FV/N2 | FE | 1.5 วัน |
+| S3-25 | UI: Favor — ผู้โดนบังคับ modal เลือกไพ่ (แสดงหลัง Nope Window 3 วิ ผ่านแล้ว — Nope button แสดงผ่าน universal Nope UI แทน) | FR-05-FV/N2 | FE | 1.5 วัน |
 | S3-26 | UI: Nope button + chain display (Nope #1, #2...) | FR-05-N4 | QA | 1 วัน |
 | S3-27 | UI: Combo — เลือก 2x หรือ 3x + เลือก target | FR-05-C1/C2 | FE/QA | 1 วัน |
 | S3-28 | **[G10]** UI: Combo 3x — modal แสดงการ์ดในมือ target ให้คนเล่นเลือกใบที่ต้องการ | FR-05-C2 | FE/QA | 1 วัน |
-| S3-29 | UI: Combo — Nope Window 5 วิ สำหรับผู้ถูกขโมย | FR-05-C3 | FE/QA | 0.5 วัน |
+| S3-29 | UI: Combo — Nope Window **3 วิ** (universal) แสดง "Does anyone want to play nope? {time}" ให้ทุกคนเห็น รวมถึงผู้ถูกขโมย | FR-05-C3 | FE/QA | 0.5 วัน |
 | S3-30 | UI: Attack Chain indicator — แสดงตัวเลขชัดเจน เช่น **"เทิร์นของคุณ (1/4)"** | FR-05-A3 | QA | 0.5 วัน |
 | S3-31 | UI: Reconnect notice + countdown | FR-09-3 | FE | 0.5 วัน |
 | S3-32 | UI: AFK warning countdown | FR-10-2 | FE/QA | 0.5 วัน |

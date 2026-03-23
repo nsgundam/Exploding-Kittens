@@ -99,10 +99,10 @@
 
 | ID | Requirement |
 |----|-------------|
-| FR-05-N1 | **[UPDATED]** ระบบจะเปิด Nope Window **3 วินาที** สำหรับ **ทุก Action Card** (Attack, Skip, See The Future, Shuffle, Favor, Combo ฯลฯ) |
-| FR-05-N2 | **[UPDATED]** แสดง UI countdown 3 วินาทีให้ **ทุกคน** เห็น หากไม่มีใคร Nope ภายในเวลา action นั้นทำงานทันที |
+| FR-05-N1 | **[UPDATED]** ระบบจะเปิด Nope Window **3 วินาที** ทุกครั้งที่ผู้เล่นเล่นการ์ด**ใดก็ตาม**จากมือ (ทุก Action Card: Attack, Skip, See The Future, Shuffle, Favor, Combo, Targeted Attack, Reverse ฯลฯ) |
+| FR-05-N2 | **[UPDATED]** แสดง UI countdown พร้อมข้อความ **"Does anyone want to play nope? {time}"** ให้ **ทุกคน** เห็น — หากไม่มีใคร Nope ภายในเวลา action นั้นทำงานทันที |
 | FR-05-N3 | Nope Window เปิดให้ **ผู้เล่นทุกคน** ในห้องสามารถกดขัดจังหวะได้ |
-| FR-05-N4 | Nope ถูก Nope ได้ (Nope Chain) — เลขคี่ = ยกเลิก, เลขคู่ = action ผ่าน |
+| FR-05-N4 | Nope ถูก Nope ได้ (Nope Chain) — เมื่อมีการเล่น Nope ระหว่าง Window ให้ **reset countdown 3 วินาทีใหม่** อีกครั้ง — เลขคี่ = ยกเลิก, เลขคู่ = action ผ่าน |
 
 ### กฎ Attack Chain
 
@@ -261,7 +261,7 @@
 | # | คำถาม | Status | Decision |
 |---|-------|--------|----------|
 | OQ-01 | Token อายุกี่ชั่วโมง? | ✅ | 12 ชั่วโมง |
-| OQ-02 | Nope Window กี่วินาที? | ✅ | **3 วินาที สำหรับทุก Action Card** (เปลี่ยนจาก 5 วิเฉพาะ Favor/Combo) |
+| OQ-02 | Nope Window กี่วินาที? | ✅ | **3 วินาที สำหรับทุกการเล่นการ์ด** — แสดง "Does anyone want to play nope? {time}" ให้ทุกคนเห็น, หาก Nope ถูกเล่นระหว่าง Window จะ reset countdown 3 วิใหม่ (เปลี่ยนจาก 5 วิเฉพาะ Favor/Combo) |
 | OQ-03 | AFK timeout กี่วินาที? | ✅ | 30 วินาที — **หาก AFK ครบ 2 ครั้ง เตะออกทันที** |
 | OQ-04 | Good vs. Evil การ์ดเพิ่มเติม? | ✅ | Targeted Attack, Reveal The Future, Feral Cat, Raising Hack, Armageddon |
 | OQ-05 | Combo 3 ใบอยู่ใน scope? | ✅ | อยู่ใน scope |
