@@ -3,10 +3,11 @@ import { prisma } from "../config/prisma";
 import { CreateRoomInput, UpdateDeckConfigInput, RoomWithRelations, CurrentRoomResponse } from "../types/types";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../utils/errors";
 import type { Player, Room } from "@prisma/client";
+import { GAME_CONFIG } from "../constants/game";
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function generateRoomCode(length = 6): string {
+function generateRoomCode(length = GAME_CONFIG.ROOM_CODE_LENGTH): string {
   const chars = "0123456789";
   let result = "";
   for (let i = 0; i < length; i++) {
@@ -29,8 +30,9 @@ export const roomService = {
     // Generate unique room code
     let newRoomCode = "";
     let isUnique = false;
+    let retries = 0;
 
-    while (!isUnique) {
+    while (!isUnique && retries < GAME_CONFIG.MAX_ROOM_CODE_RETRIES) {
       newRoomCode = generateRoomCode();
       const existingRoom = await prisma.room.findUnique({
         where: { room_id: newRoomCode },
@@ -38,6 +40,11 @@ export const roomService = {
       if (!existingRoom) {
         isUnique = true;
       }
+      retries++;
+    }
+
+    if (!isUnique) {
+      throw new Error("Failed to generate unique room code. Please try again.");
     }
 
     return await prisma.$transaction(async (tx) => {
