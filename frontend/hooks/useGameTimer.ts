@@ -16,9 +16,9 @@ export const useGameTimer = (
   const hasAutoDrawnThisTurnRef = useRef(false);
 
   useEffect(() => {
-    setTimeLeft(30);
-    timeLeftRef.current = 30;
-    hasAutoDrawnThisTurnRef.current = false;
+    const resetTimeuot = setTimeout(() => {
+      setTimeLeft(30);
+    }, 0);
 
     let interval: NodeJS.Timeout;
     if (gamePhase === "PLAYING" && currentTurnPlayerId) {
@@ -49,7 +49,10 @@ export const useGameTimer = (
         }
       }, 1000);
     }
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(resetTimeuot);
+    };
   }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, lastPlayedCard]);
 
   return { timeLeft };
