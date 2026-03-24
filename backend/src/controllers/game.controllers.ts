@@ -102,6 +102,10 @@ export const favorCard = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+  const result = await gameService.defuseCard(roomId, playerToken);
+  res.status(200).json(result);
+});
+
 /**
  * POST /api/rooms/:roomId/favor/response
  * Target เลือกไพ่ให้ requester
@@ -119,6 +123,7 @@ export const favorResponse = async (req: Request, res: Response): Promise<void> 
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
   }
 };
+
 /**
  * POST /api/rooms/:roomId/nope
  * เล่น Nope card — ทุกคนเล่นได้ยกเว้นคนเล่นไพ่นั้น
@@ -139,5 +144,13 @@ export const nopeCard = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json(result);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
-  }
-};
+
+
+  const result = await gameService.playCard(
+    roomId,
+    playerToken,
+    cardCode,
+    targetPlayerToken
+  );
+  res.status(200).json(result);
+});

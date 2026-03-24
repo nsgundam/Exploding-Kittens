@@ -621,6 +621,7 @@ export const gameService = {
 
       insertIndex = Math.max(0, Math.min(insertIndex, deck.length));
 
+      
       const deckWithEK = [...deck];
       deckWithEK.splice(insertIndex, 0, ekCard);
 
