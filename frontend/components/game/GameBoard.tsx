@@ -8,6 +8,8 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
+import { FavorTargetModal } from "./FavorTargetModal";
+import { FavorPickModal } from "./FavorPickModal";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
 
 function WinnerPopup({
@@ -109,6 +111,10 @@ export interface GameBoardProps {
   dismissEliminated: () => void;
   winner: { player_id: string; display_name: string } | null;
   myPlayerToken: string | null;
+  favorState: { requesterPlayerId: string; requesterName: string; targetPlayerId?: string } | null;
+  selectFavorTarget: (targetPlayerToken: string) => void;
+  pickFavorCard: (cardCode: string, requesterPlayerId: string) => void;
+  myCards: string[];
   isMySeat: (seat: number) => boolean;
   timeLeft?: number;
   lastPlayedCard?: { cardCode: string; playedByDisplayName: string } | null;
@@ -134,6 +140,10 @@ export function GameBoard({
   dismissEliminated,
   winner,
   myPlayerToken,
+  favorState,
+  selectFavorTarget,
+  pickFavorCard,
+  myCards,
   isMySeat,
   timeLeft,
   lastPlayedCard,
@@ -181,7 +191,7 @@ export function GameBoard({
       <InsertEKModal
         isOpen={gamePhase === "DEFUSE_INSERT"}
         drawnCard={ekBombState?.drawnCard || "EK"}
-        deckCount={roomData.deck_count || 56}
+        deckCount={deckCount ?? roomData.deck_count ?? 0}
         onConfirm={handleInsertEK}
       />
 
@@ -189,6 +199,24 @@ export function GameBoard({
         isOpen={gamePhase === "SEE_FUTURE"}
         cards={seeTheFutureCards}
         onClose={onCloseSeeTheFuture}
+      />
+
+      {/* ── FAVOR: เลือก target ── */}
+      <FavorTargetModal
+        isOpen={gamePhase === "FAVOR_SELECT_TARGET"}
+        players={roomData.players ?? []}
+        myPlayerToken={myPlayerToken}
+        onSelectTarget={(target) => selectFavorTarget(target.player_token)}
+        onCancel={() => selectFavorTarget("")}
+      />
+
+      {/* ── FAVOR: เลือกการ์ดให้ ── */}
+      <FavorPickModal
+        isOpen={gamePhase === "FAVOR_PICK_CARD"}
+        requesterName={favorState?.requesterName ?? "ผู้เล่น"}
+        requesterPlayerId={favorState?.requesterPlayerId ?? ""}
+        myCards={myCards}
+        onPickCard={pickFavorCard}
       />
 
       {/* ── ELIMINATED POPUP ── แสดงเฉพาะคนที่แพ้เท่านั้น */}

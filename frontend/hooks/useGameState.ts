@@ -13,12 +13,43 @@ import type {
   EKInsertedPayload,
 } from "@/types";
 
+// ── Toast notification ─────────────────────────────────────
+function showToast(message: string, duration = 3500) {
+  if (typeof window === "undefined") return;
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position: "fixed", top: "20px", left: "50%",
+    transform: "translateX(-50%) translateY(-80px)",
+    background: "rgba(30,20,5,0.95)", color: "#f5e6c8",
+    padding: "12px 24px", borderRadius: "12px",
+    border: "1.5px solid rgba(245,166,35,0.5)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    fontFamily: "'Fredoka One', cursive", fontSize: "15px",
+    zIndex: "9999",
+    transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.35s ease",
+    opacity: "0", whiteSpace: "nowrap",
+  });
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.transform = "translateX(-50%) translateY(0)";
+    toast.style.opacity = "1";
+  });
+  setTimeout(() => {
+    toast.style.transform = "translateX(-50%) translateY(-80px)";
+    toast.style.opacity = "0";
+    setTimeout(() => document.body.removeChild(toast), 400);
+  }, duration);
+}
+
 export type GamePhase =
   | "WAITING"
   | "PLAYING"
   | "EK_DRAWN"
   | "DEFUSE_INSERT"
   | "SEE_FUTURE"
+  | "FAVOR_SELECT_TARGET"
+  | "FAVOR_PICK_CARD"
   | "GAME_OVER";
 
 export interface EKBombState {
@@ -37,6 +68,11 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [seeTheFutureCards, setSeeTheFutureCards] = useState<string[]>([]);
   const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(null);
   const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
+  const [favorState, setFavorState] = useState<{
+    requesterPlayerId: string;
+    requesterName: string;
+    targetPlayerId?: string;
+  } | null>(null);
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [deckCount, setDeckCount] = useState<number | null>(null);
@@ -44,9 +80,11 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
+  const gamePhaseRef = useRef<GamePhase>("WAITING");
 
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
+  useEffect(() => { gamePhaseRef.current = gamePhase; }, [gamePhase]);
 
   useEffect(() => {
     if (!socket || !roomId) return;
@@ -57,7 +95,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setRoomData(updatedRoom);
       if (updatedRoom.status === "WAITING") {
         setGamePhase("WAITING");
-      } else if (updatedRoom.status === "PLAYING" && gamePhase === "WAITING") {
+      } else if (updatedRoom.status === "PLAYING" && gamePhaseRef.current === "WAITING") {
         setGamePhase("PLAYING");
       }
     };
@@ -160,12 +198,39 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       }
     };
 
-    // ── deck_config_changed ──
-    const handleDeckConfigChanged = (data: DeckConfigChangedPayload) => {
+    // ── deck_config_changed / deckConfigUpdated ──
+    const handleDeckConfigChanged = (data: DeckConfigChangedPayload & { deck_config?: { card_version?: string } }) => {
       console.log("⚙️ Deck Config Changed:", data);
-      const versionName = data.card_version === "good_and_evil" ? "Good vs. Evil" : "Original";
-      const addonLabel = data.expansions?.addons?.includes("imploding_kittens") ? " + Imploding Kittens" : "";
-      setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck เปลี่ยนเป็น ${versionName}${addonLabel}`]);
+      showToast("⚙️ Deck config changed");
+      setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
+    };
+
+    // ── favorRequested ── (backend ส่งมาหาคนที่โดนเลือก)
+    const handleFavorRequested = (data: { requesterPlayerId: string; requesterName: string; availableCards?: string[] }) => {
+      console.log("🤝 Favor Requested:", data);
+      setFavorState({
+        requesterPlayerId: data.requesterPlayerId,
+        requesterName: data.requesterName,
+        availableCards: data.availableCards,
+      } as any);
+      setGamePhase("FAVOR_PICK_CARD");
+    };
+
+    // ── favorCompleted ── (backend แจ้งว่า FV เสร็จแล้ว)
+    const handleFavorCompleted = (data: { nextTurn?: { player_id: string }; cardCode: string; requesterPlayerId: string }) => {
+      console.log("🤝 Favor Completed:", data);
+      setFavorState(null);
+      setGamePhase("PLAYING");
+      if (data?.nextTurn?.player_id) {
+        setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      // ถ้าเราเป็น requester → เพิ่มการ์ดเข้ามือ
+      if (me?.player_id === data.requesterPlayerId) {
+        setMyCards((prev) => [...prev, data.cardCode]);
+      }
+      setGameLogs((prev) => [...prev.slice(-19), `🤝 Favor เสร็จแล้ว!`]);
     };
 
     // ── cardDefused ──
@@ -244,6 +309,9 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     socket.on("cardDrawn", handleCardDrawn);
     socket.on("cardPlayed", handleCardPlayed);
     socket.on("deck_config_changed", handleDeckConfigChanged);
+    socket.on("deckConfigUpdated", handleDeckConfigChanged);
+    socket.on("favorRequested", handleFavorRequested);
+    socket.on("favorCompleted", handleFavorCompleted);
     socket.on("cardDefused", handleCardDefused);
     socket.on("ekInserted", handleEkInserted);
     socket.on("playerEliminated", handlePlayerEliminated);
@@ -254,11 +322,14 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       socket.off("cardDrawn", handleCardDrawn);
       socket.off("cardPlayed", handleCardPlayed);
       socket.off("deck_config_changed", handleDeckConfigChanged);
+      socket.off("deckConfigUpdated", handleDeckConfigChanged);
+      socket.off("favorRequested", handleFavorRequested);
+      socket.off("favorCompleted", handleFavorCompleted);
       socket.off("cardDefused", handleCardDefused);
       socket.off("ekInserted", handleEkInserted);
       socket.off("playerEliminated", handlePlayerEliminated);
     };
-  }, [socket, roomId, gamePhase]); // gamePhase needed for conditional handling in roomUpdated
+  }, [socket, roomId]); // gamePhaseRef used instead of gamePhase to avoid re-registering listeners
 
   const augmentedRoomData = roomData
     ? {
@@ -284,6 +355,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     seeTheFutureCards, setSeeTheFutureCards,
     eliminatedPlayerId, setEliminatedPlayerId,
     winner, setWinner,
+    favorState, setFavorState,
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     deckCount, setDeckCount,

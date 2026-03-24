@@ -104,31 +104,6 @@ export function EKBombSequence({
             </button>
           </div>
         </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3 w-full">
-          {/* ปุ่มกู้ระเบิด */}
-          <button
-            onClick={hasDefuse ? onDefuse : undefined}
-            disabled={!hasDefuse}
-            className={`flex-1 font-bungee py-3 px-4 rounded-2xl text-base transition-all flex items-center justify-center gap-2 border-2
-              ${hasDefuse
-                ? "bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-green-300 text-white shadow-[0_0_16px_rgba(34,197,94,0.4)] hover:scale-105 active:scale-95 cursor-pointer"
-                : "bg-gray-800/80 border-gray-600 text-gray-400 cursor-not-allowed opacity-60"
-              }`}
-          >
-            <span>🛡️</span>
-            {hasDefuse ? "ใช้ DEFUSE!" : "ไม่มี DEFUSE"}
-          </button>
-
-          {/* ปุ่มยอมแพ้ — กดได้เสมอ */}
-          <button
-            onClick={onExplode}
-            className="flex-1 bg-linear-to-br600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-3 px-4 rounded-2xl text-base shadow-[0_0_16px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <span>💀</span> ยอมแพ้
-          </button>
-        </div>
       </div>
     </div>
   );

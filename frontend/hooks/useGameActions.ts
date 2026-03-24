@@ -9,6 +9,7 @@ export interface GameActionSetters {
   pendingNextTurnRef: RefObject<string | null>;
   setSeeTheFutureCards: React.Dispatch<React.SetStateAction<string[]>>;
   setEliminatedPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
+  setFavorState: React.Dispatch<React.SetStateAction<{ requesterPlayerId: string; requesterName: string; targetPlayerId?: string } | null>>;
 }
 
 export const useGameActions = (
@@ -23,6 +24,7 @@ export const useGameActions = (
     pendingNextTurnRef,
     setSeeTheFutureCards,
     setEliminatedPlayerId,
+    setFavorState,
   } = setters;
 
   const selectSeat = useCallback(
@@ -48,11 +50,7 @@ export const useGameActions = (
     (isAutoDraw?: boolean) => {
       if (!socket) return;
       const playerToken = localStorage.getItem("player_token");
-      socket.emit("drawCard", {
-        roomId,
-        playerToken,
-        isAutoDraw: isAutoDraw ?? false,
-      });
+      socket.emit("drawCard", { roomId, playerToken, isAutoDraw: isAutoDraw ?? false });
     },
     [socket, roomId]
   );
@@ -61,24 +59,27 @@ export const useGameActions = (
     (cardCode: string, targetPlayerToken?: string) => {
       if (!socket) return;
       const playerToken = localStorage.getItem("player_token");
-      socket.emit("playCard", {
-        roomId,
-        playerToken,
-        cardCode,
-        targetPlayerToken,
-      });
-      // Optimistically remove the card from our own hand
+
+      // FV intercept — เปิด modal เลือก target ก่อน ไม่ emit backend
+      const normalizedCode = cardCode.replace(/^GVE_/, "");
+      if (normalizedCode === "FV" && !targetPlayerToken) {
+        setFavorState({
+          requesterPlayerId: playerToken ?? "",
+          requesterName: localStorage.getItem("display_name") ?? "คุณ",
+          cardCode, // เก็บ cardCode ไว้ emit ตอน selectFavorTarget
+        } as any);
+        setGamePhase("FAVOR_SELECT_TARGET");
+        return;
+      }
+
+      socket.emit("playCard", { roomId, playerToken, cardCode, targetPlayerToken });
       setMyCards((prev) => {
         const idx = prev.indexOf(cardCode);
-        if (idx !== -1) {
-          const next = [...prev];
-          next.splice(idx, 1);
-          return next;
-        }
+        if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
         return prev;
       });
     },
-    [socket, roomId, setMyCards]
+    [socket, roomId, setMyCards, setFavorState, setGamePhase]
   );
 
   const insertEK = useCallback(
@@ -86,7 +87,6 @@ export const useGameActions = (
       if (!socket) return;
       const playerToken = localStorage.getItem("player_token");
       socket.emit("insertEK", { roomId, playerToken, position });
-
       setGamePhase("PLAYING");
       if (pendingNextTurnRef.current) {
         setCurrentTurnPlayerId(pendingNextTurnRef.current);
@@ -120,11 +120,7 @@ export const useGameActions = (
     setMyCards((prev) => {
       const dfCode = prev.includes("GVE_DF") ? "GVE_DF" : "DF";
       const idx = prev.indexOf(dfCode);
-      if (idx !== -1) {
-        const next = [...prev];
-        next.splice(idx, 1);
-        return next;
-      }
+      if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
       return prev;
     });
   }, [socket, roomId, setMyCards]);
@@ -141,6 +137,57 @@ export const useGameActions = (
     socket.emit("leaveRoom", { roomId, playerToken });
   }, [socket, roomId]);
 
+  const updateDeckConfig = useCallback(
+    (cardVersion: string, expansions: string[]) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("updateDeckConfig", { roomId, playerToken, cardVersion, expansions });
+    },
+    [socket, roomId]
+  );
+
+  // ── Favor: เลือก target → เปิด FavorPickModal ──
+  const selectFavorTarget = useCallback(
+    (targetPlayerToken: string) => {
+      if (!targetPlayerToken) return;
+      const playerToken = localStorage.getItem("player_token");
+
+      // emit playCard พร้อม target ไป backend
+      socket?.emit("playCard", { roomId, playerToken, cardCode: "FV", targetPlayerToken });
+
+      // ลบ FV ออกจากมือ optimistically
+      setMyCards((prev) => {
+        const fvCode = prev.includes("GVE_FV") ? "GVE_FV" : "FV";
+        const idx = prev.indexOf(fvCode);
+        if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
+        return prev;
+      });
+
+      // ปิด modal กลับเล่นต่อ
+      // FavorPickModal จะเปิดที่ target เมื่อ backend ส่ง favorRequested event
+      setFavorState(null);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setMyCards, setFavorState, setGamePhase]
+  );
+
+  // ── Favor: เลือกการ์ดที่จะให้ ──
+  const pickFavorCard = useCallback(
+    (cardCode: string, requesterPlayerId?: string) => {
+      const playerToken = localStorage.getItem("player_token");
+      socket?.emit("favorPickCard", { roomId, playerToken, cardCode, requesterPlayerId });
+
+      setMyCards((prev) => {
+        const idx = prev.indexOf(cardCode);
+        if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
+        return prev;
+      });
+      setFavorState(null);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setMyCards, setFavorState, setGamePhase]
+  );
+
   return {
     selectSeat,
     startGame,
@@ -153,5 +200,8 @@ export const useGameActions = (
     defuseCard,
     eliminatePlayer,
     leaveRoom,
+    updateDeckConfig,
+    selectFavorTarget,
+    pickFavorCard,
   };
 };

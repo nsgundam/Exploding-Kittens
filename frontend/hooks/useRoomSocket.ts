@@ -23,6 +23,7 @@ export const useRoomSocket = (roomId: string) => {
     pendingNextTurnRef: gameState.pendingNextTurnRef,
     setSeeTheFutureCards: gameState.setSeeTheFutureCards,
     setEliminatedPlayerId: gameState.setEliminatedPlayerId,
+    setFavorState: gameState.setFavorState,
   });
 
   return {
@@ -50,6 +51,10 @@ export const useRoomSocket = (roomId: string) => {
     dismissEliminated: actions.dismissEliminated,
     winner: gameState.winner,
     leaveRoom: actions.leaveRoom,
+    updateDeckConfig: actions.updateDeckConfig,
+    favorState: gameState.favorState,
+    selectFavorTarget: actions.selectFavorTarget,
+    pickFavorCard: actions.pickFavorCard,
     timeLeft,
     currentTurnPlayerId: gameState.currentTurnPlayerId,
     lastPlayedCard: gameState.lastPlayedCard,
