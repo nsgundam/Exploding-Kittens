@@ -42,6 +42,8 @@ function showToast(message: string, duration = 3500) {
   }, duration);
 }
 
+import { FavorState } from "./useGameActions";
+
 export type GamePhase =
   | "WAITING"
   | "PLAYING"
@@ -68,11 +70,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [seeTheFutureCards, setSeeTheFutureCards] = useState<string[]>([]);
   const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(null);
   const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
-  const [favorState, setFavorState] = useState<{
-    requesterPlayerId: string;
-    requesterName: string;
-    targetPlayerId?: string;
-  } | null>(null);
+  const [favorState, setFavorState] = useState<FavorState | null>(null);
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [deckCount, setDeckCount] = useState<number | null>(null);
@@ -211,8 +209,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setFavorState({
         requesterPlayerId: data.requesterPlayerId,
         requesterName: data.requesterName,
-        availableCards: data.availableCards,
-      } as any);
+      });
       setGamePhase("FAVOR_PICK_CARD");
     };
 

@@ -9,7 +9,14 @@ export interface GameActionSetters {
   pendingNextTurnRef: RefObject<string | null>;
   setSeeTheFutureCards: React.Dispatch<React.SetStateAction<string[]>>;
   setEliminatedPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
-  setFavorState: React.Dispatch<React.SetStateAction<{ requesterPlayerId: string; requesterName: string; targetPlayerId?: string } | null>>;
+  setFavorState: React.Dispatch<React.SetStateAction<FavorState | null>>;
+}
+
+export interface FavorState {
+  requesterPlayerId: string;
+  requesterName: string;
+  targetPlayerId?: string;
+  cardCode?: string;
 }
 
 export const useGameActions = (
@@ -66,8 +73,8 @@ export const useGameActions = (
         setFavorState({
           requesterPlayerId: playerToken ?? "",
           requesterName: localStorage.getItem("display_name") ?? "คุณ",
-          cardCode, // เก็บ cardCode ไว้ emit ตอน selectFavorTarget
-        } as any);
+          cardCode,
+        });
         setGamePhase("FAVOR_SELECT_TARGET");
         return;
       }
@@ -146,16 +153,14 @@ export const useGameActions = (
     [socket, roomId]
   );
 
-  // ── Favor: เลือก target → เปิด FavorPickModal ──
+  // ── Favor: เลือก target → emit playCard ไป backend ──
   const selectFavorTarget = useCallback(
     (targetPlayerToken: string) => {
       if (!targetPlayerToken) return;
       const playerToken = localStorage.getItem("player_token");
 
-      // emit playCard พร้อม target ไป backend
       socket?.emit("playCard", { roomId, playerToken, cardCode: "FV", targetPlayerToken });
 
-      // ลบ FV ออกจากมือ optimistically
       setMyCards((prev) => {
         const fvCode = prev.includes("GVE_FV") ? "GVE_FV" : "FV";
         const idx = prev.indexOf(fvCode);
@@ -163,8 +168,6 @@ export const useGameActions = (
         return prev;
       });
 
-      // ปิด modal กลับเล่นต่อ
-      // FavorPickModal จะเปิดที่ target เมื่อ backend ส่ง favorRequested event
       setFavorState(null);
       setGamePhase("PLAYING");
     },
