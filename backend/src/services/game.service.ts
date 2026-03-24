@@ -28,6 +28,7 @@ import {
   BadRequestError,
   ForbiddenError,
 } from "../utils/errors";
+import { handleFavorResponseEffect } from "./effects/index";
 
 // ── Utility Helpers ────────────────────────────────────────────
 
@@ -710,189 +711,7 @@ export const gameService = {
     });
   },
 //
-async favorCard(
-  roomId: string,
-  playerToken: string,
-  targetPlayerToken: string,
-): Promise<FavorPendingResult> {
-  return await prisma.$transaction(async (tx) => {
-    const session = await tx.gameSession.findFirst({
-      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
-    });
-    if (!session) throw new NotFoundError("No active session");
-
-    const player = await tx.player.findFirst({
-      where: { room_id: roomId, player_token: playerToken },
-    });
-    if (!player) throw new NotFoundError("Player");
-    if (session.current_turn_player_id !== player.player_id)
-      throw new BadRequestError("It's not your turn");
-
-    if (playerToken === targetPlayerToken)
-      throw new BadRequestError("Cannot target yourself");
-
-    const target = await tx.player.findFirst({
-      where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
-    });
-    if (!target) throw new NotFoundError("Target player");
-
-    // validate target มีไพ่อย่างน้อย 1 ใบ
-    const targetHand = await tx.cardHand.findUnique({
-      where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
-    });
-    const targetCards = (targetHand?.cards ?? []) as string[];
-    if (targetCards.length === 0)
-      throw new BadRequestError("Target has no cards to give");
-
-    // validate + remove FV จากมือ
-    const hand = await tx.cardHand.findUnique({
-      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
-    });
-    const cards = (hand?.cards ?? []) as string[];
-    const fvCode = cards.includes("GVE_FV") ? "GVE_FV" : "FV";
-    if (!cards.includes(fvCode))
-      throw new BadRequestError("No Favor card in hand");
-
-    let removed = false;
-    const newCards = cards.filter((c) => {
-      if (c === fvCode && !removed) { removed = true; return false; }
-      return true;
-    });
-    await tx.cardHand.update({
-      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
-      data: { cards: newCards, card_count: newCards.length },
-    });
-
-    const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
-    const discardPile = (deckState?.discard_pile as string[]) ?? [];
-    await tx.deckState.update({
-      where: { session_id: session.session_id },
-      data: { discard_pile: [...discardPile, fvCode] },
-    });
-
-    await tx.gameLog.create({
-      data: {
-        session_id: session.session_id,
-        player_id: player.player_id,
-        player_display_name: player.display_name,
-        action_type: ActionType.PLAY_CARD,
-        action_details: {
-          card: fvCode,
-          target_player_token: targetPlayerToken,
-          target_player_id: target.player_id,
-          effect: ActionType.FAVOR_PENDING,
-        },
-        turn_number: session.turn_number,
-      },
-    });
-
-    return {
-      success: true as const,
-      action: ActionType.FAVOR_PENDING,
-      requesterId: player.player_id,
-      requesterDisplayName: player.display_name,
-      targetId: target.player_id,
-      targetDisplayName: target.display_name,
-      targetCardCount: targetCards.length,
-    };
-  });
-},
-                              //favor card////
-// Target player responds to Favor request by giving a card (or timeout).
-async favorResponse(
-  roomId: string,
-  targetPlayerToken: string,
-  cardCode?: string,
-): Promise<FavorResponseResult> {
-  return await prisma.$transaction(async (tx) => {
-    const session = await tx.gameSession.findFirst({
-      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
-    });
-    if (!session) throw new NotFoundError("No active session");
-
-    const target = await tx.player.findFirst({
-      where: { room_id: roomId, player_token: targetPlayerToken },
-    });
-    if (!target) throw new NotFoundError("Target player");
-
-    // ดึง requester จาก last log FAVOR_PENDING
-    const lastLog = await tx.gameLog.findFirst({
-      where: {
-        session_id: session.session_id,
-        action_details: { path: ["effect"], equals: ActionType.FAVOR_PENDING },
-      },
-      orderBy: { timestamp: "desc" },
-    });
-    if (!lastLog) throw new BadRequestError("No pending Favor request");
-
-    const details = lastLog.action_details as {
-      target_player_id: string;
-    };
-    if (details.target_player_id !== target.player_id)
-      throw new BadRequestError("You are not the Favor target");
-
-    const requester = await tx.player.findFirst({
-      where: { room_id: roomId, player_id: lastLog.player_id },
-    });
-    if (!requester) throw new NotFoundError("Requester player");
-
-    const targetHand = await tx.cardHand.findUnique({
-      where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
-    });
-    const targetCards = (targetHand?.cards ?? []) as string[];
-
-    // ไม่มี cardCode = สุ่ม (timeout), มี cardCode = target เลือกเอง
-    let selectedCard: string;
-    if (!cardCode) {
-      const randomIndex = Math.floor(Math.random() * targetCards.length);
-      selectedCard = targetCards[randomIndex]!;
-    } else {
-      if (!targetCards.includes(cardCode))
-        throw new BadRequestError("Card not in target's hand");
-      selectedCard = cardCode;
-    }
-
-    // โอนไพ่ target → requester
-    let removed = false;
-    const newTargetCards = targetCards.filter((c) => {
-      if (c === selectedCard && !removed) { removed = true; return false; }
-      return true;
-    });
-    await tx.cardHand.update({
-      where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
-      data: { cards: newTargetCards, card_count: newTargetCards.length },
-    });
-
-    const requesterHand = await tx.cardHand.findUnique({
-      where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
-    });
-    const requesterCards = (requesterHand?.cards ?? []) as string[];
-    await tx.cardHand.update({
-      where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
-      data: { cards: [...requesterCards, selectedCard], card_count: requesterCards.length + 1 },
-    });
-
-    await tx.gameLog.create({
-      data: {
-        session_id: session.session_id,
-        player_id: target.player_id,
-        player_display_name: target.display_name,
-        action_type: ActionType.FAVOR_RESPONSE,
-        action_details: {
-          card: selectedCard,
-          given_to_player_id: requester.player_id,
-          was_random: !cardCode,
-        },
-        turn_number: session.turn_number,
-      },
-    });
-
-    const turnResult = await gameService.advanceTurn(
-      tx, session, roomId, session.current_turn_player_id!,
-    );
-    return { ...turnResult, transferredCard: selectedCard, wasRandom: !cardCode };
-  });
-},
+// favorCard and favorResponse removed (moved to effects/index.ts)
 // ── nopeCard ─────────────────────────────────────────────────
 // S3-04: validate + remove NP → return nope_count ให้ socket จัดการ chain
 async nopeCard(
@@ -1075,6 +894,7 @@ async nopeCard(
         session,
         roomId,
         currentPlayerId: player.player_id,
+        targetPlayerToken,
         advanceTurn: gameService.advanceTurn,
       });
       effect = effectData.effect;
@@ -1105,6 +925,28 @@ async nopeCard(
         effect,
         nextTurn: turnResult?.nextTurn,
       };
+    });
+  },
+
+  async favorResponse(
+    roomId: string,
+    targetPlayerToken: string,
+    cardCode: string
+  ) {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      return await handleFavorResponseEffect({
+        tx,
+        session,
+        roomId,
+        targetPlayerToken,
+        cardCode,
+        advanceTurn: gameService.advanceTurn,
+      });
     });
   },
 

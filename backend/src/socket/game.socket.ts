@@ -87,29 +87,76 @@ export const registerGameSocket = (io: Server): void => {
       try {
         const { roomId, playerToken, cardCode, targetPlayerToken } = payload;
 
-        const result = await gameService.playCard(
+        // S3-03: Broadcast action pending for Nope window
+        io.to(roomId).emit("actionPending", {
+          message: `Waiting 3 seconds for Nope...`,
+          cardCode
+        });
+
+        setTimeout(async () => {
+          try {
+            const result = await gameService.playCard(
+              roomId,
+              playerToken,
+              cardCode,
+              targetPlayerToken,
+            );
+
+            // Favor Event
+            if (result.effect?.type === "FAVOR_PENDING") {
+              const favorData = {
+                requesterPlayerId: result.effect.requesterId as string,
+                requesterName: result.effect.requesterDisplayName as string,
+                targetPlayerId: result.effect.targetPlayerId as string,
+              };
+              
+              socket.emit("cardPlayed", result);
+              socket.to(roomId).emit("cardPlayed", result);
+              io.to(roomId).emit("favorRequested", favorData);
+              return;
+            }
+
+            // Broadcast card played event to room
+            // Note: See The Future top cards are private (FR-05)
+            if (result.effect?.type === "SEE_THE_FUTURE") {
+              // Private: send top cards only to the playing player
+              socket.emit("cardPlayed", result);
+
+              // Public: broadcast without top cards
+              const publicResult = {
+                ...result,
+                effect: { type: "SEE_THE_FUTURE" },
+              };
+              socket.to(roomId).emit("cardPlayed", publicResult);
+            } else {
+              // Public broadcast for AT, SK, SH
+              io.to(roomId).emit("cardPlayed", result);
+            }
+          } catch (err: unknown) {
+            socket.emit("errorMessage", getErrorMessage(err));
+          }
+        }, 3000);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Favor Pick Card ────────────────────────────────────────
+    socket.on("favorPickCard", async (payload: { roomId: string, playerToken: string, cardCode: string, requesterPlayerId: string }) => {
+      try {
+        const { roomId, playerToken, cardCode } = payload;
+
+        const result = await gameService.favorResponse(
           roomId,
           playerToken,
-          cardCode,
-          targetPlayerToken,
+          cardCode
         );
 
-        // Broadcast card played event to room
-        // Note: See The Future top cards are private (FR-05)
-        if (result.effect?.type === "SEE_THE_FUTURE") {
-          // Private: send top cards only to the playing player
-          socket.emit("cardPlayed", result);
-
-          // Public: broadcast without top cards
-          const publicResult = {
-            ...result,
-            effect: { type: "SEE_THE_FUTURE" },
-          };
-          socket.to(roomId).emit("cardPlayed", publicResult);
-        } else {
-          // Public broadcast for AT, SK, SH
-          io.to(roomId).emit("cardPlayed", result);
-        }
+        io.to(roomId).emit("favorCompleted", {
+          nextTurn: result.nextTurn,
+          cardCode: result.transferredCard,
+          requesterPlayerId: result.requesterPlayerId
+        });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
