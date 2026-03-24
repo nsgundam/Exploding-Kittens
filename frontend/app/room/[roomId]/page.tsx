@@ -26,6 +26,10 @@ export default function RoomPage() {
     dismissEliminated,
     winner,
     leaveRoom,
+    updateDeckConfig,
+    favorState,
+    selectFavorTarget,
+    pickFavorCard,
     myCards,
     gameLogs,
     gamePhase,
@@ -311,6 +315,10 @@ export default function RoomPage() {
             dismissEliminated={dismissEliminated}
             winner={winner}
             myPlayerToken={myPlayerToken}
+            favorState={favorState}
+            selectFavorTarget={selectFavorTarget}
+            pickFavorCard={pickFavorCard}
+            myCards={myCards}
             isMySeat={isMySeat}
             gameLogs={gameLogs}
             timeLeft={timeLeft}
@@ -437,8 +445,10 @@ export default function RoomPage() {
           currentCardVersion={roomData.deck_config?.card_version ?? "classic"}
           currentExpansions={roomData.deck_config?.expansions ?? []}
           onClose={() => setShowDeckConfig(false)}
+          onSave={(cardVersion, expansions) => updateDeckConfig(cardVersion, expansions)}
           onSaved={(cardVersion: string, expansions: string[]) => {
-            console.log("Deck config updated locally", cardVersion, expansions);
+            console.log("Deck config updated", cardVersion, expansions);
+            setShowDeckConfig(false);
           }}
         />
       )}
