@@ -16,7 +16,10 @@ export const useGameTimer = (
   const hasAutoDrawnThisTurnRef = useRef(false);
 
   useEffect(() => {
-    const resetTimeuot = setTimeout(() => {
+    timeLeftRef.current = 30;
+    hasAutoDrawnThisTurnRef.current = false;
+    
+    const resetTimeout = setTimeout(() => {
       setTimeLeft(30);
     }, 0);
 
@@ -51,7 +54,7 @@ export const useGameTimer = (
     }
     return () => {
       clearInterval(interval);
-      clearTimeout(resetTimeuot);
+      clearTimeout(resetTimeout);
     };
   }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, lastPlayedCard]);
 

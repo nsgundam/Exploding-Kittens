@@ -102,9 +102,6 @@ export const favorCard = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-  const result = await gameService.defuseCard(roomId, playerToken);
-  res.status(200).json(result);
-});
 
 /**
  * POST /api/rooms/:roomId/favor/response
@@ -144,13 +141,5 @@ export const nopeCard = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json(result);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
-
-
-  const result = await gameService.playCard(
-    roomId,
-    playerToken,
-    cardCode,
-    targetPlayerToken
-  );
-  res.status(200).json(result);
-});
+  }
+};
