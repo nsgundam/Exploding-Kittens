@@ -218,3 +218,39 @@ export type RoomWithDeckConfig = Room & { deck_config: DeckConfig | null };
 
 /** Player hands map: player_id → card codes */
 export type PlayerHandsMap = Record<string, string[]>;
+
+/// Player display names map: player_id → display name
+export interface FavorPendingResult {
+  success: true;
+  action: "FAVOR_PENDING";
+  requesterId: string;
+  requesterDisplayName: string;
+  targetId: string;
+  targetDisplayName: string;
+  targetCardCount: number;
+}
+// ── Favor Card Types ───────────────────────────────────────────
+export interface FavorResponseResult extends TurnAdvancedResult {
+  transferredCard: string;
+  wasRandom: boolean;
+}
+
+export interface FavorCardPayload {
+  roomId: string;
+  playerToken: string;
+  targetPlayerToken: string;
+}
+
+export interface FavorResponsePayload {
+  roomId: string;
+  targetPlayerToken: string;
+  cardCode?: string; // undefined = timeout สุ่มให้
+}
+export interface NopePendingResult {
+  success: true;
+  action: "NOPE_PLAYED";
+  nopeCount: number;
+  isCancel: boolean;
+  playedBy: string;
+  playedByDisplayName: string;
+}

@@ -32,6 +32,12 @@ export enum ActionType {
   GAME_OVER = "GAME_OVER",
   WAITING_FOR_INSERT = "WAITING_FOR_INSERT",
   CARD_PLAYED = "CARD_PLAYED",
+  // Favor-related actions
+  FAVOR_PENDING="FAVOR_PENDING",
+  FAVOR_RESPONSE= "FAVOR_RESPONSE",
+  // Nope-related actions
+  NOPE_PLAYED = "NOPE_PLAYED",
+
 }
 
 export const GAME_CONFIG = {
