@@ -87,6 +87,20 @@ export const registerGameSocket = (io: Server): void => {
       try {
         const { roomId, playerToken, cardCode, targetPlayerToken } = payload;
 
+        // Intercept Nope card to bypass turn checking and Nope window
+        if (cardCode === "NP" || cardCode === "GVE_NP") {
+          const result = await gameService.nopeCard(roomId, playerToken, 0);
+          io.to(roomId).emit("cardPlayed", {
+            success: true,
+            action: result.action,
+            cardCode: cardCode,
+            playedBy: result.playedBy,
+            playedByDisplayName: result.playedByDisplayName,
+            message: `${result.playedByDisplayName} เล่นไพ่ Nope!`,
+          });
+          return;
+        }
+
         // S3-03: Broadcast action pending for Nope window
         io.to(roomId).emit("actionPending", {
           message: `Waiting 3 seconds for Nope...`,
