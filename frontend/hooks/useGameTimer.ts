@@ -9,7 +9,6 @@ export const useGameTimer = (
   gamePhase: GamePhase,
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
-  lastPlayedCard: { cardCode: string; playedByDisplayName: string } | null,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
@@ -43,7 +42,7 @@ export const useGameTimer = (
             myPlayer.is_alive !== false
           ) {
             hasAutoDrawnThisTurnRef.current = true;
-            socket?.emit("drawCard", {
+socket?.emit("drawCard", {
               roomId,
               playerToken: myToken,
               isAutoDraw: true,
@@ -56,7 +55,7 @@ export const useGameTimer = (
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, lastPlayedCard]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef]);
 
   return { timeLeft };
 };

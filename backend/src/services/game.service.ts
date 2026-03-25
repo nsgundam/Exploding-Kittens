@@ -503,6 +503,7 @@ export const gameService = {
         drawnByDisplayName: player.display_name,
         hand: { cards: newCards },
         deck_count: newDeck.length,
+        isAutoDraw: isAutoDrawn,
       };
     });
   },
@@ -1071,13 +1072,15 @@ export const gameService = {
           turn_number: session.turn_number,
         },
       });
-      return await gameService.checkWinner(
+      const kickResult = await gameService.checkWinner(
         tx,
         session,
         roomId,
         player.player_id,
         "AFK_TIMEOUT",
       );
+      // Tag result so socket handler knows to emit playerEliminated
+      return { ...kickResult, isAfkKick: true, afkPlayerId: player.player_id };
     }
     return null;
   },
@@ -1423,8 +1426,18 @@ export const gameService = {
         },
       });
 
-      const turnResult = await gameService.advanceTurn(tx, session, roomId, session.current_turn_player_id!);
-      return { ...turnResult, transferredCard: selectedCard, wasRandom: !cardCode };
+      // ไม่ advance turn ที่นี่ — requester ยังต้องจั่วไพ่ต่อในเทิร์นเดิม
+      return {
+        success: true as const,
+        action: "TURN_ADVANCED" as const,
+        nextTurn: {
+          player_id: session.current_turn_player_id!,
+          display_name: requester.display_name,
+          turn_number: session.turn_number,
+        },
+        transferredCard: selectedCard,
+        wasRandom: !cardCode,
+      };
     });
   },
 

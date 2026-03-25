@@ -14,7 +14,6 @@ export const useRoomSocket = (roomId: string) => {
     gameState.gamePhase,
     gameState.currentTurnPlayerId,
     gameState.roomDataRef,
-    gameState.lastPlayedCard
   );
   const actions = useGameActions(socket, roomId, {
     setMyCards: gameState.setMyCards,
