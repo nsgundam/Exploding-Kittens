@@ -87,10 +87,6 @@ export interface CardEffectResult {
   topCards?: string[]; // See the Future
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
-  targetPlayerId?: string; // Favor
-  targetDisplayName?: string; // Favor
-  requesterId?: string; // Favor
-  requesterDisplayName?: string; // Favor
 }
 
 export interface TurnInfo {
@@ -237,7 +233,6 @@ export interface FavorPendingResult {
 export interface FavorResponseResult extends TurnAdvancedResult {
   transferredCard: string;
   wasRandom: boolean;
-  requesterPlayerId?: string;
 }
 
 export interface FavorCardPayload {
@@ -258,4 +253,33 @@ export interface NopePendingResult {
   isCancel: boolean;
   playedBy: string;
   playedByDisplayName: string;
+}
+
+// ── Cat Combo Types ────────────────────────────────────────────
+
+/**
+ * Payload ส่งมาจาก client เมื่อเล่น Cat Combo
+ * comboCards  — array ของ card code ที่เล่น (2 หรือ 3 ใบ, ชนิดเดียวกันหรือมี FC)
+ * targetPlayerToken — player_token ของเหยื่อ
+ * demandedCard — (3-card combo เท่านั้น) card code ที่ต้องการขโมย
+ */
+export interface PlayComboPayload {
+  roomId: string;
+  playerToken: string;
+  comboCards: string[];           // e.g. ["CAT_TACO","CAT_TACO"] or ["CAT_TACO","CAT_TACO","CAT_TACO"]
+  targetPlayerToken: string;
+  demandedCard?: string;          // 3-card only
+}
+
+/**
+ * Result ของ combo สำเร็จ (advance turn แล้ว)
+ * stolenCard  — การ์ดที่ได้รับจริง (undefined ถ้า 3-card demand โมฆะ)
+ * wasVoid     — true ถ้า 3-card demand โมฆะ (target ไม่มีการ์ดนั้น)
+ */
+export interface ComboResult extends TurnAdvancedResult {
+  comboType: "TWO_CARD" | "THREE_CARD";
+  stolenCard?: string;
+  wasVoid: boolean;
+  robbedFromDisplayName: string;
+  robbedFromPlayerId: string;
 }

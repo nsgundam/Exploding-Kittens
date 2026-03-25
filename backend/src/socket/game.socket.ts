@@ -15,6 +15,7 @@ import {
   DefuseCardPayload,
   EliminatePlayerPayload,
   SanitizedCardHand,
+  PlayComboPayload,
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
 
@@ -31,11 +32,11 @@ function sanitizeCardHands(
       return {
         ...hand,
         cards: (hand.cards ?? []) as string[],
-      }; // Owner sees their own cards
+      };
     }
     return {
       ...hand,
-      cards: [], // Hide cards for anti-cheat
+      cards: [],
     };
   });
 }
@@ -53,18 +54,13 @@ export const registerGameSocket = (io: Server): void => {
           playerToken
         );
 
-        // Broadcast room status change to everyone
         io.to(roomId).emit("roomUpdated", room);
 
-        // Send individualized game data (anti-cheat: NFR-03)
         const sockets = await io.in(roomId).fetchSockets();
-
         for (const s of sockets) {
           const sToken = s.data.playerToken as string | undefined;
           const player = room.players.find((p) => p.player_token === sToken);
-
           const sanitizedHands = sanitizeCardHands(cardHands, player?.player_id);
-
           s.emit("gameStarted", {
             room,
             session_id: session.session_id,
@@ -74,7 +70,6 @@ export const registerGameSocket = (io: Server): void => {
           });
         }
 
-        // Notify lobby that room status changed
         io.emit("roomListUpdated");
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
@@ -86,90 +81,101 @@ export const registerGameSocket = (io: Server): void => {
       try {
         const { roomId, playerToken, cardCode, targetPlayerToken } = payload;
 
-        // Intercept Nope card to bypass turn checking and Nope window
-        if (cardCode === "NP" || cardCode === "GVE_NP") {
-          const result = await gameService.nopeCard(roomId, playerToken, 0);
+        const result = await gameService.playCard(
+          roomId,
+          playerToken,
+          cardCode,
+          targetPlayerToken
+        );
+
+        if (result.effect?.type === "SEE_THE_FUTURE") {
+          socket.emit("cardPlayed", result);
+          socket.to(roomId).emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
+
+        } else if (result.effect?.type === "FAVOR") {
+          const effect = result.effect as {
+            type: string;
+            targetPlayerId: string;
+            targetDisplayName: string;
+            availableCards: string[];
+          };
+
+          // Broadcast cardPlayed ให้ทุกคนรู้ (ไม่แสดง availableCards)
           io.to(roomId).emit("cardPlayed", {
-            success: true,
-            action: result.action,
-            cardCode: cardCode,
-            playedBy: result.playedBy,
-            playedByDisplayName: result.playedByDisplayName,
-            message: `${result.playedByDisplayName} เล่นไพ่ Nope!`,
+            ...result,
+            effect: {
+              type: "FAVOR",
+              targetPlayerId: effect.targetPlayerId,
+              targetDisplayName: effect.targetDisplayName,
+            },
           });
-          return;
-        }
 
-        // S3-03: Broadcast action pending for Nope window
-        io.to(roomId).emit("actionPending", {
-          message: `Waiting 3 seconds for Nope...`,
-          cardCode
-        });
+          // ── ส่ง favorRequested ไปหา target ──
+          // วิธี 1: หา socket ที่ match player_token
+          const sockets = await io.in(roomId).fetchSockets();
+          const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken!);
 
-        setTimeout(async () => {
-          try {
-            const result = await gameService.playCard(
-              roomId,
-              playerToken,
-              cardCode,
-              targetPlayerToken,
-            );
+          console.log("🤝 FAVOR — targetPlayerToken:", targetPlayerToken);
+          console.log("🤝 FAVOR — targetPlayer found:", targetPlayer?.display_name);
+          console.log("🤝 FAVOR — sockets:", sockets.map(s => ({ id: s.id, token: s.data.playerToken, roomId: s.data.roomId })));
 
-            // Favor Event
-            if (result.effect?.type === "FAVOR_PENDING") {
-              const favorData = {
-                requesterPlayerId: result.effect.requesterId as string,
-                requesterName: result.effect.requesterDisplayName as string,
-                targetPlayerId: result.effect.targetPlayerId as string,
-              };
-              
-              socket.emit("cardPlayed", result);
-              socket.to(roomId).emit("cardPlayed", result);
-              io.to(roomId).emit("favorRequested", favorData);
-              return;
+          const favorPayload = {
+            requesterPlayerId: result.playedBy,
+            requesterName: result.playedByDisplayName,
+            availableCards: effect.availableCards,
+          };
+
+          let sent = false;
+          for (const s of sockets) {
+            const sToken = s.data.playerToken as string | undefined;
+            // Match ด้วย playerToken หรือ targetPlayerId ที่ set ไว้ใน socket.data
+            if (
+              (sToken && targetPlayer && sToken === targetPlayer.player_token) ||
+              (s.data.playerId && s.data.playerId === effect.targetPlayerId)
+            ) {
+              console.log("🤝 FAVOR — sending favorRequested to:", s.id);
+              s.emit("favorRequested", favorPayload);
+              sent = true;
             }
-
-            // Broadcast card played event to room
-            // Note: See The Future top cards are private (FR-05)
-            if (result.effect?.type === "SEE_THE_FUTURE") {
-              // Private: send top cards only to the playing player
-              socket.emit("cardPlayed", result);
-
-              // Public: broadcast without top cards
-              const publicResult = {
-                ...result,
-                effect: { type: "SEE_THE_FUTURE" },
-              };
-              socket.to(roomId).emit("cardPlayed", publicResult);
-            } else {
-              // Public broadcast for AT, SK, SH
-              io.to(roomId).emit("cardPlayed", result);
-            }
-          } catch (err: unknown) {
-            socket.emit("errorMessage", getErrorMessage(err));
           }
-        }, 3000);
+
+          // วิธี 2 fallback: ถ้าหา socket ไม่เจอ (token ไม่ match)
+          // emit ผ่าน targetPlayerId room — frontend กรอง player_id เอง
+          if (!sent) {
+            console.warn("🤝 FAVOR — no matching socket found, broadcasting favorRequested to room");
+            io.to(roomId).emit("favorRequestedBroadcast", {
+              ...favorPayload,
+              targetPlayerId: effect.targetPlayerId,
+            });
+          }
+
+        } else {
+          io.to(roomId).emit("cardPlayed", result);
+        }
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
-    // ── Favor Pick Card ────────────────────────────────────────
-    socket.on("favorPickCard", async (payload: { roomId: string, playerToken: string, cardCode: string, requesterPlayerId: string }) => {
+    // ── Play Combo (Cat Combo 2-card / 3-card) ─────────────────
+    socket.on("playCombo", async (payload: PlayComboPayload) => {
       try {
-        const { roomId, playerToken, cardCode } = payload;
+        const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard } = payload;
 
-        const result = await gameService.favorResponse(
+        const result = await gameService.comboCard(
           roomId,
           playerToken,
-          cardCode
+          comboCards,
+          targetPlayerToken,
+          demandedCard,
         );
 
-        io.to(roomId).emit("favorCompleted", {
-          nextTurn: result.nextTurn,
-          cardCode: result.transferredCard,
-          requesterPlayerId: result.requesterPlayerId
-        });
+        // stolenCard เป็น private — ส่งเต็มให้แค่คนขโมย
+        const publicResult = { ...result, stolenCard: undefined };
+
+        socket.emit("comboPlayed", result);
+        socket.to(roomId).emit("comboPlayed", publicResult);
+
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
@@ -182,17 +188,11 @@ export const registerGameSocket = (io: Server): void => {
 
         const result = await gameService.drawCard(roomId, playerToken);
 
-        // Anti-cheat: drawn card is private (NFR-03)
         if (result.action === "DREW_EXPLODING_KITTEN") {
-          // EK drawn is public knowledge
           io.to(roomId).emit("cardDrawn", result);
         } else if (result.action === "TURN_ADVANCED") {
-          // Normal draw: send drawn card privately, turn info publicly
           socket.emit("cardDrawn", result);
-          socket.to(roomId).emit("cardDrawn", {
-            ...result,
-            drawnCard: undefined, // Hide from others
-          });
+          socket.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
         } else {
           io.to(roomId).emit("cardDrawn", result);
         }
@@ -205,10 +205,7 @@ export const registerGameSocket = (io: Server): void => {
     socket.on("defuseCard", async (payload: DefuseCardPayload) => {
       try {
         const { roomId, playerToken } = payload;
-
         const result = await gameService.defuseCard(roomId, playerToken);
-
-        // Defuse result is public (everyone knows EK was defused)
         io.to(roomId).emit("cardDefused", result);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
@@ -219,12 +216,10 @@ export const registerGameSocket = (io: Server): void => {
     socket.on("eliminatePlayer", async (payload: EliminatePlayerPayload) => {
       try {
         const { roomId, playerToken } = payload;
-
         const result = await gameService.eliminatePlayer(roomId, playerToken);
 
         io.to(roomId).emit("playerEliminated", result);
 
-        // If game over, also notify about room reset
         if (result.action === "GAME_OVER") {
           const updatedRoom = await roomService.getRoomById(roomId);
           io.to(roomId).emit("roomUpdated", updatedRoom);
@@ -236,7 +231,12 @@ export const registerGameSocket = (io: Server): void => {
     });
 
     // ── Favor Pick Card ────────────────────────────────────────
-    socket.on("favorPickCard", async (payload: { roomId: string; playerToken: string; cardCode: string; requesterPlayerId: string }) => {
+    socket.on("favorPickCard", async (payload: {
+      roomId: string;
+      playerToken: string;
+      cardCode: string;
+      requesterPlayerId: string;
+    }) => {
       try {
         const { roomId, playerToken, cardCode } = payload;
         const result = await gameService.favorResponse(roomId, playerToken, cardCode);

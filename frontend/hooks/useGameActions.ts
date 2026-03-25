@@ -89,6 +89,38 @@ export const useGameActions = (
     [socket, roomId, setMyCards, setFavorState, setGamePhase]
   );
 
+  /**
+   * playCombo — เล่น Cat Combo 2 หรือ 3 ใบ
+   * comboCards        — array ของ card code ที่จะเล่น (2 หรือ 3 ใบ)
+   * targetPlayerToken — player_token ของเหยื่อ
+   * demandedCard      — (3-card เท่านั้น) card code ที่ต้องการขโมย
+   */
+  const playCombo = useCallback(
+    (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+
+      // Optimistic UI: ลบการ์ด combo ออกจาก hand ทันที
+      setMyCards((prev) => {
+        const next = [...prev];
+        for (const cardCode of comboCards) {
+          const idx = next.indexOf(cardCode);
+          if (idx !== -1) next.splice(idx, 1);
+        }
+        return next;
+      });
+
+      socket.emit("playCombo", {
+        roomId,
+        playerToken,
+        comboCards,
+        targetPlayerToken,
+        demandedCard,
+      });
+    },
+    [socket, roomId, setMyCards]
+  );
+
   const insertEK = useCallback(
     (position: number) => {
       if (!socket) return;
@@ -196,6 +228,7 @@ export const useGameActions = (
     startGame,
     drawCard,
     playCard,
+    playCombo,
     insertEK,
     closeInsertEK,
     closeSeeTheFuture,
