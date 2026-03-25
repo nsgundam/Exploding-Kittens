@@ -32,12 +32,10 @@ export type EffectHandler = (
 
 const handleAttackEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, advanceTurn }) => {
   const newPending = (session.pending_attacks ?? 0) + 2;
-
   await tx.gameSession.update({
     where: { session_id: session.session_id },
     data: { pending_attacks: newPending },
   });
-
   const updatedSession = { ...session, pending_attacks: newPending };
   const turnResult = await advanceTurn(tx, updatedSession, roomId, currentPlayerId);
   return { effect: { type: "ATTACK", extraTurns: 2 }, turnResult };
@@ -51,7 +49,6 @@ const handleSkipEffect: EffectHandler = async ({ tx, session, roomId, currentPla
       data: { pending_attacks: pendingAttacks - 1 },
     });
   }
-
   if (pendingAttacks > 1) {
     return {
       effect: { type: "SKIP" },
@@ -60,45 +57,74 @@ const handleSkipEffect: EffectHandler = async ({ tx, session, roomId, currentPla
         action: "TURN_ADVANCED",
         nextTurn: {
           player_id: currentPlayerId,
-          display_name: "", // Will be filled by caller logging
+          display_name: "",
           turn_number: session.turn_number + 1,
           pending_attacks: pendingAttacks - 1,
         },
       },
     };
   }
-
   const turnResult = await advanceTurn(tx, { ...session, pending_attacks: 0 }, roomId, currentPlayerId);
   return { effect: { type: "SKIP" }, turnResult };
 };
 
 const handleSeeTheFutureEffect: EffectHandler = async ({ tx, session }) => {
-  const deckState = await tx.deckState.findUnique({
-    where: { session_id: session.session_id },
-  });
+  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
   if (!deckState) throw new NotFoundError("Deck state");
-
   const deck = deckState.deck_order as string[];
-  const topCards = deck.slice(-3).reverse();
-
-  return { effect: { type: "SEE_THE_FUTURE", topCards } };
+  return { effect: { type: "SEE_THE_FUTURE", topCards: deck.slice(-3).reverse() } };
 };
 
 const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
-  const deckState = await tx.deckState.findUnique({
-    where: { session_id: session.session_id },
-  });
+  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
   if (!deckState) throw new NotFoundError("Deck state");
-
-  const deck = deckState.deck_order as string[];
-  const shuffled = shuffleArray(deck);
-
-  await tx.deckState.update({
-    where: { session_id: session.session_id },
-    data: { deck_order: shuffled },
-  });
-
+  const shuffled = shuffleArray(deckState.deck_order as string[]);
+  await tx.deckState.update({ where: { session_id: session.session_id }, data: { deck_order: shuffled } });
   return { effect: { type: "SHUFFLE", shuffled: true } };
+};
+
+/**
+ * FV (Favor): ขอการ์ดจากผู้เล่นอื่น 1 ใบ
+ * — ไม่ advance turn เพราะต้องรอ target เลือกการ์ดก่อน
+ */
+const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, targetPlayerToken }) => {
+  if (!targetPlayerToken) {
+    throw new BadRequestError("Favor card requires a target player");
+  }
+
+  // หา target player
+  const targetPlayer = await tx.player.findFirst({
+    where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+  });
+  if (!targetPlayer) throw new NotFoundError("Target player not found");
+
+  // ดึงไพ่ใน hand ของ target (ไม่รวม EK และ DF)
+  const targetHand = await tx.cardHand.findUnique({
+    where: {
+      player_id_session_id: {
+        player_id: targetPlayer.player_id,
+        session_id: session.session_id,
+      },
+    },
+  });
+  const targetCards = ((targetHand?.cards ?? []) as string[]).filter(
+    (c) => c !== CardCode.EXPLODING_KITTEN && c !== CardCode.GVE_EXPLODING_KITTEN &&
+           c !== CardCode.DEFUSE && c !== CardCode.GVE_DEFUSE
+  );
+
+  if (targetCards.length === 0) {
+    throw new BadRequestError("Target player has no cards to give");
+  }
+
+  return {
+    effect: {
+      type: "FAVOR",
+      targetPlayerId: targetPlayer.player_id,
+      targetDisplayName: targetPlayer.display_name,
+      availableCards: targetCards,
+    },
+  };
+  // หมายเหตุ: ไม่ advanceTurn ที่นี่ — รอ favorPickCard event แทน
 };
 
 const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, targetPlayerToken }) => {
