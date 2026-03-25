@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Card } from "@/components/game/Card";
 import { CatComboModal } from "@/components/game/CatComboModal";
 import { Player } from "@/types";
@@ -25,6 +25,11 @@ function isCatCard(code: string): boolean {
   return CAT_TYPES.has(code);
 }
 
+/** Normalize Feral Cat — it can pair with any cat or itself */
+function comboKey(code: string): string {
+  if (code === "FC" || code === "GVE_FC") return "__FERAL__";
+  return code;
+}
 
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
 function canPairWith(a: string, b: string): boolean {
@@ -66,38 +71,33 @@ export function PlayerHand({
     return canPairWith(firstCode, code);
   };
 
-  const handleCardClick = useCallback(
-    (idx: number) => {
-      const code = myCards[idx];
+  const handleCardClick = (idx: number) => {
+    const code = myCards[idx];
 
-      // Non-cat cards: play immediately (existing behavior)
-      if (!isCatCard(code)) {
-        if (selectedIndices.length > 0) {
-          // Clear selection if clicking non-cat
-          setSelectedIndices([]);
-        }
-        onPlayCard(code);
-        return;
+    // Non-cat cards: play immediately (existing behavior)
+    if (!isCatCard(code)) {
+      if (selectedIndices.length > 0) {
+        setSelectedIndices([]);
       }
+      onPlayCard(code);
+      return;
+    }
 
-      // Cat card clicked
-      if (selectedIndices.includes(idx)) {
-        // Deselect
-        setSelectedIndices((prev) => prev.filter((i) => i !== idx));
-        return;
-      }
+    // Cat card clicked
+    if (selectedIndices.includes(idx)) {
+      setSelectedIndices((prev) => prev.filter((i) => i !== idx));
+      return;
+    }
 
-      if (!canAddToCombo(idx)) {
-        // Incompatible cat — reset selection to this card
-        setSelectedIndices([idx]);
-        return;
-      }
+    if (!canAddToCombo(idx)) {
+      // Incompatible cat — reset selection to this card
+      setSelectedIndices([idx]);
+      return;
+    }
 
-      const newSelection = [...selectedIndices, idx];
-      setSelectedIndices(newSelection);
-    },
-    [myCards, selectedIndices, onPlayCard]
-  );
+    const newSelection = [...selectedIndices, idx];
+    setSelectedIndices(newSelection);
+  };
 
   const handlePlayCombo = () => {
     if (selectedIndices.length < 2) return;
