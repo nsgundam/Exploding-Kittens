@@ -193,6 +193,16 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
           setSeeTheFutureCards(data.effect.topCards);
           setGamePhase("SEE_FUTURE");
         }
+
+        // FAVOR effect — แจ้ง requester ว่ากำลังรอ target เลือกการ์ด
+        if (data.effect?.type === "FAVOR") {
+          const myPlayerToken = localStorage.getItem("player_token");
+          const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+          // ถ้าเราเป็น requester → log แจ้งว่ากำลังรอ
+          if (me?.player_id === data.playedBy) {
+            setGameLogs((prev) => [...prev.slice(-19), `🤝 รอให้ผู้เล่นอื่นเลือกการ์ดให้คุณ...`]);
+          }
+        }
       }
     };
 

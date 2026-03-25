@@ -8,7 +8,6 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
-import { FavorTargetModal } from "./FavorTargetModal";
 import { FavorPickModal } from "./FavorPickModal";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
 
@@ -201,16 +200,7 @@ export function GameBoard({
         onClose={onCloseSeeTheFuture}
       />
 
-      {/* ── FAVOR: เลือก target ── */}
-      <FavorTargetModal
-        isOpen={gamePhase === "FAVOR_SELECT_TARGET"}
-        players={roomData.players ?? []}
-        myPlayerToken={myPlayerToken}
-        onSelectTarget={(target) => selectFavorTarget(target.player_token)}
-        onCancel={() => selectFavorTarget("")}
-      />
-
-      {/* ── FAVOR: เลือกการ์ดให้ ── */}
+      {/* ── FAVOR: เลือกการ์ดให้ (target เท่านั้น) ── */}
       <FavorPickModal
         isOpen={gamePhase === "FAVOR_PICK_CARD"}
         requesterName={favorState?.requesterName ?? "ผู้เล่น"}
@@ -336,6 +326,7 @@ export function GameBoard({
           const isHost =
             !!roomData.host_token &&
             player?.player_token === roomData.host_token;
+          const isMyAvatar = isMySeat(seatNum);
 
           return (
             <div
@@ -347,13 +338,20 @@ export function GameBoard({
                 player={player}
                 onSelect={() => selectSeat(seatNum)}
                 onLeaveSeat={
-                  isMySeat(seatNum) ? () => selectSeat(-1) : undefined
+                  isMyAvatar ? () => selectSeat(-1) : undefined
                 }
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={isHost}
                 isCurrentTurn={currentTurnSeat === seatNum}
                 timeLeft={timeLeft}
+                isFavorTargetMode={gamePhase === "FAVOR_SELECT_TARGET"}
+                isMe={isMyAvatar}
+                onFavorSelect={
+                  player && !isMyAvatar
+                    ? () => selectFavorTarget(player.player_token)
+                    : undefined
+                }
               />
             </div>
           );
