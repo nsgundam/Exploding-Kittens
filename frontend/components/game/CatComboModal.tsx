@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Player } from "@/types";
 import { getCardConfig, CARD_CONFIG } from "@/types/cards";
-import { Card } from "@/components/game/Card";
+
 
 // ── Types ────────────────────────────────────────────────────────
 export interface CatComboModalProps {
