@@ -87,6 +87,10 @@ export interface CardEffectResult {
   topCards?: string[]; // See the Future
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
+  targetPlayerId?: string; // Favor
+  targetDisplayName?: string; // Favor
+  requesterId?: string; // Favor
+  requesterDisplayName?: string; // Favor
 }
 
 export interface TurnInfo {
@@ -233,6 +237,7 @@ export interface FavorPendingResult {
 export interface FavorResponseResult extends TurnAdvancedResult {
   transferredCard: string;
   wasRandom: boolean;
+  requesterPlayerId?: string;
 }
 
 export interface FavorCardPayload {

@@ -17,6 +17,7 @@ export interface EffectContext {
   session: GameSession;
   roomId: string;
   currentPlayerId: string;
+  targetPlayerToken?: string;
   advanceTurn: (
     tx: Prisma.TransactionClient,
     session: GameSession,
@@ -100,11 +101,43 @@ const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
   return { effect: { type: "SHUFFLE", shuffled: true } };
 };
 
+const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, targetPlayerToken }) => {
+  if (!targetPlayerToken) throw new BadRequestError("Target player token is required for Favor");
+  const target = await tx.player.findFirst({
+    where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+  });
+  if (!target) throw new NotFoundError("Target player");
+  if (target.player_id === currentPlayerId) throw new BadRequestError("Cannot target yourself");
+
+  const targetHand = await tx.cardHand.findUnique({
+    where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+  });
+  const targetCards = (targetHand?.cards ?? []) as string[];
+  if (targetCards.length === 0) throw new BadRequestError("Target has no cards to give");
+
+  const requester = await tx.player.findUnique({
+    where: { player_id: currentPlayerId },
+  });
+
+  // Specifically DO NOT advance the turn here. 
+  // Turn advances after the target picks a card via favorPickCard.
+  return {
+    effect: {
+      type: "FAVOR_PENDING", 
+      targetPlayerId: target.player_id, 
+      targetDisplayName: target.display_name,
+      requesterId: currentPlayerId,
+      requesterDisplayName: requester?.display_name || "Unknown",
+    }
+  };
+};
+
 const effectHandlers: Record<string, EffectHandler> = {
   [CardCode.ATTACK]: handleAttackEffect,
   [CardCode.SKIP]: handleSkipEffect,
   [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
   [CardCode.SHUFFLE]: handleShuffleEffect,
+  [CardCode.FAVOR]: handleFavorEffect,
 };
 
 export const applyCardEffect = async (
@@ -112,7 +145,7 @@ export const applyCardEffect = async (
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
   // Guard clause for unimplemented sprint 3 and 4 cards
-  if (["FV", "NP", "TA", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
+  if (["NP", "TA", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
     throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented (planned for Sprint 3/4)`);
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {
@@ -126,3 +159,108 @@ export const applyCardEffect = async (
 
   return await handler(context);
 };
+
+export const handleFavorResponseEffect = async ({
+  tx,
+  session,
+  roomId,
+  targetPlayerToken,
+  cardCode,
+  advanceTurn,
+}: {
+  tx: Prisma.TransactionClient;
+  session: GameSession;
+  roomId: string;
+  targetPlayerToken: string;
+  cardCode?: string;
+  advanceTurn: (
+    tx: Prisma.TransactionClient,
+    session: GameSession,
+    roomId: string,
+    currentPlayerId: string
+  ) => Promise<TurnAdvancedResult>;
+}) => {
+  const target = await tx.player.findFirst({
+    where: { room_id: roomId, player_token: targetPlayerToken },
+  });
+  if (!target) throw new NotFoundError("Target player");
+
+  // ดึง requester จาก last log FAVOR_PENDING
+  const lastLog = await tx.gameLog.findFirst({
+    where: {
+      session_id: session.session_id,
+      action_details: { path: ["effect"], equals: "FAVOR_PENDING" },
+    },
+    orderBy: { timestamp: "desc" },
+  });
+  if (!lastLog) throw new BadRequestError("No pending Favor request");
+
+  const details = lastLog.action_details as {
+    target_player_id: string;
+  };
+  if (details.target_player_id !== target.player_id)
+    throw new BadRequestError("You are not the Favor target");
+
+  const requester = await tx.player.findFirst({
+    where: { room_id: roomId, player_id: lastLog.player_id },
+  });
+  if (!requester) throw new NotFoundError("Requester player");
+
+  const targetHand = await tx.cardHand.findUnique({
+    where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+  });
+  const targetCards = (targetHand?.cards ?? []) as string[];
+
+  // ไม่มี cardCode = สุ่ม (timeout), มี cardCode = target เลือกเอง
+  let selectedCard: string;
+  if (!cardCode) {
+    const randomIndex = Math.floor(Math.random() * targetCards.length);
+    selectedCard = targetCards[randomIndex]!;
+  } else {
+    if (!targetCards.includes(cardCode))
+      throw new BadRequestError("Card not in target's hand");
+    selectedCard = cardCode;
+  }
+
+  // โอนไพ่ target → requester
+  let removed = false;
+  const newTargetCards = targetCards.filter((c) => {
+    if (c === selectedCard && !removed) { removed = true; return false; }
+    return true;
+  });
+  await tx.cardHand.update({
+    where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+    data: { cards: newTargetCards, card_count: newTargetCards.length },
+  });
+
+  const requesterHand = await tx.cardHand.findUnique({
+    where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
+  });
+  const requesterCards = (requesterHand?.cards ?? []) as string[];
+  await tx.cardHand.update({
+    where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
+    data: { cards: [...requesterCards, selectedCard], card_count: requesterCards.length + 1 },
+  });
+
+  await tx.gameLog.create({
+    data: {
+      session_id: session.session_id,
+      player_id: target.player_id,
+      player_display_name: target.display_name,
+      action_type: "FAVOR_RESPONSE",
+      action_details: {
+        card: selectedCard,
+        given_to_player_id: requester.player_id,
+        was_random: !cardCode,
+      },
+      turn_number: session.turn_number,
+    },
+  });
+
+  const turnResult = await advanceTurn(
+    tx, session, roomId, session.current_turn_player_id!
+  );
+  
+  return { ...turnResult, transferredCard: selectedCard, wasRandom: !cardCode, requesterPlayerId: requester.player_id };
+};
+
