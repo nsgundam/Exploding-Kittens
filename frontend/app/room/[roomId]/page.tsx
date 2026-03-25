@@ -42,6 +42,7 @@ export default function RoomPage() {
     lastPlayedCard,
     currentTurnPlayerId,
     deckCount,
+    playCombo,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -131,9 +132,7 @@ export default function RoomPage() {
     targetPlayerToken: string,
     demandedCard?: string,
   ) => {
-    console.log("[COMBO]", { cardCodes, targetPlayerToken, demandedCard });
-    // Placeholder — wire to your real API/socket here:
-    // playCombo(cardCodes, targetPlayerToken, demandedCard);
+    playCombo(cardCodes, targetPlayerToken, demandedCard);
   };
 
   return (

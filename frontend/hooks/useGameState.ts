@@ -330,6 +330,56 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
     };
 
+
+    // ── comboPlayed ── (backend แจ้งผลการ combo)
+    const handleComboPlayed = (data: {
+      action: string;
+      success: boolean;
+      comboType: "TWO_CARD" | "THREE_CARD";
+      stolenCard?: string;        // มีแค่คนขโมย (anti-cheat)
+      wasVoid: boolean;
+      robbedFromDisplayName: string;
+      robbedFromPlayerId: string;
+      nextTurn?: { player_id: string; display_name: string; turn_number: number };
+    }) => {
+      console.log("🐱 Combo Played:", data);
+
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+
+      // ถ้าเราเป็นคนขโมย → เพิ่มการ์ดที่ได้เข้ามือ
+      if (me && data.stolenCard) {
+        setMyCards((prev) => [...prev, data.stolenCard!]);
+      }
+
+      // อัปเดต hand_count ของ target (ลด 1)
+      if (data.robbedFromPlayerId && !data.wasVoid) {
+        setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.robbedFromPlayerId) {
+              return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+            }
+            return hand;
+          })
+        );
+      }
+
+      // อัปเดต turn
+      if (data?.nextTurn?.player_id) {
+        setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+
+      // Log
+      const myDisplayName = me?.display_name ?? "คุณ";
+      if (data.wasVoid) {
+        setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo 3 ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
+      } else if (data.stolenCard && me) {
+        setGameLogs((prev) => [...prev.slice(-19), `🐱 ${myDisplayName} ขโมยการ์ดจาก ${data.robbedFromDisplayName} สำเร็จ!`]);
+      } else {
+        setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
+      }
+    };
+
     socket.on("roomUpdated", handleRoomUpdated);
     socket.on("gameStarted", handleGameStarted);
     socket.on("cardDrawn", handleCardDrawn);
@@ -342,6 +392,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     socket.on("cardDefused", handleCardDefused);
     socket.on("ekInserted", handleEkInserted);
     socket.on("playerEliminated", handlePlayerEliminated);
+    socket.on("comboPlayed", handleComboPlayed);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -356,6 +407,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       socket.off("cardDefused", handleCardDefused);
       socket.off("ekInserted", handleEkInserted);
       socket.off("playerEliminated", handlePlayerEliminated);
+      socket.off("comboPlayed", handleComboPlayed);
     };
   }, [socket, roomId]); // gamePhaseRef used instead of gamePhase to avoid re-registering listeners
 
