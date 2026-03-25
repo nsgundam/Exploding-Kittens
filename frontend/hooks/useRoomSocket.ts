@@ -45,6 +45,7 @@ export const useRoomSocket = (roomId: string) => {
     startGame: actions.startGame,
     drawCard: actions.drawCard,
     playCard: actions.playCard,
+    playCombo: actions.playCombo,
     defuseCard: actions.defuseCard,
     eliminatePlayer: actions.eliminatePlayer,
     eliminatedPlayerId: gameState.eliminatedPlayerId,
@@ -59,6 +60,5 @@ export const useRoomSocket = (roomId: string) => {
     currentTurnPlayerId: gameState.currentTurnPlayerId,
     lastPlayedCard: gameState.lastPlayedCard,
     deckCount: gameState.deckCount,
-    actionPending: gameState.actionPending,
   };
 };

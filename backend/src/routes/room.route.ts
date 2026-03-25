@@ -62,4 +62,7 @@ router.post("/:roomId/favor/response", extractPlayerToken, gameControllers.favor
 // POST /api/rooms/:roomId/nope — เล่น Nope card
 router.post("/:roomId/nope", extractPlayerToken, gameControllers.nopeCard);
 
+// POST /api/rooms/:roomId/combo — เล่น Cat Combo (2 หรือ 3 ใบ)
+router.post("/:roomId/combo", extractPlayerToken, gameControllers.comboCard);
+
 export default router;

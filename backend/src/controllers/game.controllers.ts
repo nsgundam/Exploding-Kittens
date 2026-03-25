@@ -102,7 +102,6 @@ export const favorCard = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-
 /**
  * POST /api/rooms/:roomId/favor/response
  * Target เลือกไพ่ให้ requester
@@ -138,6 +137,41 @@ export const nopeCard = async (req: Request, res: Response): Promise<void> => {
     }
 
     const result = await gameService.nopeCard(roomId, playerToken, nopeCount);
+    res.status(200).json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
+  }
+};
+
+/**
+ * POST /api/rooms/:roomId/combo
+ * เล่น Cat Combo 2 หรือ 3 ใบ
+ * 2-card: ขโมยการ์ดสุ่มจาก target
+ * 3-card: ระบุการ์ดที่ต้องการ — ถ้า target ไม่มี ถือว่าโมฆะ
+ */
+export const comboCard = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const roomId = req.params.roomId as string;
+    const playerToken = req.playerToken!;
+    const { comboCards, targetPlayerToken, demandedCard } = req.body;
+
+    if (!Array.isArray(comboCards) || comboCards.length < 2 || comboCards.length > 3) {
+      res.status(400).json({ message: "comboCards must be an array of 2 or 3 card codes" });
+      return;
+    }
+
+    if (!targetPlayerToken) {
+      res.status(400).json({ message: "targetPlayerToken is required" });
+      return;
+    }
+
+    const result = await gameService.comboCard(
+      roomId,
+      playerToken,
+      comboCards,
+      targetPlayerToken,
+      demandedCard,
+    );
     res.status(200).json(result);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });

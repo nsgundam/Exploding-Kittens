@@ -42,9 +42,7 @@ export default function RoomPage() {
     lastPlayedCard,
     currentTurnPlayerId,
     deckCount,
-    actionPending,
   } = useRoomSocket(roomId);
-
 
   const [isMounted, setIsMounted] = useState(false);
   const [showDeckConfig, setShowDeckConfig] = useState(false);
@@ -116,6 +114,26 @@ export default function RoomPage() {
   const handleLeaveRoom = () => {
     leaveRoom();
     router.push("/Lobby");
+  };
+
+  /**
+   * Cat Combo handler
+   * cardCodes   — array of 2 or 3 cat card codes played together
+   * targetToken — the victim's player_token
+   * demandedCard — (3-card only) the specific card code demanded
+   *
+   * TODO: replace the console.log + playCard fallback below with a real
+   *       socket/API call once the backend combo endpoint is ready.
+   *       e.g. socket.emit("combo", { roomId, cardCodes, targetToken, demandedCard })
+   */
+  const handlePlayCombo = (
+    cardCodes: string[],
+    targetPlayerToken: string,
+    demandedCard?: string,
+  ) => {
+    console.log("[COMBO]", { cardCodes, targetPlayerToken, demandedCard });
+    // Placeholder — wire to your real API/socket here:
+    // playCombo(cardCodes, targetPlayerToken, demandedCard);
   };
 
   return (
@@ -216,29 +234,21 @@ export default function RoomPage() {
             >
               {roomData.room_name}
             </div>
-            <div
-              className="text-[10px] px-2 py-0.5 rounded-full"
-              style={{
-                background: "rgba(120,60,0,0.15)",
-                border: "1px solid rgba(120,60,0,0.35)",
-                color: "#7a4000",
-                letterSpacing: "0.15em",
-              }}
-            >
-              #{roomId}
-            </div>
           </div>
 
-          {/* Right: Status + Deck name + Settings */}
+          {/* Right: Status + Deck config */}
           <div className="flex-1 flex items-center justify-end gap-3">
             <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black tracking-wider uppercase"
+              className="px-3 py-1.5 rounded-full text-xs font-bold tracking-wider"
               style={{
-                fontFamily: "'Fredoka One', cursive",
                 background:
                   roomData.status === "PLAYING"
-                    ? "linear-gradient(135deg, #4ade80, #16a34a)"
-                    : "linear-gradient(135deg, #f5a623, #d45f00)",
+                    ? "rgba(22,163,74,0.25)"
+                    : "rgba(180,100,20,0.25)",
+                border:
+                  roomData.status === "PLAYING"
+                    ? "1px solid rgba(22,163,74,0.6)"
+                    : "1px solid rgba(180,100,20,0.6)",
                 color: "#fff",
                 boxShadow:
                   roomData.status === "PLAYING"
@@ -309,6 +319,7 @@ export default function RoomPage() {
             selectSeat={selectSeat}
             drawCard={drawCard}
             playCard={playCard}
+            onPlayCombo={handlePlayCombo}
             defuseCard={defuseCard}
             eliminatePlayer={eliminatePlayer}
             insertEK={insertEK}
@@ -389,8 +400,10 @@ export default function RoomPage() {
             myCards={myCards}
             status={roomData.status}
             isMyTurn={isMyTurn}
+            players={roomData.players ?? []}
+            myPlayerToken={myPlayerToken}
             onPlayCard={playCard}
-            actionPending={actionPending}
+            onPlayCombo={handlePlayCombo}
           />
 
           {/* Right: Actions */}
@@ -440,6 +453,7 @@ export default function RoomPage() {
           </div>
         </footer>
       </div>
+
       {showDeckConfig && (
         <DeckConfigModal
           isOpen={showDeckConfig}
@@ -447,7 +461,9 @@ export default function RoomPage() {
           currentCardVersion={roomData.deck_config?.card_version ?? "classic"}
           currentExpansions={roomData.deck_config?.expansions ?? []}
           onClose={() => setShowDeckConfig(false)}
-          onSave={(cardVersion, expansions) => updateDeckConfig(cardVersion, expansions)}
+          onSave={(cardVersion, expansions) =>
+            updateDeckConfig(cardVersion, expansions)
+          }
           onSaved={(cardVersion: string, expansions: string[]) => {
             console.log("Deck config updated", cardVersion, expansions);
             setShowDeckConfig(false);

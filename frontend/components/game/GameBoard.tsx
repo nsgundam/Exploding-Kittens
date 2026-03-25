@@ -103,6 +103,8 @@ export interface GameBoardProps {
   selectSeat: (seat_number: number) => void;
   drawCard: (isAutoDraw?: boolean) => void;
   playCard: (cardCode: string, target?: string) => void;
+  /** Called when player plays a cat combo (2 or 3 cards) */
+  onPlayCombo: (cardCodes: string[], targetPlayerToken: string, demandedCard?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
   insertEK: (position: number) => void;

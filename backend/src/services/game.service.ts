@@ -22,13 +22,13 @@ import {
   PlayerHandsMap,
   FavorPendingResult,
   FavorResponseResult,
+  ComboResult,
 } from "../types/types";
 import {
   NotFoundError,
   BadRequestError,
   ForbiddenError,
 } from "../utils/errors";
-import { handleFavorResponseEffect } from "./effects/index";
 
 // ── Utility Helpers ────────────────────────────────────────────
 
@@ -39,6 +39,41 @@ function shuffleArray<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+// ── Cat Combo Helpers ──────────────────────────────────────────
+
+const CAT_CODES = new Set([
+  "CAT_TACO", "CAT_MELON", "CAT_BEARD", "CAT_RAINBOW", "CAT_POTATO",
+  "FC", "GVE_FC", "MC", "GVE_MC",
+]);
+
+function isCatCard(code: string): boolean {
+  return CAT_CODES.has(code);
+}
+
+function isFeralCat(code: string): boolean {
+  return code === "FC" || code === "GVE_FC";
+}
+
+function validateCombo(comboCards: string[]): void {
+  if (comboCards.length < 2 || comboCards.length > 3) {
+    throw new BadRequestError("Combo must be 2 or 3 cards");
+  }
+  for (const c of comboCards) {
+    if (!isCatCard(c)) {
+      throw new BadRequestError(`Card ${c} is not a cat card`);
+    }
+  }
+  const nonFeral = comboCards.filter((c) => !isFeralCat(c));
+  if (nonFeral.length > 1) {
+    const base = nonFeral[0]!;
+    if (!nonFeral.every((c) => c === base)) {
+      throw new BadRequestError(
+        "Combo cards must all be the same type (Feral Cat can substitute any)"
+      );
+    }
+  }
 }
 
 // ── Deck Building (Decomposed from startGame) ──────────────────
@@ -604,9 +639,8 @@ export const gameService = {
       const deck = deckState!.deck_order as string[];
 
       let insertIndex = deck.length - position;
-
       insertIndex = Math.max(0, Math.min(insertIndex, deck.length));
-      
+
       const deckWithEK = [...deck];
       deckWithEK.splice(insertIndex, 0, ekCard);
 
@@ -694,89 +728,7 @@ export const gameService = {
       );
     });
   },
-//
-// favorCard and favorResponse removed (moved to effects/index.ts)
-// ── nopeCard ─────────────────────────────────────────────────
-// S3-04: validate + remove NP → return nope_count ให้ socket จัดการ chain
-async nopeCard(
-  roomId: string,
-  playerToken: string,
-  nopeCount: number, // socket ส่งมาว่าตอนนี้ chain ที่เท่าไหร่แล้ว
-): Promise<{
-  success: true;
-  action: "NOPE_PLAYED";
-  nopeCount: number;
-  isCancel: boolean; // คี่ = cancel, คู่ = pass
-  playedBy: string;
-  playedByDisplayName: string;
-}> {
-  return await prisma.$transaction(async (tx) => {
-    const session = await tx.gameSession.findFirst({
-      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
-    });
-    if (!session) throw new NotFoundError("No active session");
 
-    const player = await tx.player.findFirst({
-      where: { room_id: roomId, player_token: playerToken, is_alive: true },
-    });
-    if (!player) throw new NotFoundError("Player");
-
-    // validate มี NP ในมือ
-    const hand = await tx.cardHand.findUnique({
-      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
-    });
-    const cards = (hand?.cards ?? []) as string[];
-    const npCode = cards.includes("GVE_NP") ? "GVE_NP" : "NP";
-    if (!cards.includes(npCode))
-      throw new BadRequestError("No Nope card in hand");
-
-    // remove NP จากมือ
-    let removed = false;
-    const newCards = cards.filter((c) => {
-      if (c === npCode && !removed) { removed = true; return false; }
-      return true;
-    });
-    await tx.cardHand.update({
-      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
-      data: { cards: newCards, card_count: newCards.length },
-    });
-
-    // add to discard pile
-    const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
-    const discardPile = (deckState?.discard_pile as string[]) ?? [];
-    await tx.deckState.update({
-      where: { session_id: session.session_id },
-      data: { discard_pile: [...discardPile, npCode] },
-    });
-
-    const newNopeCount = nopeCount + 1;
-    const isCancel = newNopeCount % 2 !== 0; // คี่ = cancel, คู่ = pass
-
-    await tx.gameLog.create({
-      data: {
-        session_id: session.session_id,
-        player_id: player.player_id,
-        player_display_name: player.display_name,
-        action_type: ActionType.PLAY_CARD,
-        action_details: {
-          card: npCode,
-          nope_count: newNopeCount,
-          is_cancel: isCancel,
-        },
-        turn_number: session.turn_number,
-      },
-    });
-
-    return {
-      success: true as const,
-      action: "NOPE_PLAYED" as const,
-      nopeCount: newNopeCount,
-      isCancel,
-      playedBy: player.player_id,
-      playedByDisplayName: player.display_name,
-    };
-  });
-},
   /**
    * Play a card from hand.
    * Sprint 2 scope: AT, SK, SF, SH
@@ -883,6 +835,7 @@ async nopeCard(
       });
       effect = effectData.effect;
       turnResult = effectData.turnResult;
+
       // 7. Log the action
       await tx.gameLog.create({
         data: {
@@ -912,30 +865,184 @@ async nopeCard(
     });
   },
 
-  async favorResponse(
+  /**
+   * Cat Combo — 2-card (สุ่มขโมย) หรือ 3-card (ระบุการ์ดที่ต้องการ)
+   */
+  async comboCard(
     roomId: string,
+    playerToken: string,
+    comboCards: string[],
     targetPlayerToken: string,
-    cardCode: string
-  ) {
+    demandedCard?: string,
+  ): Promise<ComboResult> {
     return await prisma.$transaction(async (tx) => {
+      // 1. Validate session & turn
       const session = await tx.gameSession.findFirst({
         where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
       });
       if (!session) throw new NotFoundError("No active session");
 
-      return await handleFavorResponseEffect({
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken, is_alive: true },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id)
+        throw new BadRequestError("It's not your turn");
+      if (playerToken === targetPlayerToken)
+        throw new BadRequestError("Cannot target yourself");
+
+      // 2. Validate combo legality
+      validateCombo(comboCards);
+      const isThreeCard = comboCards.length === 3;
+
+      // 3. Verify all combo cards are in hand
+      const hand = await tx.cardHand.findUnique({
+        where: {
+          player_id_session_id: {
+            player_id: player.player_id,
+            session_id: session.session_id,
+          },
+        },
+      });
+      const remaining = [...((hand?.cards ?? []) as string[])];
+      for (const cardCode of comboCards) {
+        const idx = remaining.indexOf(cardCode);
+        if (idx === -1) throw new BadRequestError(`Card ${cardCode} not in hand`);
+        remaining.splice(idx, 1);
+      }
+
+      // 4. Validate target
+      const target = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+      });
+      if (!target) throw new NotFoundError("Target player not found or eliminated");
+
+      const targetHand = await tx.cardHand.findUnique({
+        where: {
+          player_id_session_id: {
+            player_id: target.player_id,
+            session_id: session.session_id,
+          },
+        },
+      });
+      const targetCards = [...((targetHand?.cards ?? []) as string[])];
+      if (targetCards.length === 0)
+        throw new BadRequestError("Target player has no cards");
+
+      // 5. Remove combo cards from player hand → discard pile
+      await tx.cardHand.update({
+        where: {
+          player_id_session_id: {
+            player_id: player.player_id,
+            session_id: session.session_id,
+          },
+        },
+        data: { cards: remaining, card_count: remaining.length },
+      });
+
+      const deckState = await tx.deckState.findUnique({
+        where: { session_id: session.session_id },
+      });
+      if (!deckState) throw new NotFoundError("Deck state");
+      const discardPile = (deckState.discard_pile as string[]) ?? [];
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { discard_pile: [...discardPile, ...comboCards] },
+      });
+
+      // 6. Resolve steal
+      let stolenCard: string | undefined;
+      let wasVoid = false;
+
+      if (isThreeCard) {
+        if (!demandedCard)
+          throw new BadRequestError("3-card combo requires demandedCard");
+        const demandIdx = targetCards.indexOf(demandedCard);
+        if (demandIdx === -1) {
+          wasVoid = true; // target ไม่มีการ์ดที่ต้องการ → โมฆะ
+        } else {
+          stolenCard = demandedCard;
+          targetCards.splice(demandIdx, 1);
+        }
+      } else {
+        // 2-card: สุ่ม ไม่รวม EK/DF
+        const stealable = targetCards.filter(
+          (c) =>
+            c !== CardCode.EXPLODING_KITTEN &&
+            c !== CardCode.GVE_EXPLODING_KITTEN &&
+            c !== CardCode.DEFUSE &&
+            c !== CardCode.GVE_DEFUSE,
+        );
+        const pool = stealable.length > 0 ? stealable : targetCards;
+        const randomIdx = Math.floor(Math.random() * pool.length);
+        stolenCard = pool[randomIdx]!;
+        const realIdx = targetCards.indexOf(stolenCard);
+        targetCards.splice(realIdx, 1);
+      }
+
+      // 7. Update hands
+      if (stolenCard) {
+        await tx.cardHand.update({
+          where: {
+            player_id_session_id: {
+              player_id: target.player_id,
+              session_id: session.session_id,
+            },
+          },
+          data: { cards: targetCards, card_count: targetCards.length },
+        });
+
+        const newThiefCards = [...remaining, stolenCard];
+        await tx.cardHand.update({
+          where: {
+            player_id_session_id: {
+              player_id: player.player_id,
+              session_id: session.session_id,
+            },
+          },
+          data: { cards: newThiefCards, card_count: newThiefCards.length },
+        });
+      }
+
+      // 8. Log
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAY_CARD,
+          action_details: {
+            combo_type: isThreeCard ? "THREE_CARD" : "TWO_CARD",
+            combo_cards: comboCards,
+            target_player_id: target.player_id,
+            demanded_card: demandedCard ?? null,
+            stolen_card: stolenCard ?? null,
+            was_void: wasVoid,
+          },
+          turn_number: session.turn_number,
+        },
+      });
+
+      // 9. Advance turn
+      const turnResult = await gameService.advanceTurn(
         tx,
         session,
         roomId,
-        targetPlayerToken,
-        cardCode,
-        advanceTurn: gameService.advanceTurn,
-      });
+        player.player_id,
+      );
+
+      return {
+        ...turnResult,
+        comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
+        stolenCard,
+        wasVoid,
+        robbedFromDisplayName: target.display_name,
+        robbedFromPlayerId: target.player_id,
+      };
     });
   },
 
   // ── Helper: Handle AFK ───────────────────────────────────────
-  // AI Instructions line 29: kick at afk_count == 2
 
   async handleAFK(
     tx: Prisma.TransactionClient,
@@ -950,7 +1057,6 @@ async nopeCard(
     });
 
     if (newAfkCount >= 2) {
-      // AFK kick threshold = GAME_CONFIG.AFK_KICK_THRESHOLD (per AI Instructions)
       await tx.player.update({
         where: { player_id: player.player_id },
         data: { is_alive: false, role: PlayerRole.SPECTATOR },
@@ -977,7 +1083,6 @@ async nopeCard(
   },
 
   // ── Helper: Handle Imploding Kitten ──────────────────────────
-  // FR-07-IK4: face-up IK = instant death, no Defuse
 
   async handleImplodingKitten(
     tx: Prisma.TransactionClient,
@@ -1010,7 +1115,6 @@ async nopeCard(
   },
 
   // ── Helper: Handle Exploding Kitten ──────────────────────────
-  // FR-04-6/7: check if player has Defuse
 
   async handleExplodingKitten(
     tx: Prisma.TransactionClient,
@@ -1041,7 +1145,6 @@ async nopeCard(
   },
 
   // ── Helper: Advance to next turn ─────────────────────────────
-  // FR-04-3, S2-09
 
   async advanceTurn(
     tx: Prisma.TransactionClient,
@@ -1094,7 +1197,6 @@ async nopeCard(
   },
 
   // ── Helper: Check for winner ─────────────────────────────────
-  // FR-08-1/2/5, S2-27/28
 
   async checkWinner(
     tx: Prisma.TransactionClient,
@@ -1120,7 +1222,6 @@ async nopeCard(
         },
       });
 
-      // Auto-reset room to WAITING (FR-08-5/6)
       await tx.room.update({
         where: { room_id: roomId },
         data: {
@@ -1161,6 +1262,7 @@ async nopeCard(
       eliminatedPlayerId,
     );
   },
+
   async favorCard(
     roomId: string,
     playerToken: string,
@@ -1262,7 +1364,6 @@ async nopeCard(
       });
       if (!target) throw new NotFoundError("Target player");
 
-      // ดึง requester จาก last PLAY_CARD log ที่มี effect FAVOR
       const lastFavorLog = await tx.gameLog.findFirst({
         where: {
           session_id: session.session_id,
@@ -1327,7 +1428,7 @@ async nopeCard(
     });
   },
 
-    async nopeCard(
+  async nopeCard(
     roomId: string,
     playerToken: string,
     nopeCount: number,

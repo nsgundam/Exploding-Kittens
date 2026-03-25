@@ -59,12 +59,6 @@ export interface EKBombState {
   hasDefuse: boolean;
 }
 
-export interface ActionPendingState {
-  message: string;
-  cardCode: string;
-  endTime: number;
-}
-
 export const useGameState = (socket: Socket | null, roomId: string) => {
   const [roomData, setRoomData] = useState<RoomData | null>(null);
   const [cardHands, setCardHands] = useState<CardHand[]>([]);
@@ -80,13 +74,11 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [deckCount, setDeckCount] = useState<number | null>(null);
-  const [actionPending, setActionPending] = useState<ActionPendingState | null>(null);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
   const gamePhaseRef = useRef<GamePhase>("WAITING");
-  const actionPendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
@@ -94,15 +86,6 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
 
   useEffect(() => {
     if (!socket || !roomId) return;
-
-    // ── Helper to clear action pending ──
-    const clearActionPending = () => {
-      setActionPending(null);
-      if (actionPendingTimeoutRef.current) {
-        clearTimeout(actionPendingTimeoutRef.current);
-        actionPendingTimeoutRef.current = null;
-      }
-    };
 
     // ── roomUpdated ──
     const handleRoomUpdated = (updatedRoom: RoomData) => {
@@ -183,7 +166,6 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
 
     // ── cardPlayed ──
     const handleCardPlayed = (data: CardPlayedPayload & { nextTurn?: { player_id: string } }) => {
-      clearActionPending();
       console.log("🎴 Card Played:", data);
       if (data?.playedBy) {
         setCardHands((prev) =>
@@ -231,14 +213,26 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
     };
 
-    // ── favorRequested ── (backend ส่งมาหาคนที่โดนเลือก)
-    const handleFavorRequested = (data: { requesterPlayerId: string; requesterName: string; targetPlayerId: string }) => {
-      clearActionPending();
+    // ── favorRequested ── (backend ส่งตรงมาหา target socket)
+    const handleFavorRequested = (data: { requesterPlayerId: string; requesterName: string; availableCards?: string[] }) => {
       console.log("🤝 Favor Requested:", data);
-      
+      setFavorState({
+        requesterPlayerId: data.requesterPlayerId,
+        requesterName: data.requesterName,
+      });
+      setGamePhase("FAVOR_PICK_CARD");
+    };
+
+    // ── favorRequestedBroadcast ── (fallback: broadcast ทั้งห้อง → frontend กรอง player_id เอง)
+    const handleFavorRequestedBroadcast = (data: {
+      requesterPlayerId: string;
+      requesterName: string;
+      availableCards?: string[];
+      targetPlayerId: string;
+    }) => {
+      console.log("🤝 Favor Requested Broadcast:", data);
       const myPlayerToken = localStorage.getItem("player_token");
       const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
-      
       if (me?.player_id === data.targetPlayerId) {
         setFavorState({
           requesterPlayerId: data.requesterPlayerId,
@@ -336,20 +330,6 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
     };
 
-    // ── actionPending ──
-    const handleActionPending = (data: { message: string; cardCode: string }) => {
-      console.log("⏳ Action Pending (Nope Window):", data);
-      setActionPending({
-        message: data.message,
-        cardCode: data.cardCode,
-        endTime: Date.now() + 3000,
-      });
-      if (actionPendingTimeoutRef.current) clearTimeout(actionPendingTimeoutRef.current);
-      actionPendingTimeoutRef.current = setTimeout(() => {
-        setActionPending(null);
-      }, 3000);
-    };
-
     socket.on("roomUpdated", handleRoomUpdated);
     socket.on("gameStarted", handleGameStarted);
     socket.on("cardDrawn", handleCardDrawn);
@@ -357,14 +337,13 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     socket.on("deck_config_changed", handleDeckConfigChanged);
     socket.on("deckConfigUpdated", handleDeckConfigChanged);
     socket.on("favorRequested", handleFavorRequested);
+    socket.on("favorRequestedBroadcast", handleFavorRequestedBroadcast);
     socket.on("favorCompleted", handleFavorCompleted);
     socket.on("cardDefused", handleCardDefused);
     socket.on("ekInserted", handleEkInserted);
     socket.on("playerEliminated", handlePlayerEliminated);
-    socket.on("actionPending", handleActionPending);
 
     return () => {
-      clearActionPending();
       socket.off("roomUpdated", handleRoomUpdated);
       socket.off("gameStarted", handleGameStarted);
       socket.off("cardDrawn", handleCardDrawn);
@@ -372,11 +351,11 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       socket.off("deck_config_changed", handleDeckConfigChanged);
       socket.off("deckConfigUpdated", handleDeckConfigChanged);
       socket.off("favorRequested", handleFavorRequested);
+      socket.off("favorRequestedBroadcast", handleFavorRequestedBroadcast);
       socket.off("favorCompleted", handleFavorCompleted);
       socket.off("cardDefused", handleCardDefused);
       socket.off("ekInserted", handleEkInserted);
       socket.off("playerEliminated", handlePlayerEliminated);
-      socket.off("actionPending", handleActionPending);
     };
   }, [socket, roomId]); // gamePhaseRef used instead of gamePhase to avoid re-registering listeners
 
@@ -408,7 +387,6 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     deckCount, setDeckCount,
-    actionPending, setActionPending,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef
   };
 };
