@@ -1,36 +1,16 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
-    // File Layout
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist",
-
-    // Environment Settings
-    // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
     "target": "es2022",
-    // For nodejs:
     "lib": ["es2022"],
-    "types": ["node"],
-
-    // Other Outputs
+    "types": ["jest", "node"],
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
-
-    // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
-
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
-
-    // Recommended Options
     "strict": true,
     "jsx": "react-jsx",
     "verbatimModuleSyntax": false,
@@ -43,6 +23,6 @@
     "resolveJsonModule": true,
     "moduleResolution": "nodenext"
   },
-  "include": ["src/**/*"],
+  "include": ["src", "test"],
   "exclude": ["node_modules"]
 }
