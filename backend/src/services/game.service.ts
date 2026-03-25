@@ -28,6 +28,7 @@ import {
   BadRequestError,
   ForbiddenError,
 } from "../utils/errors";
+import { handleFavorResponseEffect } from "./effects/index";
 
 // ── Utility Helpers ────────────────────────────────────────────
 
@@ -693,7 +694,89 @@ export const gameService = {
       );
     });
   },
+//
+// favorCard and favorResponse removed (moved to effects/index.ts)
+// ── nopeCard ─────────────────────────────────────────────────
+// S3-04: validate + remove NP → return nope_count ให้ socket จัดการ chain
+async nopeCard(
+  roomId: string,
+  playerToken: string,
+  nopeCount: number, // socket ส่งมาว่าตอนนี้ chain ที่เท่าไหร่แล้ว
+): Promise<{
+  success: true;
+  action: "NOPE_PLAYED";
+  nopeCount: number;
+  isCancel: boolean; // คี่ = cancel, คู่ = pass
+  playedBy: string;
+  playedByDisplayName: string;
+}> {
+  return await prisma.$transaction(async (tx) => {
+    const session = await tx.gameSession.findFirst({
+      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+    });
+    if (!session) throw new NotFoundError("No active session");
 
+    const player = await tx.player.findFirst({
+      where: { room_id: roomId, player_token: playerToken, is_alive: true },
+    });
+    if (!player) throw new NotFoundError("Player");
+
+    // validate มี NP ในมือ
+    const hand = await tx.cardHand.findUnique({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+    });
+    const cards = (hand?.cards ?? []) as string[];
+    const npCode = cards.includes("GVE_NP") ? "GVE_NP" : "NP";
+    if (!cards.includes(npCode))
+      throw new BadRequestError("No Nope card in hand");
+
+    // remove NP จากมือ
+    let removed = false;
+    const newCards = cards.filter((c) => {
+      if (c === npCode && !removed) { removed = true; return false; }
+      return true;
+    });
+    await tx.cardHand.update({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+      data: { cards: newCards, card_count: newCards.length },
+    });
+
+    // add to discard pile
+    const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+    const discardPile = (deckState?.discard_pile as string[]) ?? [];
+    await tx.deckState.update({
+      where: { session_id: session.session_id },
+      data: { discard_pile: [...discardPile, npCode] },
+    });
+
+    const newNopeCount = nopeCount + 1;
+    const isCancel = newNopeCount % 2 !== 0; // คี่ = cancel, คู่ = pass
+
+    await tx.gameLog.create({
+      data: {
+        session_id: session.session_id,
+        player_id: player.player_id,
+        player_display_name: player.display_name,
+        action_type: ActionType.PLAY_CARD,
+        action_details: {
+          card: npCode,
+          nope_count: newNopeCount,
+          is_cancel: isCancel,
+        },
+        turn_number: session.turn_number,
+      },
+    });
+
+    return {
+      success: true as const,
+      action: "NOPE_PLAYED" as const,
+      nopeCount: newNopeCount,
+      isCancel,
+      playedBy: player.player_id,
+      playedByDisplayName: player.display_name,
+    };
+  });
+},
   /**
    * Play a card from hand.
    * Sprint 2 scope: AT, SK, SF, SH
@@ -826,6 +909,28 @@ export const gameService = {
         effect,
         nextTurn: turnResult?.nextTurn,
       };
+    });
+  },
+
+  async favorResponse(
+    roomId: string,
+    targetPlayerToken: string,
+    cardCode: string
+  ) {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      return await handleFavorResponseEffect({
+        tx,
+        session,
+        roomId,
+        targetPlayerToken,
+        cardCode,
+        advanceTurn: gameService.advanceTurn,
+      });
     });
   },
 

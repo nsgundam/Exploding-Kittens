@@ -95,7 +95,7 @@ export const favorCard = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const result = await gameService.favorCard(roomId, playerToken, targetPlayerToken);
+    const result = await gameService.playCard(roomId, playerToken, "FV", targetPlayerToken);
     res.status(200).json(result);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });

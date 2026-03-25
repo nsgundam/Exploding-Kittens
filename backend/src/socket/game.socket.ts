@@ -86,50 +86,90 @@ export const registerGameSocket = (io: Server): void => {
       try {
         const { roomId, playerToken, cardCode, targetPlayerToken } = payload;
 
-        const result = await gameService.playCard(
+        // Intercept Nope card to bypass turn checking and Nope window
+        if (cardCode === "NP" || cardCode === "GVE_NP") {
+          const result = await gameService.nopeCard(roomId, playerToken, 0);
+          io.to(roomId).emit("cardPlayed", {
+            success: true,
+            action: result.action,
+            cardCode: cardCode,
+            playedBy: result.playedBy,
+            playedByDisplayName: result.playedByDisplayName,
+            message: `${result.playedByDisplayName} เล่นไพ่ Nope!`,
+          });
+          return;
+        }
+
+        // S3-03: Broadcast action pending for Nope window
+        io.to(roomId).emit("actionPending", {
+          message: `Waiting 3 seconds for Nope...`,
+          cardCode
+        });
+
+        setTimeout(async () => {
+          try {
+            const result = await gameService.playCard(
+              roomId,
+              playerToken,
+              cardCode,
+              targetPlayerToken,
+            );
+
+            // Favor Event
+            if (result.effect?.type === "FAVOR_PENDING") {
+              const favorData = {
+                requesterPlayerId: result.effect.requesterId as string,
+                requesterName: result.effect.requesterDisplayName as string,
+                targetPlayerId: result.effect.targetPlayerId as string,
+              };
+              
+              socket.emit("cardPlayed", result);
+              socket.to(roomId).emit("cardPlayed", result);
+              io.to(roomId).emit("favorRequested", favorData);
+              return;
+            }
+
+            // Broadcast card played event to room
+            // Note: See The Future top cards are private (FR-05)
+            if (result.effect?.type === "SEE_THE_FUTURE") {
+              // Private: send top cards only to the playing player
+              socket.emit("cardPlayed", result);
+
+              // Public: broadcast without top cards
+              const publicResult = {
+                ...result,
+                effect: { type: "SEE_THE_FUTURE" },
+              };
+              socket.to(roomId).emit("cardPlayed", publicResult);
+            } else {
+              // Public broadcast for AT, SK, SH
+              io.to(roomId).emit("cardPlayed", result);
+            }
+          } catch (err: unknown) {
+            socket.emit("errorMessage", getErrorMessage(err));
+          }
+        }, 3000);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Favor Pick Card ────────────────────────────────────────
+    socket.on("favorPickCard", async (payload: { roomId: string, playerToken: string, cardCode: string, requesterPlayerId: string }) => {
+      try {
+        const { roomId, playerToken, cardCode } = payload;
+
+        const result = await gameService.favorResponse(
           roomId,
           playerToken,
-          cardCode,
-          targetPlayerToken
+          cardCode
         );
 
-        // Broadcast card played event to room
-        // Note: See The Future top cards are private (FR-05)
-        if (result.effect?.type === "SEE_THE_FUTURE") {
-          socket.emit("cardPlayed", result);
-          socket.to(roomId).emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
-        } else if (result.effect?.type === "FAVOR") {
-          const effect = result.effect as { type: string; targetPlayerId: string; targetDisplayName: string; availableCards: string[] };
-
-          // broadcast cardPlayed ให้ทุกคนรู้ (ไม่แสดง availableCards)
-          io.to(roomId).emit("cardPlayed", {
-            ...result,
-            effect: { type: "FAVOR", targetPlayerId: effect.targetPlayerId, targetDisplayName: effect.targetDisplayName },
-          });
-
-          // ส่ง favorRequested เฉพาะ target socket โดยเช็ค s.data.playerToken
-          const sockets = await io.in(roomId).fetchSockets();
-          const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken!);
-
-          console.log("🤝 FAVOR — targetPlayerToken:", targetPlayerToken);
-          console.log("🤝 FAVOR — targetPlayer found:", targetPlayer?.display_name);
-          console.log("🤝 FAVOR — sockets in room:", sockets.map(s => ({ id: s.id, token: s.data.playerToken })));
-
-          for (const s of sockets) {
-            const sToken = s.data.playerToken as string | undefined;
-            if (sToken && targetPlayer && sToken === targetPlayer.player_token) {
-              console.log("🤝 FAVOR — sending favorRequested to:", s.id);
-              s.emit("favorRequested", {
-                requesterPlayerId: result.playedBy,
-                requesterName: result.playedByDisplayName,
-                availableCards: effect.availableCards,
-              });
-              // ไม่ break — ส่งให้ทุก socket ของ target (กรณี multiple connections)
-            }
-          }
-        } else {
-          io.to(roomId).emit("cardPlayed", result);
-        }
+        io.to(roomId).emit("favorCompleted", {
+          nextTurn: result.nextTurn,
+          cardCode: result.transferredCard,
+          requesterPlayerId: result.requesterPlayerId
+        });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

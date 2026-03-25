@@ -42,6 +42,7 @@ export default function RoomPage() {
     lastPlayedCard,
     currentTurnPlayerId,
     deckCount,
+    actionPending,
   } = useRoomSocket(roomId);
 
 
@@ -389,6 +390,7 @@ export default function RoomPage() {
             status={roomData.status}
             isMyTurn={isMyTurn}
             onPlayCard={playCard}
+            actionPending={actionPending}
           />
 
           {/* Right: Actions */}
