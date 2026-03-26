@@ -110,12 +110,16 @@ export interface TurnAdvancedResult {
   player_id?: string;
   drawnByDisplayName?: string;
   deck_count?: number;
+  isAfkKick?: boolean;
+  afkPlayerId?: string;
 }
 
 export interface GameOverResult {
   success: boolean;
   action: "GAME_OVER";
   winner: WinnerInfo;
+  isAfkKick?: boolean;
+  afkPlayerId?: string;
 }
 
 export interface ExplodingKittenDrawnResult {

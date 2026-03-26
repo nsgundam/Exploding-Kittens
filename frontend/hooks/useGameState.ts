@@ -303,14 +303,21 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     };
 
     // ── playerEliminated ──
-    const handlePlayerEliminated = (data: PlayerEliminatedPayload) => {
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; afkPlayerId?: string }) => {
       console.log("💀 Player Eliminated:", data);
       setEkBombState(null);
       setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
 
-      const eliminatedId = currentTurnPlayerIdRef.current;
+      // AFK kick: ใช้ afkPlayerId, EK: ใช้ currentTurnPlayerId
+      const eliminatedId = data.isAfkKick
+        ? (data.afkPlayerId ?? currentTurnPlayerIdRef.current)
+        : currentTurnPlayerIdRef.current;
+
       if (eliminatedId) {
-        setEliminatedPlayerId(eliminatedId);
+        if (!data.isAfkKick) {
+          // EK elimination แสดง popup เฉพาะคนที่ระเบิด
+          setEliminatedPlayerId(eliminatedId);
+        }
         setRoomData((prev) => {
           if (!prev) return prev;
           return {
@@ -327,7 +334,12 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
 
       const eliminatedPlayer = roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
-      setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
+
+      if (data.isAfkKick) {
+        setGameLogs((prev) => [...prev.slice(-19), `⏱️ ${displayName} ถูกคิกเพราะ AFK!`]);
+      } else {
+        setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
+      }
     };
 
 

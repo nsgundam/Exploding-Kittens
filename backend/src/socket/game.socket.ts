@@ -184,13 +184,22 @@ export const registerGameSocket = (io: Server): void => {
     // ── Draw Card (S2-20) ──────────────────────────────────────
     socket.on("drawCard", async (payload: DrawCardPayload) => {
       try {
-        const { roomId, playerToken } = payload;
+        const { roomId, playerToken, isAutoDraw } = payload;
 
-        const result = await gameService.drawCard(roomId, playerToken);
+        const result = await gameService.drawCard(roomId, playerToken, isAutoDraw ?? false);
 
-        if (result.action === "DREW_EXPLODING_KITTEN") {
+        // AFK kick — emit playerEliminated instead of cardDrawn
+        if ((result as any).isAfkKick) {
+          io.to(roomId).emit("playerEliminated", result);
+          if (result.action === "GAME_OVER") {
+            const updatedRoom = await roomService.getRoomById(roomId);
+            io.to(roomId).emit("roomUpdated", updatedRoom);
+            io.emit("roomListUpdated");
+          }
+        } else if (result.action === "DREW_EXPLODING_KITTEN") {
           io.to(roomId).emit("cardDrawn", result);
         } else if (result.action === "TURN_ADVANCED") {
+          // Normal draw
           socket.emit("cardDrawn", result);
           socket.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
         } else {

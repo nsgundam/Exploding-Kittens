@@ -43,7 +43,7 @@ export const useGameTimer = (
             myPlayer.is_alive !== false
           ) {
             hasAutoDrawnThisTurnRef.current = true;
-            socket?.emit("drawCard", {
+socket?.emit("drawCard", {
               roomId,
               playerToken: myToken,
               isAutoDraw: true,
