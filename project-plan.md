@@ -174,14 +174,12 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 | S1-23 | **[G04]** Logic: ลบ Room เมื่อ Player ทุกคนออก + broadcast roomDeleted | FR-03 | PM + BE | ✅ Done |
 | S1-24 | **[G05]** Socket: room_list_updated → Lobby real-time (สร้าง/ลบ/status เปลี่ยน) | FR-02-1 | PM | ✅ Done |
 | S1-25 | **[G06]** Seed: แก้ Original deck ครบ (เพิ่ม CAT_HAIRY, CAT_BEARD; ย้าย EKG/EKE ไป G&E) | CARD_MASTER | PM + SA | ✅ Done |
-| S1-26 | ⚠️ เขียน Test Case ตาม AC | TR-09 | QA | ❌ QA Debt |
-| S1-27 | ⚠️ Test flow ทั้งหมด | TR-09 | QA + FE/QA | ❌ QA Debt |
-
-> **⚠️ QA Debt:** S1-26/27 ยังไม่เสร็จ → ต้องทำเป็นงานแรกสุดของ Sprint 2
+| S1-26 | เขียน Test Case ตาม AC | TR-09 | QA | ✅ Done |
+| S1-27 | Test flow ทั้งหมด | TR-09 | QA + FE/QA | ✅ Done |
 
 ---
 
-### 🔄 Sprint 2 — Basic Gameplay (Week 5–6) `IN PROGRESS`
+### 🔄 Sprint 2 — Basic Gameplay (Week 5–6) `DONE`
 
 **Goal:** Host เริ่มเกมได้ + เล่น/จั่วได้จริง + basic cards + เกมจบ + Auto Reset + Room Config
 
@@ -196,103 +194,103 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 #### 🔧 QA Debt จาก Sprint 1 — ทำก่อนเลย
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-01 | ติดตั้ง Jest + test framework (Backend + Frontend) | TR-09 | QA | 1 วัน |
-| S2-02 | เขียน Test Case + Manual Test Sprint 1 ที่ค้าง | TR-09 | QA + FE/QA | 1 วัน |
+| S2-01 | ติดตั้ง Jest + test framework (Backend + Frontend) | TR-09 | QA | ✅ Done |
+| S2-02 | เขียน Test Case + Manual Test Sprint 1 ที่ค้าง | TR-09 | QA + FE/QA | ✅ Done |
 
 #### 🔧 Room Config — Host Change DeckConfig
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-03 | API: PATCH /rooms/:id/config — Host เปลี่ยน version/add-on | FR-03-4 | BE | 0.5 วัน |
-| S2-04 | Socket: deck_config_updated → broadcast deck_config_changed | FR-03-5 | PM | 0.5 วัน |
-| S2-05 | UI: Notification เมื่อ Host เปลี่ยน DeckConfig | FR-03-5 | FE | 0.5 วัน |
+| S2-03 | API: PATCH /rooms/:id/config — Host เปลี่ยน version/add-on | FR-03-4 | BE | ✅ Done  |
+| S2-04 | Socket: deck_config_updated → broadcast deck_config_changed | FR-03-5 | PM | ✅ Done |
+| S2-05 | UI: Notification เมื่อ Host เปลี่ยน DeckConfig | FR-03-5 | FE | ✅ Done |
 
 #### 🏗️ Backend — Game Session & Deck
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-06 | API: POST /rooms/:id/start — validate + สร้าง GameSession | FR-03-10/FR-04-1 | SA + BE | 1 วัน |
-| S2-07 | Game Logic: สุ่มไพ่ตาม version + expansions → บันทึก DeckState | FR-04-1 | SA | 1.5 วัน |
-| S2-08 | Game Logic: แจกไพ่ 4+1 ต่อคน → สร้าง CardHand | FR-04-1 | BE | 1 วัน |
-| S2-09 | Game Logic: Turn management — เวียนตามที่นั่ง + เปลี่ยนเทิร์น | FR-04-3 | SA | 1 วัน |
-| S2-09a | **[NEW]** Game Logic: Turn timer 30 วิ — เริ่มนับเมื่อเทิร์นเริ่ม, reset เมื่อเล่นไพ่ — **ถ้า disconnect ขณะเวลาเดิน ให้ Force Draw เมื่อหมดเวลา** | FR-04-4a/4b/4c/FR-09-8 | SA | 1 วัน |
+| S2-06 | API: POST /rooms/:id/start — validate + สร้าง GameSession | FR-03-10/FR-04-1 | SA + BE | ✅ Done |
+| S2-07 | Game Logic: สุ่มไพ่ตาม version + expansions → บันทึก DeckState | FR-04-1 | SA | ✅ Done |
+| S2-08 | Game Logic: แจกไพ่ 4+1 ต่อคน → สร้าง CardHand | FR-04-1 | BE | ✅ Done |
+| S2-09 | Game Logic: Turn management — เวียนตามที่นั่ง + เปลี่ยนเทิร์น | FR-04-3 | SA | ✅ Done |
+| S2-09a | **[NEW]** Game Logic: Turn timer 30 วิ — เริ่มนับเมื่อเทิร์นเริ่ม, reset เมื่อเล่นไพ่ — **ถ้า disconnect ขณะเวลาเดิน ให้ Force Draw เมื่อหมดเวลา** | FR-04-4a/4b/4c/FR-09-8 | SA | ✅ Done |
 
 #### 🔌 Socket — Game Start & Turn
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-10 | Socket: start_game → validate → broadcast game_started | FR-03-10 | PM | 1 วัน |
-| S2-11 | Socket: deal_hand → ส่งไพ่ private ให้แต่ละคน | FR-04-1/2/NFR-03 | PM | 0.5 วัน |
-| S2-12 | Socket: turn_changed → broadcast ใครเทิร์นถัดไป | FR-04-3 | PM | 0.5 วัน |
-| S2-12a | **[NEW]** Socket: turn_timer_tick → broadcast countdown ให้ทุกคนเห็น + turn_timer_reset เมื่อเล่นไพ่ | FR-04-4a/4b | PM | 0.5 วัน |
+| S2-10 | Socket: start_game → validate → broadcast game_started | FR-03-10 | PM | ✅ Done |
+| S2-11 | Socket: deal_hand → ส่งไพ่ private ให้แต่ละคน | FR-04-1/2/NFR-03 | PM | ✅ Done |
+| S2-12 | Socket: turn_changed → broadcast ใครเทิร์นถัดไป | FR-04-3 | PM | ✅ Done |
+| S2-12a | **[NEW]** Socket: turn_timer_tick → broadcast countdown ให้ทุกคนเห็น + turn_timer_reset เมื่อเล่นไพ่ | FR-04-4a/4b | PM | ✅ Done |
 
 #### 🃏 Game Logic — Basic Cards
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-13 | Game Logic: play_card validation (เป็นเทิร์น? มีไพ่จริง?) | NFR-02 | SA | 1 วัน |
-| S2-14 | Game Logic: Attack — จบเทิร์นไม่จั่ว + ผู้ถัดไป 2 เทิร์น | FR-05 | BE | 0.5 วัน |
-| S2-15 | Game Logic: Skip — จบเทิร์นไม่จั่ว | FR-05 | BE | 0.5 วัน |
-| S2-16 | Game Logic: See The Future — ดู 3 ใบบน (private) | FR-05 | BE | 0.5 วัน |
-| S2-17 | Game Logic: Shuffle — สับกอง | FR-05 | BE | 0.5 วัน |
-| S2-18 | Socket: play_card event → broadcast card_effect_applied | FR-05 | PM | 1 วัน |
+| S2-13 | Game Logic: play_card validation (เป็นเทิร์น? มีไพ่จริง?) | NFR-02 | SA | ✅ Done |
+| S2-14 | Game Logic: Attack — จบเทิร์นไม่จั่ว + ผู้ถัดไป 2 เทิร์น | FR-05 | BE | ✅ Done |
+| S2-15 | Game Logic: Skip — จบเทิร์นไม่จั่ว | FR-05 | BE | ✅ Done |
+| S2-16 | Game Logic: See The Future — ดู 3 ใบบน (private) | FR-05 | BE | ✅ Done |
+| S2-17 | Game Logic: Shuffle — สับกอง | FR-05 | BE | ✅ Done |
+| S2-18 | Socket: play_card event → broadcast card_effect_applied | FR-05 | PM | ✅ Done |
 
 #### 💣 Game Logic — EK Bomb Sequence
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-19 | Game Logic: draw_card — จั่วไพ่บนสุด ตรวจ EK | FR-04-4 | SA | 1 วัน |
-| S2-20 | Socket: draw_card event + card_drawn (private) + deck_updated | FR-04-4/NFR-03 | PM | 0.5 วัน |
-| S2-21 | Game Logic: EK drawn → เปิด **10 วิ** timer (แก้จาก 20 วิ) | FR-04-6 | SA | 1 วัน |
-| S2-22 | Socket: exploding_kitten_drawn → broadcast + defuse_required (private) | FR-04-6/7/8 | PM | 0.5 วัน |
-| S2-23 | Game Logic: Defuse ใช้ได้ → เลือกตำแหน่ง + insert EK กลับ | FR-04-9 | BE | 1 วัน |
-| S2-24 | Socket: insert_exploding_kitten + exploding_kitten_inserted | FR-04-9 | PM | 0.5 วัน |
-| S2-25 | Game Logic: ไม่ Defuse / หมดเวลา → player_eliminated | FR-04-7/8 | BE | 0.5 วัน |
-| S2-26 | Socket: player_eliminated → ตรวจ game over → game_ended | FR-04-5/FR-08-1 | PM | 0.5 วัน |
+| S2-19 | Game Logic: draw_card — จั่วไพ่บนสุด ตรวจ EK | FR-04-4 | SA | ✅ Done |
+| S2-20 | Socket: draw_card event + card_drawn (private) + deck_updated | FR-04-4/NFR-03 | PM | ✅ Done |
+| S2-21 | Game Logic: EK drawn → เปิด **10 วิ** timer | FR-04-6 | SA | ✅ Done |
+| S2-22 | Socket: exploding_kitten_drawn → broadcast + defuse_required (private) | FR-04-6/7/8 | PM | ✅ Done |
+| S2-23 | Game Logic: Defuse ใช้ได้ → เลือกตำแหน่ง + insert EK กลับ | FR-04-9 | BE | ✅ Done |
+| S2-24 | Socket: insert_exploding_kitten + exploding_kitten_inserted | FR-04-9 | PM | ✅ Done |
+| S2-25 | Game Logic: ไม่ Defuse / หมดเวลา → player_eliminated | FR-04-7/8 | BE | ✅ Done |
+| S2-26 | Socket: player_eliminated → ตรวจ game over → game_ended | FR-04-5/FR-08-1 | PM | ✅ Done |
 
 #### 🏁 Game End + Auto Reset
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-27 | Game Logic: บันทึก winner_player_id + ประกาศผู้ชนะ | FR-08-1/2 | BE | 0.5 วัน |
-| S2-28 | Game Logic: Auto Reset — Room → WAITING + reset Player state | FR-08-5/6/7 | SA | 1 วัน |
-| S2-29 | Game Logic: รอบถัดไป winner เริ่มก่อน ถ้า winner ออกแล้วสุ่ม | FR-08-3/4 | BE | 0.5 วัน |
+| S2-27 | Game Logic: บันทึก winner_player_id + ประกาศผู้ชนะ | FR-08-1/2 | BE | ✅ Done |
+| S2-28 | Game Logic: Auto Reset — Room → WAITING + reset Player state | FR-08-5/6/7 | SA | ✅ Done |
+| S2-29 | Game Logic: รอบถัดไป winner เริ่มก่อน ถ้า winner ออกแล้วสุ่ม | FR-08-3/4 | BE | ✅ Done |
 
 #### 🖥️ Frontend — Game UI
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-30 | UI: ปุ่ม Start Game (Host only) + validate ≥ 2 PLAYER | FR-03-10 | FE | 0.5 วัน |
-| S2-31 | UI: แสดงไพ่ในมือตัวเอง (private) | FR-04-2 | FE | 1.5 วัน |
-| S2-32 | UI: แสดง deck count + **discard pile top (แสดงเฉพาะไพ่ใบล่าสุดที่ถูกทิ้ง)** | FR-04-4/FR-04-10 | FE | 0.5 วัน |
-| S2-33 | UI: แสดงจำนวนไพ่คนอื่น (ไม่รู้ว่าอะไร) | FR-04-2 | FE | 0.5 วัน |
-| S2-34 | UI: Turn indicator — ใครเทิร์น | FR-04-3 | QA | 0.5 วัน |
-| S2-34a | **[NEW]** UI: Turn countdown timer 30 วิ + **Nope Window 3 วิ สำหรับทุกการเล่นการ์ด** — แสดงข้อความ **"Does anyone want to play nope? {time}"** ให้ทุกคนเห็น — หาก Nope ถูกเล่นให้ reset countdown 3 วิใหม่ | FR-04-4a/4b/FR-05-N1/N2 | FE | 1 วัน |
-| S2-35 | **[G07]** UI: ปุ่ม Draw Card (จั่วไพ่ button เพื่อจบเทิร์น) | FR-04-4 | FE | 0.5 วัน |
-| S2-36 | **[G08]** UI: Card play interaction — เลือก card จากมือ + กด play (select & play mechanism) | FR-05 | FE | 1.5 วัน |
-| S2-37 | **[G09]** UI: See The Future — modal แสดง 3 ใบบนสุด (private เฉพาะคนเล่น) | FR-05 | FE | 0.5 วัน |
-| S2-38 | UI: EK Bomb sequence — **10 วิ** countdown + ปุ่ม Defuse / ระเบิด (แก้จาก 20 วิ) | FR-04-6/7/8 | FE | 1.5 วัน |
-| S2-39 | UI: เลือกตำแหน่งใส่ EK กลับกอง | FR-04-9 | FE | 1 วัน |
-| S2-40 | UI: Player eliminated + ประกาศผู้ชนะ | FR-08-1 | QA | 1 วัน |
-| S2-41 | UI: ปุ่ม Leave กลับ Lobby หลังเกมจบ | FR-08-8 | FE/QA | 0.5 วัน |
-| S2-42 | UI: Game Log / action history | — | QA | 1 วัน |
-| S2-43 | UI: Search Room by ID ใน Lobby | FR-02-2 | FE/QA | 0.5 วัน |
+| S2-30 | UI: ปุ่ม Start Game (Host only) + validate ≥ 2 PLAYER | FR-03-10 | FE | ✅ Done |
+| S2-31 | UI: แสดงไพ่ในมือตัวเอง (private) | FR-04-2 | FE | ✅ Done |
+| S2-32 | UI: แสดง deck count + **discard pile top (แสดงเฉพาะไพ่ใบล่าสุดที่ถูกทิ้ง)** | FR-04-4/FR-04-10 | FE | ✅ Done |
+| S2-33 | UI: แสดงจำนวนไพ่คนอื่น (ไม่รู้ว่าอะไร) | FR-04-2 | FE | ✅ Done |
+| S2-34 | UI: Turn indicator — ใครเทิร์น | FR-04-3 | QA | ✅ Done |
+| S2-34a | **[NEW]** UI: Turn countdown timer 30 วิ | FR-04-4a/4b/FR-05-N1/N2 | FE | ✅ Done |
+| S2-35 | **[G07]** UI: ปุ่ม Draw Card (จั่วไพ่ button เพื่อจบเทิร์น) | FR-04-4 | FE | ✅ Done |
+| S2-36 | **[G08]** UI: Card play interaction — เลือก card จากมือ + กด play (select & play mechanism) | FR-05 | FE | ✅ Done |
+| S2-37 | **[G09]** UI: See The Future — modal แสดง 3 ใบบนสุด (private เฉพาะคนเล่น) | FR-05 | FE | ✅ Done |
+| S2-38 | UI: EK Bomb sequence — **10 วิ** countdown + ปุ่ม Defuse / ระเบิด (แก้จาก 20 วิ) | FR-04-6/7/8 | FE | ✅ Done |
+| S2-39 | UI: เลือกตำแหน่งใส่ EK กลับกอง | FR-04-9 | FE | ✅ Done |
+| S2-40 | UI: Player eliminated + ประกาศผู้ชนะ | FR-08-1 | QA | ✅ Done |
+| S2-41 | UI: ปุ่ม Leave กลับ Lobby หลังเกมจบ | FR-08-8 | FE/QA | ✅ Done |
+| S2-42 | UI: Game Log / action history | — | QA | ✅ Done |
+| S2-43 | UI: Search Room by ID ใน Lobby | FR-02-2 | FE/QA | ✅ Done |
 
 #### 🧪 QA Sprint 2
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S2-44 | Test Case: Game Start + Deal Cards | FR-04-1 | QA | 0.5 วัน |
-| S2-45 | Test Case: Turn Timer — 30 วิ countdown + reset เมื่อเล่นไพ่ + force draw เมื่อหมดเวลา | FR-04-4a/4b/4c | QA | 0.5 วัน |
-| S2-46 | Test Case: EK Bomb Sequence ทุก path (10 วิ) | FR-04-6/7/8/9 | QA | 1 วัน |
-| S2-47 | Test Case: Basic Cards (AT/SK/SF/SH) + Card play interaction | FR-05 | FE/QA | 0.5 วัน |
-| S2-48 | Manual Test: Full gameplay flow | — | QA + FE/QA | 1 วัน |
+| S2-44 | Test Case: Game Start + Deal Cards | FR-04-1 | QA | ✅ Done |
+| S2-45 | Test Case: Turn Timer — 30 วิ countdown + reset เมื่อเล่นไพ่ + force draw เมื่อหมดเวลา | FR-04-4a/4b/4c | QA | ✅ Done |
+| S2-46 | Test Case: EK Bomb Sequence ทุก path (10 วิ) | FR-04-6/7/8/9 | QA | ✅ Done |
+| S2-47 | Test Case: Basic Cards (AT/SK/SF/SH) + Card play interaction | FR-05 | FE/QA | ✅ Done |
+| S2-48 | Manual Test: Full gameplay flow | — | QA + FE/QA | ✅ Done |
 
 ---
 
-### ⏳ Sprint 3 — Advanced Cards + Resilience (Week 7–8) `PLANNED`
+### ⏳ Sprint 3 — Advanced Cards + Resilience (Week 7–8) `IN PROGRESS`
 
 **Goal:** Favor, Nope Chain, Combo, Attack Chain, Reconnect, AFK, Token Expiry
 
@@ -309,10 +307,10 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 #### 🃏 Favor & Nope
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
 | S3-01 | Game Logic: เปิด **Nope Window 3 วิ ทุกครั้งที่มีการเล่นการ์ดใดก็ตาม** (Attack, Skip, SF, SH, Favor, Combo, Reverse, Targeted Attack ฯลฯ) — หากมีการเล่น Nope ให้ reset timer 3 วิใหม่ | FR-05-N1/N2/N3/N4 | SA | 1 วัน |
-| S3-02 | Game Logic: Favor — target เลือกไพ่ให้เอง (หลัง Nope Window ผ่านแล้ว) | FR-05-FV | BE | 0.5 วัน |
+| S3-02 | Game Logic: Favor — target เลือกไพ่ให้เอง (หลัง Nope Window ผ่านแล้ว) | FR-05-FV | BE | ✅ Done |
 | S3-03 | Socket: broadcast **action_pending** พร้อม payload การ์ดที่เล่น ทุก Action — **ส่ง UI text "Does anyone want to play nope? {time}"** ให้ทุกคน — broadcast **nope_window_reset** เมื่อมีการเล่น Nope (reset countdown 3 วิใหม่) — broadcast **action_executed** เมื่อหมดเวลาและไม่มี Nope | FR-05-N1/N2/N4 | PM | 1 วัน |
 | S3-04 | Game Logic: Nope card — validate + บันทึก chain count | FR-05-N1/N4 | SA | 1 วัน |
 | S3-05 | Socket: play_nope + nope_played (chain logic) | FR-05-N4 | PM | 1 วัน |
@@ -320,11 +318,11 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 #### 🃏 Combo Cards
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S3-07 | Game Logic: Combo 2x — validate คู่ + เลือก target + ขโมย random | FR-05-C1 | BE | 1 วัน |
-| S3-08 | Game Logic: Combo 3x — validate triple + เลือก target + เลือกไพ่ | FR-05-C2 | BE | 1 วัน |
-| S3-09 | Socket: combo_steal_target (private) + combo_steal_select + Nope Window | FR-05-C3 | PM | 1 วัน |
+| S3-07 | Game Logic: Combo 2x — validate คู่ + เลือก target + ขโมย random | FR-05-C1 | BE | ✅ Done |
+| S3-08 | Game Logic: Combo 3x — validate triple + เลือก target + เลือกไพ่ | FR-05-C2 | BE | ✅ Done |
+| S3-09 | Socket: combo_steal_target (private) + combo_steal_select + Nope Window | FR-05-C3 | PM | ✅ Done |
 
 #### ⚔️ Attack Chain
 
@@ -347,11 +345,10 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 #### ⏰ AFK System
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S3-19 | Game Logic: AFK timer 30 วิ per turn | FR-10-1 | SA | 1 วัน |
-| S3-20 | Socket: afk_warning (private) → แจ้งเตือนก่อนหมดเวลา | FR-10-2 | PM | 0.5 วัน |
-| S3-21 | Game Logic: หมดเวลา → force draw + afk_count +1 — **ถ้า afk_count == 2 → Kick ออกทันที** ข้ามเทิร์นให้คนถัดไป | FR-10-3/4 | BE | 0.5 วัน |
+| S3-19 | Game Logic: AFK timer 30 วิ per turn | FR-10-1 | SA | ✅ Done |
+| S3-21 | Game Logic: หมดเวลา → force draw + afk_count +1 — **ถ้า afk_count == 2 → Kick ออกทันที** ข้ามเทิร์นให้คนถัดไป | FR-10-3/4 | BE | ✅ Done |
 
 #### 🔑 Token Expiry
 
@@ -362,14 +359,14 @@ Test/Launch │     │     │     │     │     │     │     │     │ 
 
 #### 🖥️ Frontend — Advanced UI
 
-| Ticket | งาน | FR Ref | Role | Estimate |
+| Ticket | งาน | FR Ref | Role | Status |
 |--------|-----|--------|------|----------|
-| S3-24 | UI: Favor — กดที่นั่งเพื่อเลือก target | FR-05-FV | FE | 1 วัน |
-| S3-25 | UI: Favor — ผู้โดนบังคับ modal เลือกไพ่ (แสดงหลัง Nope Window 3 วิ ผ่านแล้ว — Nope button แสดงผ่าน universal Nope UI แทน) | FR-05-FV/N2 | FE | 1.5 วัน |
-| S3-26 | UI: Nope button + chain display (Nope #1, #2...) | FR-05-N4 | QA | 1 วัน |
-| S3-27 | UI: Combo — เลือก 2x หรือ 3x + เลือก target | FR-05-C1/C2 | FE/QA | 1 วัน |
-| S3-28 | **[G10]** UI: Combo 3x — modal แสดงการ์ดในมือ target ให้คนเล่นเลือกใบที่ต้องการ | FR-05-C2 | FE/QA | 1 วัน |
-| S3-29 | UI: Combo — Nope Window **3 วิ** (universal) แสดง "Does anyone want to play nope? {time}" ให้ทุกคนเห็น รวมถึงผู้ถูกขโมย | FR-05-C3 | FE/QA | 0.5 วัน |
+| S3-24 | UI: Favor — กดที่นั่งเพื่อเลือก target | FR-05-FV | FE | ✅ Done |
+| S3-25 | UI: Favor — ผู้โดนบังคับ modal เลือกไพ่ (แสดงหลัง Nope Window 3 วิ ผ่านแล้ว — Nope button แสดงผ่าน universal Nope UI แทน) | FR-05-FV/N2 | FE | ✅ Done |
+| S3-26 | UI: Nope button + chain display (Nope #1, #2...) | FR-05-N4 | QA | In Progress |
+| S3-27 | UI: Combo — เลือก 2x หรือ 3x + เลือก target | FR-05-C1/C2 | FE/QA | In Progress |
+| S3-28 | **[G10]** UI: Combo 3x — modal แสดงการ์ดในมือ target ให้คนเล่นเลือกใบที่ต้องการ | FR-05-C2 | FE/QA | ✅ Done |
+| S3-29 | UI: Combo — Nope Window **3 วิ** (universal) แสดง "Does anyone want to play nope? {time}" ให้ทุกคนเห็น รวมถึงผู้ถูกขโมย | FR-05-C3 | FE/QA | In Progress |
 | S3-30 | UI: Attack Chain indicator — แสดงตัวเลขชัดเจน เช่น **"เทิร์นของคุณ (1/4)"** | FR-05-A3 | QA | 0.5 วัน |
 | S3-31 | UI: Reconnect notice + countdown | FR-09-3 | FE | 0.5 วัน |
 | S3-32 | UI: AFK warning countdown | FR-10-2 | FE/QA | 0.5 วัน |
