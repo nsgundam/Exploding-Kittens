@@ -190,6 +190,7 @@ export function GameBoard({
       />
 
       <InsertEKModal
+        key={gamePhase === "DEFUSE_INSERT" ? "open" : "closed"}
         isOpen={gamePhase === "DEFUSE_INSERT"}
         drawnCard={ekBombState?.drawnCard || "EK"}
         deckCount={deckCount ?? roomData.deck_count ?? 0}

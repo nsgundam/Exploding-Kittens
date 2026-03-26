@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 
 interface InsertEKModalProps {
   drawnCard: string;
@@ -8,16 +8,7 @@ interface InsertEKModalProps {
 }
 
 export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalProps) {
-  const [selectedPosition, setSelectedPosition] = useState<number>(0);
-  const prevIsOpenRef = useRef(false);
-
-  // Reset เฉพาะตอน modal เปิดครั้งแรก ไม่ reset เมื่อ deckCount เปลี่ยน
-  useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
-      setSelectedPosition(Math.floor(Math.max(deckCount, 1) / 2));
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [isOpen, deckCount]);
+  const [selectedPosition, setSelectedPosition] = useState<number>(() => Math.floor(Math.max(deckCount, 1) / 2));
 
   if (!isOpen) return null;
 

@@ -25,11 +25,6 @@ function isCatCard(code: string): boolean {
   return CAT_TYPES.has(code);
 }
 
-/** Normalize Feral Cat — it can pair with any cat or itself */
-function comboKey(code: string): string {
-  if (code === "FC" || code === "GVE_FC") return "__FERAL__";
-  return code;
-}
 
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
 function canPairWith(a: string, b: string): boolean {
