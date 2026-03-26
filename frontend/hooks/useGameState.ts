@@ -129,7 +129,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     };
 
     // ── cardDrawn ──
-    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number }) => {
+    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number; nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number } }) => {
       console.log("🃏 Card Drawn:", data);
       if (data?.deck_count !== undefined) setDeckCount(data.deck_count);
       
@@ -168,12 +168,12 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         setEkBombState(null);
         setCurrentTurnPlayerId(data.nextTurn.player_id);
         if (data.nextTurn.turn_number) setTurnNumber(data.nextTurn.turn_number);
-        setPendingAttacks((data.nextTurn as any).pending_attacks ?? 0);
+        setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
       }
     };
 
     // ── cardPlayed ──
-    const handleCardPlayed = (data: CardPlayedPayload & { nextTurn?: { player_id: string } }) => {
+    const handleCardPlayed = (data: CardPlayedPayload & { nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("🎴 Card Played:", data);
       if (data?.playedBy) {
         setCardHands((prev) =>
@@ -202,7 +202,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         if (data?.nextTurn?.player_id) {
           setCurrentTurnPlayerId(data.nextTurn.player_id);
           if (data.nextTurn.turn_number) setTurnNumber(data.nextTurn.turn_number);
-          setPendingAttacks((data.nextTurn as any).pending_attacks ?? 0);
+          setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
         }
 
         if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
@@ -316,12 +316,12 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setEkBombState(null);
       if (data?.nextTurn?.player_id) setCurrentTurnPlayerId(data.nextTurn.player_id);
       if (data?.nextTurn?.turn_number) setTurnNumber(data.nextTurn.turn_number);
-      setPendingAttacks((data.nextTurn as any)?.pending_attacks ?? 0);
+      setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
       setGameLogs((prev) => [...prev.slice(-19), `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`]);
     };
 
     // ── playerEliminated ──
-    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; afkPlayerId?: string }) => {
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("💀 Player Eliminated:", data);
       setEkBombState(null);
       setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
@@ -350,7 +350,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       if (data.action === "GAME_OVER" && data?.winner) setWinner(data.winner);
       if (data?.nextTurn?.player_id) setCurrentTurnPlayerId(data.nextTurn.player_id);
       if (data?.nextTurn?.turn_number) setTurnNumber(data.nextTurn.turn_number);
-      setPendingAttacks((data.nextTurn as any)?.pending_attacks ?? 0);
+      setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
 
       const eliminatedPlayer = roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
