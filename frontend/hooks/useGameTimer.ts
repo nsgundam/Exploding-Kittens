@@ -9,6 +9,7 @@ export const useGameTimer = (
   gamePhase: GamePhase,
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
+  lastPlayedCard: { cardCode: string; playedByDisplayName: string } | null,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
@@ -55,7 +56,7 @@ socket?.emit("drawCard", {
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, lastPlayedCard]);
 
   return { timeLeft };
 };
