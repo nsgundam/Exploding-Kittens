@@ -239,6 +239,17 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
+    // ── Insert EK ──────────────────────────────────────────────
+    socket.on("insertEK", async (payload: { roomId: string; playerToken: string; position: number }) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.insertEK(roomId, playerToken, position);
+        io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
     // ── Favor Pick Card ────────────────────────────────────────
     socket.on("favorPickCard", async (payload: {
       roomId: string;

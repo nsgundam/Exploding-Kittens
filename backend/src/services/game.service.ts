@@ -639,8 +639,11 @@ export const gameService = {
       });
       const deck = deckState!.deck_order as string[];
 
-      let insertIndex = deck.length - position;
-      insertIndex = Math.max(0, Math.min(insertIndex, deck.length));
+      // position: 0 = top (draw side), position = max = bottom
+      // deck array: index 0 = bottom, deck[deck.length-1] = top card
+      // Normalize position relative to actual deck length to avoid off-by-one
+      // when deckCount from frontend differs from actual deck.length
+      const insertIndex = Math.max(0, Math.min(deck.length - position, deck.length));
 
       const deckWithEK = [...deck];
       deckWithEK.splice(insertIndex, 0, ekCard);

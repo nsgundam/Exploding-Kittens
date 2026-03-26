@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface InsertEKModalProps {
   drawnCard: string;
@@ -8,12 +8,21 @@ interface InsertEKModalProps {
 }
 
 export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalProps) {
-  const [selectedPosition, setSelectedPosition] = useState<number>(Math.floor(deckCount / 2));
+  const [selectedPosition, setSelectedPosition] = useState<number>(0);
+  const prevIsOpenRef = useRef(false);
+
+  // Reset เฉพาะตอน modal เปิดครั้งแรก ไม่ reset เมื่อ deckCount เปลี่ยน
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      setSelectedPosition(Math.floor(Math.max(deckCount, 1) / 2));
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, deckCount]);
 
   if (!isOpen) return null;
 
   const safeMax = Math.max(deckCount, 1);
-  const totalCards = 13; // จำนวนการ์ดในกอง visualizer
+  const totalCards = 13;
   const insertSlot = Math.round((selectedPosition / safeMax) * (totalCards - 1));
 
   const positionLabel =
@@ -36,15 +45,18 @@ export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalPro
           fontFamily: "'Fredoka One', cursive",
         }}
       >
-        {/* ── Title ── */}
         <div className="text-center">
-          <h2 className="text-2xl font-black text-white tracking-wide"
-            style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>
+          <h2
+            className="text-2xl font-black text-white tracking-wide"
+            style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}
+          >
             เลือกตำแหน่งระเบิดกลับเข้ากอง
           </h2>
+          <p className="text-xs mt-1" style={{ color: "rgba(255,180,180,0.5)" }}>
+            กองมี {deckCount} ใบ
+          </p>
         </div>
 
-        {/* ── Position label ── */}
         <div
           className="px-5 py-2 rounded-full text-sm font-black text-white tracking-wide"
           style={{
@@ -55,15 +67,12 @@ export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalPro
           {positionLabel}
         </div>
 
-        {/* ── Deck visualizer ── การ์ดซ้อนกัน ── */}
         <div className="relative w-full flex items-end justify-center" style={{ height: "100px" }}>
           {Array.from({ length: totalCards }).map((_, i) => {
             const isInsertPoint = i === insertSlot;
-            // การ์ดซ้อนกัน offset ซ้าย-ขวา
             const centerIndex = (totalCards - 1) / 2;
             const offset = (i - centerIndex) * 26;
             const zIdx = isInsertPoint ? 20 : totalCards - Math.abs(i - centerIndex);
-            // การ์ดขอบจะเล็กกว่าเล็กน้อย
             const scale = 1 - Math.abs(i - centerIndex) * 0.025;
 
             return (
@@ -75,42 +84,34 @@ export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalPro
                   height: isInsertPoint ? "90px" : "58px",
                   left: `calc(50% + ${offset}px - 22px)`,
                   bottom: 0,
-                  transform: isInsertPoint
-                    ? `scale(${scale}) translateY(-24px)`
-                    : `scale(${scale})`,
+                  transform: isInsertPoint ? `scale(${scale}) translateY(-24px)` : `scale(${scale})`,
                   background: isInsertPoint
                     ? "linear-gradient(180deg, #ef4444 0%, #7f1d1d 100%)"
                     : "linear-gradient(180deg, #1e3a5f 0%, #0f1f33 100%)",
-                  border: isInsertPoint
-                    ? "2px solid #f87171"
-                    : "1px solid rgba(99,132,200,0.35)",
+                  border: isInsertPoint ? "2px solid #f87171" : "1px solid rgba(99,132,200,0.35)",
                   boxShadow: isInsertPoint
                     ? "0 0 20px rgba(239,68,68,0.8), 0 4px 12px rgba(0,0,0,0.5)"
                     : "0 2px 6px rgba(0,0,0,0.4)",
                   zIndex: zIdx,
                 }}
               >
-                {/* ลายการ์ดหลัง */}
                 {!isInsertPoint && (
-                  <div className="absolute inset-1 rounded-lg opacity-20"
+                  <div
+                    className="absolute inset-1 rounded-lg opacity-20"
                     style={{
                       backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",
                       backgroundSize: "5px 5px",
                     }}
                   />
                 )}
-                {/* ไอคอนระเบิดบนการ์ด insert */}
                 {isInsertPoint && (
-                  <div className="absolute inset-0 flex items-center justify-center text-xl">
-                    💣
-                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center text-xl">💣</div>
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* ── Slider + ปุ่ม +/- ── */}
         <div className="w-full flex flex-col gap-2 px-1">
           <div className="flex items-center gap-3 w-full">
             <button
@@ -157,7 +158,6 @@ export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalPro
           </div>
         </div>
 
-        {/* ── Confirm Button ── */}
         <button
           onClick={() => onConfirm(selectedPosition)}
           className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95"
