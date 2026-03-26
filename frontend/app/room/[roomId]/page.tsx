@@ -41,8 +41,12 @@ export default function RoomPage() {
     timeLeft,
     lastPlayedCard,
     currentTurnPlayerId,
+    pendingAttacks,
     deckCount,
     playCombo,
+    emitCombo,
+    cancelCombo,
+    comboState,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -127,12 +131,8 @@ export default function RoomPage() {
    *       socket/API call once the backend combo endpoint is ready.
    *       e.g. socket.emit("combo", { roomId, cardCodes, targetToken, demandedCard })
    */
-  const handlePlayCombo = (
-    cardCodes: string[],
-    targetPlayerToken: string,
-    demandedCard?: string,
-  ) => {
-    playCombo(cardCodes, targetPlayerToken, demandedCard);
+  const handlePlayCombo = (cardCodes: string[]) => {
+    playCombo(cardCodes);
   };
 
   return (
@@ -334,6 +334,10 @@ export default function RoomPage() {
             gameLogs={gameLogs}
             timeLeft={timeLeft}
             lastPlayedCard={lastPlayedCard}
+            pendingAttacks={pendingAttacks}
+            comboState={comboState}
+            emitCombo={emitCombo}
+            cancelCombo={cancelCombo}
             deckCount={deckCount}
           />
         </div>
@@ -401,6 +405,8 @@ export default function RoomPage() {
             isMyTurn={isMyTurn}
             players={roomData.players ?? []}
             myPlayerToken={myPlayerToken}
+            cardVersion={roomData.deck_config?.card_version ?? "classic"}
+            expansions={roomData.deck_config?.expansions ?? []}
             onPlayCard={playCard}
             onPlayCombo={handlePlayCombo}
           />

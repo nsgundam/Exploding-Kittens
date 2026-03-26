@@ -280,10 +280,16 @@ export interface PlayComboPayload {
  * stolenCard  — การ์ดที่ได้รับจริง (undefined ถ้า 3-card demand โมฆะ)
  * wasVoid     — true ถ้า 3-card demand โมฆะ (target ไม่มีการ์ดนั้น)
  */
-export interface ComboResult extends TurnAdvancedResult {
+export interface ComboResult {
+  success: boolean;
+  action: "COMBO_PLAYED";
+  nextTurn: TurnInfo;   // current turn player — ไม่เปลี่ยน turn
   comboType: "TWO_CARD" | "THREE_CARD";
   stolenCard?: string;
   wasVoid: boolean;
   robbedFromDisplayName: string;
   robbedFromPlayerId: string;
+  robbedFromToken?: string;  // ใช้ใน socket เพื่อ route targetHand
+  thiefHand?: string[];      // private — ส่งเฉพาะคนขโมย
+  targetHand?: string[];     // private — ส่งเฉพาะ target
 }

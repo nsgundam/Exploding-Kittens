@@ -11,6 +11,10 @@ export interface CatComboModalProps {
   comboCards: string[];
   players: Player[];
   myPlayerToken: string | null;
+  cardVersion?: string;
+  expansions?: string[];
+  startAtDemandStep?: boolean;    // เริ่มที่ step demand card เลย (สำหรับ 3-card จาก board)
+  preselectedTarget?: string;     // player_token ที่เลือกไว้แล้ว
   onConfirm: (targetPlayerToken: string, demandedCard?: string) => void;
   onCancel: () => void;
 }
@@ -25,22 +29,50 @@ const avatarColors: Record<number, string> = {
   5: "#27ae60",
 };
 
-const DEMANDABLE_CARDS = Object.keys(CARD_CONFIG).filter(
-  (code) => !code.includes("EK") && !code.includes("DF") && !code.includes("IK")
-);
+
 
 export function CatComboModal({
   isOpen,
   comboCards,
   players,
   myPlayerToken,
+  cardVersion = "classic",
+  expansions = [],
+  startAtDemandStep = false,
+  preselectedTarget,
   onConfirm,
   onCancel,
 }: CatComboModalProps) {
-  const [step, setStep] = useState<Step>("select_target");
-  const [selectedTarget, setSelectedTarget] = useState<Player | null>(null);
+  const [step, setStep] = useState<Step>(startAtDemandStep ? "demand_card" : "select_target");
+  const [selectedTarget, setSelectedTarget] = useState<Player | null>(
+    preselectedTarget ? (players.find(p => p.player_token === preselectedTarget) ?? null) : null
+  );
   const [demandedCard, setDemandedCard] = useState<string>("");
   const [filterText, setFilterText] = useState("");
+
+  // กรองการ์ดที่สามารถขโมยได้ตาม deck version และ expansions
+  // ห้ามขโมย EK, DF, IK เสมอ
+  const hasImploding = expansions.includes("imploding_kittens");
+  const DEMANDABLE_CARDS = Object.keys(CARD_CONFIG).filter((code) => {
+    // ห้ามขโมย EK และ IK เท่านั้น — DF ขโมยได้ใน 3-card combo
+    const norm = code.replace(/^GVE_/, "");
+    if (["EK", "IK"].includes(norm)) return false;
+
+    if (cardVersion === "good_and_evil") {
+      // GVE deck: แสดงเฉพาะ GVE_ cards และ cat cards
+      const isCat = code.startsWith("CAT_") || code === "FC" || code === "MC" || code === "GVE_FC" || code === "GVE_MC";
+      return code.startsWith("GVE_") || isCat;
+    } else {
+      // Classic deck: ไม่แสดง GVE_ cards
+      if (code.startsWith("GVE_")) return false;
+      // Imploding Kittens expansion cards (IK, RV, DB, TA, FC, AF)
+      // แสดงเฉพาะเมื่อ expansion นั้นเปิดอยู่
+      // การ์ดทั้งหมดใน Imploding Kittens expansion (รวม FC)
+      const implodingOnly = ["IK", "RV", "DB", "TA", "AF", "FC"];
+      if (implodingOnly.includes(code)) return hasImploding;
+      return true;
+    }
+  });
 
   const isThreeCard = comboCards.length >= 3;
   const comboSize = Math.min(comboCards.length, 3);

@@ -9,16 +9,29 @@ export const useGameTimer = (
   gamePhase: GamePhase,
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
-  lastPlayedCard: { cardCode: string; playedByDisplayName: string } | null,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
   const hasAutoDrawnThisTurnRef = useRef(false);
 
-  useEffect(() => {
+  // cardPlayedRef — เพิ่ม counter ทุกครั้งที่มีการเล่นการ์ด
+  // ใช้ reset timer โดยไม่ต้อง re-mount effect ทั้งหมด
+  const cardPlayedCountRef = useRef(0);
+  const lastCardPlayedCountRef = useRef(0);
+
+  // expose function ให้ useGameState เรียก reset timer
+  const resetTimerRef = useRef(() => {
     timeLeftRef.current = 30;
     hasAutoDrawnThisTurnRef.current = false;
-    
+    setTimeLeft(30);
+  });
+
+  useEffect(() => {
+    // Reset timer เมื่อ turn เปลี่ยนหรือ phase เปลี่ยน
+    timeLeftRef.current = 30;
+    hasAutoDrawnThisTurnRef.current = false;
+    lastCardPlayedCountRef.current = cardPlayedCountRef.current;
+
     const resetTimeout = setTimeout(() => {
       setTimeLeft(30);
     }, 0);
@@ -26,6 +39,15 @@ export const useGameTimer = (
     let interval: NodeJS.Timeout;
     if (gamePhase === "PLAYING" && currentTurnPlayerId) {
       interval = setInterval(() => {
+        // ถ้ามีการเล่นการ์ดใหม่ (cardPlayedCountRef เปลี่ยน) → reset timer
+        if (cardPlayedCountRef.current !== lastCardPlayedCountRef.current) {
+          lastCardPlayedCountRef.current = cardPlayedCountRef.current;
+          timeLeftRef.current = 30;
+          hasAutoDrawnThisTurnRef.current = false;
+          setTimeLeft(30);
+          return;
+        }
+
         if (timeLeftRef.current > 0) {
           timeLeftRef.current -= 1;
           setTimeLeft(timeLeftRef.current);
@@ -43,7 +65,7 @@ export const useGameTimer = (
             myPlayer.is_alive !== false
           ) {
             hasAutoDrawnThisTurnRef.current = true;
-socket?.emit("drawCard", {
+            socket?.emit("drawCard", {
               roomId,
               playerToken: myToken,
               isAutoDraw: true,
@@ -56,7 +78,12 @@ socket?.emit("drawCard", {
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, lastPlayedCard]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef]);
 
-  return { timeLeft };
+  // cardPlayed — เรียกจากภายนอกเพื่อ reset timer เมื่อมีการเล่นการ์ด
+  const onCardPlayed = () => {
+    cardPlayedCountRef.current += 1;
+  };
+
+  return { timeLeft, resetTimerRef: resetTimerRef.current, onCardPlayed };
 };

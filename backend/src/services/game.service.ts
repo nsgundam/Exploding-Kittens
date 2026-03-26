@@ -327,11 +327,26 @@ export const gameService = {
         expansions,
       );
 
+      // 7. เรียงลำดับ players ให้คนชนะรอบที่แล้วเป็นคนแรก
+      let orderedPlayers = [...players];
+      if (room.last_winner_token) {
+        const winnerIndex = players.findIndex(
+          (p) => p.player_token === room.last_winner_token
+        );
+        if (winnerIndex > 0) {
+          // หมุน array ให้ winner อยู่ตำแหน่งแรก
+          orderedPlayers = [
+            ...players.slice(winnerIndex),
+            ...players.slice(0, winnerIndex),
+          ];
+        }
+      }
+
       // 7. Create game session, deck state, card hands, and game log
       const { session, cardHands } = await createGameSession(
         tx,
         roomId,
-        players,
+        orderedPlayers,
         finalDeck,
         hands,
         playerToken,
@@ -490,12 +505,46 @@ export const gameService = {
       });
 
       // 8. Advance turn
-      const turnResult = await gameService.advanceTurn(
-        tx,
-        session,
-        roomId,
-        player.player_id,
-      );
+      // pending_attacks = จำนวนเทิร์นที่ยังต้องเล่นอยู่ (รวมเทิร์นนี้)
+      // - pending = 0 → advance ปกติ
+      // - pending = 1 → เทิร์นสุดท้ายของ attack (เทิร์นนี้) → advance ไปคนถัดไป, pending = 0
+      // - pending > 1 → ยังต้องเล่นต่อ → ยังอยู่คนเดิม, ลด pending - 1
+      const pendingAttacks = session.pending_attacks ?? 0;
+      let turnResult: TurnAdvancedResult;
+
+      if (pendingAttacks > 1) {
+        // ยังต้องเล่นต่อ — ลด pending แต่ยังอยู่คนเดิม
+        const nextPending = pendingAttacks - 1;
+        await tx.gameSession.update({
+          where: { session_id: session.session_id },
+          data: {
+            turn_number: session.turn_number + 1,
+            pending_attacks: nextPending,
+          },
+        });
+        turnResult = {
+          success: true,
+          action: ActionType.TURN_ADVANCED,
+          nextTurn: {
+            player_id: player.player_id,
+            display_name: player.display_name,
+            turn_number: session.turn_number + 1,
+            pending_attacks: nextPending,
+          },
+        };
+      } else {
+        // pending = 0 หรือ 1 → advance ไปคนถัดไป, reset pending = 0
+        const sessionForAdvance = pendingAttacks === 1
+          ? { ...session, pending_attacks: 0 }
+          : session;
+        turnResult = await gameService.advanceTurn(
+          tx,
+          sessionForAdvance,
+          roomId,
+          player.player_id,
+        );
+      }
+
       return {
         ...turnResult,
         drawnCard,
@@ -961,6 +1010,10 @@ export const gameService = {
       if (isThreeCard) {
         if (!demandedCard)
           throw new BadRequestError("3-card combo requires demandedCard");
+        // ห้ามขโมย EK และ IK เท่านั้น — DF ขโมยได้ใน 3-card combo
+        const normalizedDemand = demandedCard.replace(/^GVE_/, "");
+        if (["EK", "IK"].includes(normalizedDemand))
+          throw new BadRequestError("Cannot demand Exploding Kitten or Imploding Kitten");
         const demandIdx = targetCards.indexOf(demandedCard);
         if (demandIdx === -1) {
           wasVoid = true; // target ไม่มีการ์ดที่ต้องการ → โมฆะ
@@ -1027,21 +1080,25 @@ export const gameService = {
         },
       });
 
-      // 9. Advance turn
-      const turnResult = await gameService.advanceTurn(
-        tx,
-        session,
-        roomId,
-        player.player_id,
-      );
+      // 9. ไม่ advance turn — คนเล่น combo ยังต้องจั่วไพ่ต่อในเทิร์นเดิม
+      const thiefFinalCards = stolenCard ? [...remaining, stolenCard] : remaining;
 
       return {
-        ...turnResult,
+        success: true as const,
+        action: "COMBO_PLAYED" as const,
+        nextTurn: {
+          player_id: session.current_turn_player_id!,
+          display_name: player.display_name,
+          turn_number: session.turn_number,
+        },
         comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
         stolenCard,
         wasVoid,
         robbedFromDisplayName: target.display_name,
         robbedFromPlayerId: target.player_id,
+        robbedFromToken: targetPlayerToken,   // ใช้ใน socket เพื่อส่ง targetHand
+        thiefHand: thiefFinalCards,           // private — ส่งเฉพาะคนขโมย
+        targetHand: targetCards,              // private — ส่งเฉพาะ target
       };
     });
   },
@@ -1178,15 +1235,16 @@ export const gameService = {
     }
 
     const pendingAttacks = session.pending_attacks ?? 0;
-    const nextPendingAttacks = pendingAttacks > 0 ? pendingAttacks - 1 : 0;
     const nextTurnNumber = session.turn_number + 1;
 
+    // advanceTurn เปลี่ยนคนและส่ง pending_attacks ต่อไปโดยไม่ลด
+    // การลด pending_attacks เป็นหน้าที่ของ drawCard เมื่อคนนั้นจั่วจริง
     await tx.gameSession.update({
       where: { session_id: session.session_id },
       data: {
         current_turn_player_id: nextPlayer.player_id,
         turn_number: nextTurnNumber,
-        pending_attacks: nextPendingAttacks,
+        pending_attacks: pendingAttacks,
       },
     });
 
@@ -1197,7 +1255,7 @@ export const gameService = {
         player_id: nextPlayer.player_id,
         display_name: nextPlayer.display_name,
         turn_number: nextTurnNumber,
-        pending_attacks: nextPendingAttacks,
+        pending_attacks: pendingAttacks,
       },
     };
   },
@@ -1228,11 +1286,35 @@ export const gameService = {
         },
       });
 
+      // บันทึก winner token และ reset ห้องกลับ WAITING
       await tx.room.update({
         where: { room_id: roomId },
         data: {
           status: RoomStatus.WAITING,
           restart_available_at: new Date(),
+          last_winner_token: winner.player_token ?? null,
+        },
+      });
+
+      // Reset ผู้เล่นทุกคนกลับมา is_alive: true, role: PLAYER, afk_count: 0
+      await tx.player.updateMany({
+        where: { room_id: roomId, role: { not: PlayerRole.SPECTATOR } },
+        data: {
+          is_alive: true,
+          afk_count: 0,
+        },
+      });
+      // Reset AFK-kicked players (SPECTATOR) กลับเป็น PLAYER ด้วย
+      await tx.player.updateMany({
+        where: {
+          room_id: roomId,
+          role: PlayerRole.SPECTATOR,
+          seat_number: { not: null }, // มีที่นั่ง = เคยเป็น PLAYER
+        },
+        data: {
+          is_alive: true,
+          role: PlayerRole.PLAYER,
+          afk_count: 0,
         },
       });
 

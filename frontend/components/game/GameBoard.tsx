@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 
 import { useEffect } from "react";
 import confetti from "canvas-confetti";
@@ -6,6 +7,7 @@ import { Player, RoomData } from "@/types";
 import { getCardConfig } from "@/types/cards";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
+import { CatComboModal } from "./CatComboModal";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
 import { FavorPickModal } from "./FavorPickModal";
@@ -104,7 +106,6 @@ export interface GameBoardProps {
   drawCard: (isAutoDraw?: boolean) => void;
   playCard: (cardCode: string, target?: string) => void;
   /** Called when player plays a cat combo (2 or 3 cards) */
-  onPlayCombo: (cardCodes: string[], targetPlayerToken: string, demandedCard?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
   insertEK: (position: number) => void;
@@ -120,6 +121,11 @@ export interface GameBoardProps {
   timeLeft?: number;
   lastPlayedCard?: { cardCode: string; playedByDisplayName: string } | null;
   deckCount?: number | null;
+  pendingAttacks?: number;
+  comboState?: { comboCards: string[]; isThreeCard: boolean } | null;
+  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
+  cancelCombo?: () => void;
+  onPlayCombo?: (cardCodes: string[]) => void;
 }
 
 export function GameBoard({
@@ -149,6 +155,10 @@ export function GameBoard({
   timeLeft,
   lastPlayedCard,
   deckCount,
+  pendingAttacks = 0,
+  comboState,
+  emitCombo,
+  cancelCombo,
 }: GameBoardProps) {
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
@@ -163,6 +173,9 @@ export function GameBoard({
     console.log("Inserting EK at position", position);
     insertEK(position);
   };
+
+  // combo target ref สำหรับ 3-card
+  const [pendingComboTarget, setPendingComboTarget] = React.useState<string | null>(null);
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
@@ -179,6 +192,55 @@ export function GameBoard({
         💥
       </div>
 
+      {/* ── ATTACK PENDING INDICATOR — แสดงเฉพาะคนที่โดน attack ── */}
+      {pendingAttacks > 0 && currentTurnSeat !== null && isMySeat(currentTurnSeat) && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl animate-bounce"
+          style={{
+            background: "linear-gradient(135deg, rgba(239,68,68,0.95), rgba(153,27,27,0.95))",
+            border: "2px solid rgba(239,68,68,0.8)",
+            boxShadow: "0 0 30px rgba(239,68,68,0.5), 0 8px 20px rgba(0,0,0,0.5)",
+            fontFamily: "'Fredoka One', cursive",
+          }}
+        >
+          <span className="text-2xl">⚡</span>
+          <div>
+            <div className="text-white font-black text-sm tracking-wider uppercase">
+              ⚡ ATTACK! เหลืออีก {pendingAttacks} เทิร์น
+            </div>
+            <div className="text-red-200 text-xs">
+              {"🔴".repeat(Math.min(pendingAttacks, 5))} จั่วต่อได้เลย!
+            </div>
+          </div>
+          <span className="text-2xl">⚡</span>
+        </div>
+      )}
+
+      {/* ── COMBO SELECT TARGET banner ── */}
+      {gamePhase === "COMBO_SELECT_TARGET" && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          style={{
+            background: "rgba(10,5,30,0.95)",
+            border: "2px solid #facc15",
+            boxShadow: "0 0 24px #facc1566",
+            fontFamily: "'Fredoka One', cursive",
+          }}
+        >
+          <span className="text-xl">🐱</span>
+          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
+          {cancelCombo && (
+            <button
+              onClick={cancelCombo}
+              className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
+            >
+              ยกเลิก
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── MODALS & SEQUENCES ── */}
       <EKBombSequence
         active={gamePhase === "EK_DRAWN" && !!ekBombState}
@@ -188,6 +250,25 @@ export function GameBoard({
         onExplode={handleExplode}
         isMyBomb={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
       />
+
+      {/* ── COMBO 3-CARD: เลือกการ์ดที่ต้องการ ── */}
+      {pendingComboTarget && comboState?.isThreeCard && (
+        <CatComboModal
+          isOpen={true}
+          comboCards={comboState.comboCards}
+          players={roomData.players ?? []}
+          myPlayerToken={myPlayerToken}
+          startAtDemandStep={true}
+          preselectedTarget={pendingComboTarget}
+          onConfirm={(_token, demandedCard) => {
+            if (emitCombo && comboState) {
+              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard);
+            }
+            setPendingComboTarget(null);
+          }}
+          onCancel={() => setPendingComboTarget(null)}
+        />
+      )}
 
       <InsertEKModal
         key={gamePhase === "DEFUSE_INSERT" ? "open" : "closed"}
@@ -349,6 +430,16 @@ export function GameBoard({
                 isCurrentTurn={currentTurnSeat === seatNum}
                 timeLeft={timeLeft}
                 isFavorTargetMode={gamePhase === "FAVOR_SELECT_TARGET"}
+                  isComboTargetMode={gamePhase === "COMBO_SELECT_TARGET"}
+                  onComboSelect={() => {
+                    const p = getPlayerAtSeat(seatNum);
+                    if (!p || !comboState || !emitCombo) return;
+                    if (comboState.isThreeCard) {
+                      setPendingComboTarget(p.player_token);
+                    } else {
+                      emitCombo(comboState.comboCards, p.player_token);
+                    }
+                  }}
                 isMe={isMyAvatar}
                 onFavorSelect={
                   player && !isMyAvatar

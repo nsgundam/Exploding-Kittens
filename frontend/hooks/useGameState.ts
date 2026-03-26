@@ -42,7 +42,7 @@ function showToast(message: string, duration = 3500) {
   }, duration);
 }
 
-import { FavorState } from "./useGameActions";
+import { FavorState, ComboState } from "./useGameActions";
 
 export type GamePhase =
   | "WAITING"
@@ -52,6 +52,8 @@ export type GamePhase =
   | "SEE_FUTURE"
   | "FAVOR_SELECT_TARGET"
   | "FAVOR_PICK_CARD"
+  | "COMBO_SELECT_TARGET"
+  | "COMBO_DEMAND_CARD"
   | "GAME_OVER";
 
 export interface EKBombState {
@@ -71,14 +73,18 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [eliminatedPlayerId, setEliminatedPlayerId] = useState<string | null>(null);
   const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
   const [favorState, setFavorState] = useState<FavorState | null>(null);
+  const [comboState, setComboState] = useState<ComboState | null>(null);
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [deckCount, setDeckCount] = useState<number | null>(null);
+  const [turnNumber, setTurnNumber] = useState<number>(0);
+  const [pendingAttacks, setPendingAttacks] = useState<number>(0);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
   const gamePhaseRef = useRef<GamePhase>("WAITING");
+  const onCardPlayedRef = useRef<(() => void) | null>(null);
 
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
@@ -161,6 +167,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         setGamePhase("PLAYING");
         setEkBombState(null);
         setCurrentTurnPlayerId(data.nextTurn.player_id);
+        if (data.nextTurn.turn_number) setTurnNumber(data.nextTurn.turn_number);
+        setPendingAttacks((data.nextTurn as any).pending_attacks ?? 0);
       }
     };
 
@@ -184,9 +192,17 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         
         setGameLogs((prev) => [...prev.slice(-19), `🎴 ${logMsg}`]);
         setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+        // Reset timer เมื่อมีการเล่นการ์ด (ยกเว้นการ์ดที่ข้ามเทิร์น AT/SK ไม่ reset เพราะ turn เปลี่ยนทันที)
+        const skipTurnCards = ["AT", "SK", "TA", "RV"];
+        const normalizedPlayed = data.cardCode?.replace(/^GVE_/, "");
+        if (!skipTurnCards.includes(normalizedPlayed ?? "")) {
+          onCardPlayedRef.current?.();
+        }
         
         if (data?.nextTurn?.player_id) {
           setCurrentTurnPlayerId(data.nextTurn.player_id);
+          if (data.nextTurn.turn_number) setTurnNumber(data.nextTurn.turn_number);
+          setPendingAttacks((data.nextTurn as any).pending_attacks ?? 0);
         }
 
         if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
@@ -299,6 +315,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setGamePhase("PLAYING");
       setEkBombState(null);
       if (data?.nextTurn?.player_id) setCurrentTurnPlayerId(data.nextTurn.player_id);
+      if (data?.nextTurn?.turn_number) setTurnNumber(data.nextTurn.turn_number);
+      setPendingAttacks((data.nextTurn as any)?.pending_attacks ?? 0);
       setGameLogs((prev) => [...prev.slice(-19), `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`]);
     };
 
@@ -331,6 +349,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
 
       if (data.action === "GAME_OVER" && data?.winner) setWinner(data.winner);
       if (data?.nextTurn?.player_id) setCurrentTurnPlayerId(data.nextTurn.player_id);
+      if (data?.nextTurn?.turn_number) setTurnNumber(data.nextTurn.turn_number);
+      setPendingAttacks((data.nextTurn as any)?.pending_attacks ?? 0);
 
       const eliminatedPlayer = roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
@@ -343,15 +363,17 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     };
 
 
-    // ── comboPlayed ── (backend แจ้งผลการ combo)
+    // ── comboPlayed ── (backend แจ้งผลการ combo — ไม่จบเทิร์น)
     const handleComboPlayed = (data: {
       action: string;
       success: boolean;
       comboType: "TWO_CARD" | "THREE_CARD";
-      stolenCard?: string;        // มีแค่คนขโมย (anti-cheat)
+      stolenCard?: string;
       wasVoid: boolean;
       robbedFromDisplayName: string;
       robbedFromPlayerId: string;
+      thiefHand?: string[];   // private — มาเฉพาะคนขโมย
+      targetHand?: string[];  // private — มาเฉพาะ target
       nextTurn?: { player_id: string; display_name: string; turn_number: number };
     }) => {
       console.log("🐱 Combo Played:", data);
@@ -359,27 +381,31 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       const myPlayerToken = localStorage.getItem("player_token");
       const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
 
-      // ถ้าเราเป็นคนขโมย → เพิ่มการ์ดที่ได้เข้ามือ
-      if (me && data.stolenCard) {
-        setMyCards((prev) => [...prev, data.stolenCard!]);
+      if (me) {
+        // เราคือคนขโมย → sync มือจาก thiefHand
+        if (data.thiefHand) {
+          setMyCards(data.thiefHand);
+        }
+        // เราคือ target → sync มือจาก targetHand
+        if (data.targetHand && me.player_id === data.robbedFromPlayerId) {
+          setMyCards(data.targetHand);
+        }
       }
 
-      // อัปเดต hand_count ของ target (ลด 1)
-      if (data.robbedFromPlayerId && !data.wasVoid) {
-        setCardHands((prev) =>
-          prev.map((hand) => {
-            if (hand.player_id === data.robbedFromPlayerId) {
-              return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
-            }
-            return hand;
-          })
-        );
-      }
+      // อัปเดต card_count ทุกคนในห้อง
+      setCardHands((prev) =>
+        prev.map((hand) => {
+          if (data.thiefHand && me && hand.player_id === me.player_id) {
+            return { ...hand, card_count: data.thiefHand!.length };
+          }
+          if (data.robbedFromPlayerId && !data.wasVoid && hand.player_id === data.robbedFromPlayerId) {
+            return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+          }
+          return hand;
+        })
+      );
 
-      // อัปเดต turn
-      if (data?.nextTurn?.player_id) {
-        setCurrentTurnPlayerId(data.nextTurn.player_id);
-      }
+      // ไม่ setCurrentTurnPlayerId — combo ไม่จบเทิร์น คนเล่นยังต้องจั่วไพ่
 
       // Log
       const myDisplayName = me?.display_name ?? "คุณ";
@@ -388,6 +414,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       } else if (data.stolenCard && me) {
         setGameLogs((prev) => [...prev.slice(-19), `🐱 ${myDisplayName} ขโมยการ์ดจาก ${data.robbedFromDisplayName} สำเร็จ!`]);
       } else {
+        // คนอื่นในห้องเห็น log นี้
         setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
       }
     };
@@ -436,6 +463,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       }
     : null;
 
+  const setOnCardPlayed = (fn: () => void) => { onCardPlayedRef.current = fn; };
+
   return {
     roomData: augmentedRoomData,
     cardHands, setCardHands,
@@ -448,9 +477,13 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     eliminatedPlayerId, setEliminatedPlayerId,
     winner, setWinner,
     favorState, setFavorState,
+    comboState, setComboState,
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
+    pendingAttacks,
     deckCount, setDeckCount,
-    currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef
+    turnNumber, setTurnNumber,
+    currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,
+    setOnCardPlayed,
   };
 };
