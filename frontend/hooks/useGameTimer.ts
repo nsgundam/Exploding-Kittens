@@ -85,5 +85,5 @@ export const useGameTimer = (
     cardPlayedCountRef.current += 1;
   };
 
-  return { timeLeft, resetTimerRef: resetTimerRef.current, onCardPlayed };
+  return { timeLeft, onCardPlayed };
 };

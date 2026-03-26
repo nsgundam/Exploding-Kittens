@@ -40,10 +40,6 @@ export function PlayerHand({
   myCards,
   status,
   isMyTurn,
-  players,
-  myPlayerToken,
-  cardVersion = "classic",
-  expansions = [],
   onPlayCard,
   onPlayCombo,
 }: PlayerHandProps) {
