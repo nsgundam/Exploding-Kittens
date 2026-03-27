@@ -2,6 +2,11 @@ import { useCallback, RefObject } from "react";
 import { Socket } from "socket.io-client";
 import { GamePhase } from "./useGameState";
 
+export interface ComboState {
+  comboCards: string[];
+  isThreeCard: boolean;
+}
+
 export interface GameActionSetters {
   setMyCards: React.Dispatch<React.SetStateAction<string[]>>;
   setGamePhase: React.Dispatch<React.SetStateAction<GamePhase>>;
@@ -10,6 +15,7 @@ export interface GameActionSetters {
   setSeeTheFutureCards: React.Dispatch<React.SetStateAction<string[]>>;
   setEliminatedPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
   setFavorState: React.Dispatch<React.SetStateAction<FavorState | null>>;
+  setComboState: React.Dispatch<React.SetStateAction<ComboState | null>>;
 }
 
 export interface FavorState {
@@ -32,6 +38,7 @@ export const useGameActions = (
     setSeeTheFutureCards,
     setEliminatedPlayerId,
     setFavorState,
+    setComboState,
   } = setters;
 
   const selectSeat = useCallback(
@@ -90,12 +97,20 @@ export const useGameActions = (
   );
 
   /**
-   * playCombo — เล่น Cat Combo 2 หรือ 3 ใบ
-   * comboCards        — array ของ card code ที่จะเล่น (2 หรือ 3 ใบ)
-   * targetPlayerToken — player_token ของเหยื่อ
-   * demandedCard      — (3-card เท่านั้น) card code ที่ต้องการขโมย
+   * playCombo — เริ่ม combo flow: set phase ให้เลือก target บน board
    */
   const playCombo = useCallback(
+    (comboCards: string[]) => {
+      setComboState({ comboCards, isThreeCard: comboCards.length >= 3 });
+      setGamePhase("COMBO_SELECT_TARGET");
+    },
+    [setComboState, setGamePhase]
+  );
+
+  /**
+   * emitCombo — emit socket หลังเลือก target แล้ว (และ demandedCard สำหรับ 3-card)
+   */
+  const emitCombo = useCallback(
     (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => {
       if (!socket) return;
       const playerToken = localStorage.getItem("player_token");
@@ -110,6 +125,9 @@ export const useGameActions = (
         return next;
       });
 
+      setComboState(null);
+      setGamePhase("PLAYING");
+
       socket.emit("playCombo", {
         roomId,
         playerToken,
@@ -118,8 +136,13 @@ export const useGameActions = (
         demandedCard,
       });
     },
-    [socket, roomId, setMyCards]
+    [socket, roomId, setMyCards, setComboState, setGamePhase]
   );
+
+  const cancelCombo = useCallback(() => {
+    setComboState(null);
+    setGamePhase("PLAYING");
+  }, [setComboState, setGamePhase]);
 
   const insertEK = useCallback(
     (position: number) => {
@@ -229,6 +252,8 @@ export const useGameActions = (
     drawCard,
     playCard,
     playCombo,
+    emitCombo,
+    cancelCombo,
     insertEK,
     closeInsertEK,
     closeSeeTheFuture,

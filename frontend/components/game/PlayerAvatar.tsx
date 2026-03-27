@@ -24,6 +24,9 @@ export interface PlayerAvatarProps {
   isFavorTargetMode?: boolean; // gamePhase === "FAVOR_SELECT_TARGET"
   isMe?: boolean;              // ตัวเอง → ห้ามเลือก
   onFavorSelect?: () => void;  // กดเลือกเป็น target
+  // Combo
+  isComboTargetMode?: boolean; // gamePhase === "COMBO_SELECT_TARGET"
+  onComboSelect?: () => void;  // กดเลือกเป็น combo target
 }
 
 export function PlayerAvatar({
@@ -39,6 +42,8 @@ export function PlayerAvatar({
   isFavorTargetMode,
   isMe,
   onFavorSelect,
+  isComboTargetMode,
+  onComboSelect,
 }: PlayerAvatarProps) {
   const occupied = !!player;
   const color = avatarColors[seat];
@@ -49,10 +54,16 @@ export function PlayerAvatar({
 
   // Favor target mode — เฉพาะ player ที่ alive และไม่ใช่ตัวเอง
   const isValidFavorTarget = isFavorTargetMode && occupied && !isDead && !isMe;
+  // Combo target mode
+  const isValidComboTarget = isComboTargetMode && occupied && !isDead && !isMe;
 
   const handleClick = () => {
     if (isValidFavorTarget && onFavorSelect) {
       onFavorSelect();
+      return;
+    }
+    if (isValidComboTarget && onComboSelect) {
+      onComboSelect();
       return;
     }
     onSelect();
@@ -69,6 +80,30 @@ export function PlayerAvatar({
           >
             👑
           </div>
+        )}
+
+        {/* Combo target frame — กรอบสีเหลือง */}
+        {isValidComboTarget && (
+          <>
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                inset: "-8px",
+                border: "2.5px solid #facc15",
+                borderRadius: "9999px",
+                boxShadow: "0 0 12px #facc1566, inset 0 0 8px #facc1522",
+                animation: "pulse 1.2s ease-in-out infinite",
+              }}
+            />
+            <div className="absolute pointer-events-none" style={{ top: "-14px", left: "50%", transform: "translateX(-50%)", width: "2px", height: "10px", background: "#facc15", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-14px", left: "50%", transform: "translateX(-50%)", width: "2px", height: "10px", background: "#facc15", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ left: "-14px", top: "50%", transform: "translateY(-50%)", width: "10px", height: "2px", background: "#facc15", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ right: "-14px", top: "50%", transform: "translateY(-50%)", width: "10px", height: "2px", background: "#facc15", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ top: "-6px", left: "-6px", width: "10px", height: "10px", borderTop: "2.5px solid #facc15", borderLeft: "2.5px solid #facc15", borderRadius: "2px 0 0 0" }} />
+            <div className="absolute pointer-events-none" style={{ top: "-6px", right: "-6px", width: "10px", height: "10px", borderTop: "2.5px solid #facc15", borderRight: "2.5px solid #facc15", borderRadius: "0 2px 0 0" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-6px", left: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #facc15", borderLeft: "2.5px solid #facc15", borderRadius: "0 0 0 2px" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-6px", right: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #facc15", borderRight: "2.5px solid #facc15", borderRadius: "0 0 2px 0" }} />
+          </>
         )}
 
         {/* Favor target frame — กรอบ target แทน emoji */}
@@ -136,9 +171,11 @@ export function PlayerAvatar({
         <button
           onClick={handleClick}
           className="relative w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 group focus:outline-none hover:scale-110"
-          disabled={occupied && !isMe && !isValidFavorTarget}
+          disabled={occupied && !isMe && !isValidFavorTarget && !isValidComboTarget}
           style={{
-            borderColor: isValidFavorTarget
+            borderColor: isValidComboTarget
+              ? "#facc15"
+              : isValidFavorTarget
               ? "#ef4444"
               : isDead
                 ? "#6b7280"
@@ -147,14 +184,18 @@ export function PlayerAvatar({
                   : occupied
                     ? color
                     : "rgba(255,255,255,0.2)",
-            background: isValidFavorTarget
+            background: isValidComboTarget
+              ? "rgba(250,204,21,0.15)"
+              : isValidFavorTarget
               ? "rgba(239,68,68,0.15)"
               : isDead
                 ? "rgba(0,0,0,0.5)"
                 : occupied
                   ? `${color}33`
                   : "rgba(0,0,0,0.3)",
-            boxShadow: isValidFavorTarget
+            boxShadow: isValidComboTarget
+              ? "0 0 24px #facc1566"
+              : isValidFavorTarget
               ? "0 0 24px #ef444466"
               : isDead
                 ? "none"
@@ -165,7 +206,7 @@ export function PlayerAvatar({
                     : "none",
             opacity: isDead ? 0.5 : 1,
             filter: isDead ? "grayscale(100%)" : "none",
-            cursor: isValidFavorTarget ? "crosshair" : undefined,
+            cursor: isValidComboTarget ? "crosshair" : isValidFavorTarget ? "crosshair" : undefined,
           }}
         >
           {/* Dead overlay */}
@@ -214,13 +255,20 @@ export function PlayerAvatar({
       <span
         className="text-xs font-bold tracking-wider truncate w-20 text-center"
         style={{
-          color: isValidFavorTarget ? "#ef4444" : occupied ? color : "rgba(80,40,0,0.45)",
+          color: isValidComboTarget ? "#facc15" : isValidFavorTarget ? "#ef4444" : occupied ? color : "rgba(80,40,0,0.45)",
           fontFamily: "'Fredoka One', cursive",
-          textShadow: occupied ? `0 0 8px ${isValidFavorTarget ? "#ef444499" : `${color}99`}` : "none",
+          textShadow: occupied ? `0 0 8px ${isValidComboTarget ? "#facc1599" : isValidFavorTarget ? "#ef444499" : `${color}99`}` : "none",
         }}
       >
         {occupied ? player.display_name : `ที่นั่ง ${seat}`}
       </span>
+
+      {/* Combo hint text */}
+      {isValidComboTarget && (
+        <span className="text-[9px] font-bold tracking-wider text-yellow-400 animate-pulse">
+          🐱 กดเพื่อขโมย
+        </span>
+      )}
 
       {/* Favor hint text */}
       {isValidFavorTarget && (
@@ -230,7 +278,7 @@ export function PlayerAvatar({
       )}
 
       {/* Card count badge */}
-      {occupied && !isValidFavorTarget && (
+      {occupied && !isValidFavorTarget && !isValidComboTarget && (
         <div
           className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold mt-0.5"
           style={{
@@ -246,7 +294,7 @@ export function PlayerAvatar({
       )}
 
       {/* Leave seat button */}
-      {onLeaveSeat && occupied && !isFavorTargetMode && (
+      {onLeaveSeat && occupied && !isFavorTargetMode && !isComboTargetMode && (
         <button
           className="mt-1 px-2 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase"
           style={{

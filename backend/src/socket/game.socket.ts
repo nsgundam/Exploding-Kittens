@@ -170,10 +170,32 @@ export const registerGameSocket = (io: Server): void => {
           demandedCard,
         );
 
-        // stolenCard เป็น private — ส่งเต็มให้แค่คนขโมย
-        const publicResult = { ...result, stolenCard: undefined };
+        // public result — ซ่อน private fields
+        const publicResult = {
+          ...result,
+          stolenCard: undefined,
+          thiefHand: undefined,
+          targetHand: undefined,
+          robbedFromToken: undefined,
+        };
 
-        socket.emit("comboPlayed", result);
+        // ส่ง thiefHand เฉพาะคนขโมย (socket นี้)
+        socket.emit("comboPlayed", { ...result, targetHand: undefined, robbedFromToken: undefined });
+
+        // ส่ง targetHand เฉพาะ target socket
+        const sockets = await io.in(roomId).fetchSockets();
+        const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken);
+        for (const s of sockets) {
+          const sToken = s.data.playerToken as string | undefined;
+          if (sToken && targetPlayer && sToken === targetPlayer.player_token) {
+            s.emit("comboPlayed", {
+              ...publicResult,
+              targetHand: result.targetHand,  // ส่ง targetHand เฉพาะ target
+            });
+          }
+        }
+
+        // ส่ง public result ให้คนอื่นในห้อง (ไม่รวม thief และ target)
         socket.to(roomId).emit("comboPlayed", publicResult);
 
       } catch (err: unknown) {
@@ -234,6 +256,17 @@ export const registerGameSocket = (io: Server): void => {
           io.to(roomId).emit("roomUpdated", updatedRoom);
           io.emit("roomListUpdated");
         }
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Insert EK ──────────────────────────────────────────────
+    socket.on("insertEK", async (payload: { roomId: string; playerToken: string; position: number }) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.insertEK(roomId, playerToken, position);
+        io.to(roomId).emit("ekInserted", result);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

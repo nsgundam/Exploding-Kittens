@@ -8,14 +8,17 @@ export type { GamePhase, EKBombState } from "./useGameState";
 export const useRoomSocket = (roomId: string) => {
   const { socket, isConnected, error } = useGameConnection(roomId);
   const gameState = useGameState(socket, roomId);
-  const { timeLeft } = useGameTimer(
+  const { timeLeft, onCardPlayed } = useGameTimer(
     socket,
     roomId,
     gameState.gamePhase,
     gameState.currentTurnPlayerId,
     gameState.roomDataRef,
-    gameState.lastPlayedCard
   );
+
+  // ส่ง onCardPlayed ให้ gameState ใช้ reset timer เมื่อมีการ์ดถูกเล่น
+  gameState.setOnCardPlayed(onCardPlayed);
+
   const actions = useGameActions(socket, roomId, {
     setMyCards: gameState.setMyCards,
     setGamePhase: gameState.setGamePhase,
@@ -24,6 +27,7 @@ export const useRoomSocket = (roomId: string) => {
     setSeeTheFutureCards: gameState.setSeeTheFutureCards,
     setEliminatedPlayerId: gameState.setEliminatedPlayerId,
     setFavorState: gameState.setFavorState,
+    setComboState: gameState.setComboState,
   });
 
   return {
@@ -54,10 +58,14 @@ export const useRoomSocket = (roomId: string) => {
     leaveRoom: actions.leaveRoom,
     updateDeckConfig: actions.updateDeckConfig,
     favorState: gameState.favorState,
+    comboState: gameState.comboState,
     selectFavorTarget: actions.selectFavorTarget,
+    emitCombo: actions.emitCombo,
+    cancelCombo: actions.cancelCombo,
     pickFavorCard: actions.pickFavorCard,
     timeLeft,
     currentTurnPlayerId: gameState.currentTurnPlayerId,
+    pendingAttacks: gameState.pendingAttacks,
     lastPlayedCard: gameState.lastPlayedCard,
     deckCount: gameState.deckCount,
   };

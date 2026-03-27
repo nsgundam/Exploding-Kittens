@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { Card } from "@/components/game/Card";
-import { CatComboModal } from "@/components/game/CatComboModal";
 import { Player } from "@/types";
 
 export interface PlayerHandProps {
@@ -11,8 +10,10 @@ export interface PlayerHandProps {
   isMyTurn: boolean;
   players: Player[];
   myPlayerToken: string | null;
+  cardVersion?: string;
+  expansions?: string[];
   onPlayCard: (cardCode: string, targetPlayerToken?: string, demandedCard?: string) => void;
-  onPlayCombo: (cardCodes: string[], targetPlayerToken: string, demandedCard?: string) => void;
+  onPlayCombo: (cardCodes: string[]) => void;
 }
 
 // ── Cat card detection ───────────────────────────────────────
@@ -25,11 +26,6 @@ function isCatCard(code: string): boolean {
   return CAT_TYPES.has(code);
 }
 
-/** Normalize Feral Cat — it can pair with any cat or itself */
-function comboKey(code: string): string {
-  if (code === "FC" || code === "GVE_FC") return "__FERAL__";
-  return code;
-}
 
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
 function canPairWith(a: string, b: string): boolean {
@@ -44,14 +40,11 @@ export function PlayerHand({
   myCards,
   status,
   isMyTurn,
-  players,
-  myPlayerToken,
   onPlayCard,
   onPlayCombo,
 }: PlayerHandProps) {
   // selectedIndices: indices of cat cards selected for combo
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [showComboModal, setShowComboModal] = useState(false);
 
   const mid = Math.floor(myCards.length / 2);
 
@@ -101,18 +94,12 @@ export function PlayerHand({
 
   const handlePlayCombo = () => {
     if (selectedIndices.length < 2) return;
-    setShowComboModal(true);
-  };
-
-  const handleComboConfirm = (targetToken: string, demandedCard?: string) => {
-    setShowComboModal(false);
+    const cards = selectedIndices.map((i) => myCards[i] as string);
     setSelectedIndices([]);
-    onPlayCombo(selectedCards, targetToken, demandedCard);
+    onPlayCombo(cards);
   };
 
-  const handleComboCancel = () => {
-    setShowComboModal(false);
-  };
+
 
   // ── Render ────────────────────────────────────────────────
   if (status !== "PLAYING" && status !== "playing") return null;
@@ -271,16 +258,6 @@ export function PlayerHand({
           })}
         </div>
       </div>
-
-      {/* ── CAT COMBO MODAL ── */}
-      <CatComboModal
-        isOpen={showComboModal}
-        comboCards={selectedCards}
-        players={players}
-        myPlayerToken={myPlayerToken}
-        onConfirm={handleComboConfirm}
-        onCancel={handleComboCancel}
-      />
-    </>
+</>
   );
 }
