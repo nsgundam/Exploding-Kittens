@@ -131,12 +131,7 @@ export const nopeCard = async (req: Request, res: Response): Promise<void> => {
     const playerToken = req.playerToken!;
     const { nopeCount } = req.body;
 
-    if (nopeCount === undefined || typeof nopeCount !== "number") {
-      res.status(400).json({ message: "nopeCount is required and must be a number" });
-      return;
-    }
-
-    const result = await gameService.nopeCard(roomId, playerToken, nopeCount);
+    const result = await gameService.playNope(roomId, playerToken);
     res.status(200).json(result);
   } catch (error: unknown) {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });

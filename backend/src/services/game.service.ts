@@ -23,6 +23,7 @@ import {
   FavorPendingResult,
   FavorResponseResult,
   ComboResult,
+  NopePendingResult,
 } from "../types/types";
 import {
   NotFoundError,
@@ -871,35 +872,33 @@ export const gameService = {
         data: { discard_pile: [...discardPile, cardCode] },
       });
 
-      // 6. Handle card effect
-      let effect: CardEffectResult | undefined;
-      let turnResult: TurnAdvancedResult | undefined;
-
-      // Normalize card code for GVE variants
-      const normalizedCode = cardCode.replace(/^GVE_/, "");
-
-      const effectData = await applyCardEffect(normalizedCode, {
-        tx,
-        session,
-        roomId,
-        currentPlayerId: player.player_id,
+      // 6. Save as Pending Action for Nope Window
+      const pendingAction = {
+        type: "PLAY_CARD",
+        cardCode,
+        playedByToken: playerToken,
         targetPlayerToken,
-        advanceTurn: gameService.advanceTurn,
-      });
-      effect = effectData.effect;
-      turnResult = effectData.turnResult;
+      };
 
-      // 7. Log the action
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: pendingAction as any,
+          pending_action_timestamp: new Date(),
+          nope_count: 0,
+        },
+      });
+
+      // 7. Log the pending action
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: ActionType.PLAY_CARD,
+          action_type: "ACTION_PENDING",
           action_details: {
             card: cardCode,
             target: targetPlayerToken ?? null,
-            effect: effect?.type,
           },
           turn_number: session.turn_number,
         },
@@ -907,13 +906,11 @@ export const gameService = {
 
       return {
         success: true,
-        action: ActionType.CARD_PLAYED,
+        action: "ACTION_PENDING",
         cardCode,
         playedBy: player.player_id,
         playedByDisplayName: player.display_name,
         target: targetPlayerToken ?? null,
-        effect,
-        nextTurn: turnResult?.nextTurn,
       };
     });
   },
@@ -1003,102 +1000,50 @@ export const gameService = {
         data: { discard_pile: [...discardPile, ...comboCards] },
       });
 
-      // 6. Resolve steal
-      let stolenCard: string | undefined;
-      let wasVoid = false;
+      // 6. Save as Pending Action for Nope Window
+      const pendingAction = {
+        type: "COMBO_CARD",
+        comboCards,
+        playedByToken: playerToken,
+        targetPlayerToken,
+        demandedCard,
+      };
 
-      if (isThreeCard) {
-        if (!demandedCard)
-          throw new BadRequestError("3-card combo requires demandedCard");
-        // ห้ามขโมย EK และ IK เท่านั้น — DF ขโมยได้ใน 3-card combo
-        const normalizedDemand = demandedCard.replace(/^GVE_/, "");
-        if (["EK", "IK"].includes(normalizedDemand))
-          throw new BadRequestError("Cannot demand Exploding Kitten or Imploding Kitten");
-        const demandIdx = targetCards.indexOf(demandedCard);
-        if (demandIdx === -1) {
-          wasVoid = true; // target ไม่มีการ์ดที่ต้องการ → โมฆะ
-        } else {
-          stolenCard = demandedCard;
-          targetCards.splice(demandIdx, 1);
-        }
-      } else {
-        // 2-card: สุ่ม ไม่รวม EK/DF
-        const stealable = targetCards.filter(
-          (c) =>
-            c !== CardCode.EXPLODING_KITTEN &&
-            c !== CardCode.GVE_EXPLODING_KITTEN &&
-            c !== CardCode.DEFUSE &&
-            c !== CardCode.GVE_DEFUSE,
-        );
-        const pool = stealable.length > 0 ? stealable : targetCards;
-        const randomIdx = Math.floor(Math.random() * pool.length);
-        stolenCard = pool[randomIdx]!;
-        const realIdx = targetCards.indexOf(stolenCard);
-        targetCards.splice(realIdx, 1);
-      }
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: pendingAction as any,
+          pending_action_timestamp: new Date(),
+          nope_count: 0,
+        },
+      });
 
-      // 7. Update hands
-      if (stolenCard) {
-        await tx.cardHand.update({
-          where: {
-            player_id_session_id: {
-              player_id: target.player_id,
-              session_id: session.session_id,
-            },
-          },
-          data: { cards: targetCards, card_count: targetCards.length },
-        });
-
-        const newThiefCards = [...remaining, stolenCard];
-        await tx.cardHand.update({
-          where: {
-            player_id_session_id: {
-              player_id: player.player_id,
-              session_id: session.session_id,
-            },
-          },
-          data: { cards: newThiefCards, card_count: newThiefCards.length },
-        });
-      }
-
-      // 8. Log
+      // 7. Log
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: ActionType.PLAY_CARD,
+          action_type: "ACTION_PENDING",
           action_details: {
             combo_type: isThreeCard ? "THREE_CARD" : "TWO_CARD",
             combo_cards: comboCards,
             target_player_id: target.player_id,
             demanded_card: demandedCard ?? null,
-            stolen_card: stolenCard ?? null,
-            was_void: wasVoid,
           },
           turn_number: session.turn_number,
         },
       });
 
-      // 9. ไม่ advance turn — คนเล่น combo ยังต้องจั่วไพ่ต่อในเทิร์นเดิม
-      const thiefFinalCards = stolenCard ? [...remaining, stolenCard] : remaining;
-
       return {
         success: true as const,
-        action: "COMBO_PLAYED" as const,
-        nextTurn: {
-          player_id: session.current_turn_player_id!,
-          display_name: player.display_name,
-          turn_number: session.turn_number,
-        },
+        action: "ACTION_PENDING" as const,
         comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
-        stolenCard,
-        wasVoid,
+        comboCards,
+        playedBy: player.player_id,
+        playedByDisplayName: player.display_name,
         robbedFromDisplayName: target.display_name,
         robbedFromPlayerId: target.player_id,
-        robbedFromToken: targetPlayerToken,   // ใช้ใน socket เพื่อส่ง targetHand
-        thiefHand: thiefFinalCards,           // private — ส่งเฉพาะคนขโมย
-        targetHand: targetCards,              // private — ส่งเฉพาะ target
       };
     });
   },
@@ -1526,21 +1471,26 @@ export const gameService = {
     });
   },
 
-  async nopeCard(
+  async playNope(
     roomId: string,
     playerToken: string,
-    nopeCount: number,
-  ): Promise<{ success: true; action: "NOPE_PLAYED"; nopeCount: number; isCancel: boolean; playedBy: string; playedByDisplayName: string }> {
+  ): Promise<NopePendingResult> {
     return await prisma.$transaction(async (tx) => {
       const session = await tx.gameSession.findFirst({
         where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
       });
       if (!session) throw new NotFoundError("No active session");
 
+      if (!session.pending_action) {
+        throw new BadRequestError("No pending action to Nope");
+      }
+
       const player = await tx.player.findFirst({
         where: { room_id: roomId, player_token: playerToken, is_alive: true },
       });
       if (!player) throw new NotFoundError("Player");
+
+      // Note: We bypass turn validation because Nope can be played out of turn.
 
       const hand = await tx.cardHand.findUnique({
         where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
@@ -1567,21 +1517,236 @@ export const gameService = {
         data: { discard_pile: [...discardPile, npCode] },
       });
 
-      const newNopeCount = nopeCount + 1;
+      const newNopeCount = session.nope_count + 1;
       const isCancel = newNopeCount % 2 !== 0;
+
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          nope_count: newNopeCount,
+          pending_action_timestamp: new Date(),
+        },
+      });
 
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: ActionType.PLAY_CARD,
+          action_type: "NOPE_PLAYED",
           action_details: { card: npCode, nope_count: newNopeCount, is_cancel: isCancel },
           turn_number: session.turn_number,
         },
       });
 
       return { success: true as const, action: "NOPE_PLAYED" as const, nopeCount: newNopeCount, isCancel, playedBy: player.player_id, playedByDisplayName: player.display_name };
+    });
+  },
+
+  async resolvePendingAction(roomId: string) {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const pendingActionData = session.pending_action as any;
+      if (!pendingActionData || !session.pending_action_timestamp) {
+        return { success: false, reason: "NO_PENDING_ACTION" };
+      }
+
+      // Check if 3000ms passed
+      const elapsed = Date.now() - session.pending_action_timestamp.getTime();
+      if (elapsed < 2800) { // small buffer for latency
+        return { success: false, reason: "TIMER_NOT_EXPIRED", timeLeft: 3000 - elapsed };
+      }
+
+      const isCancelled = session.nope_count % 2 !== 0;
+      const originalPlayer = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: pendingActionData.playedByToken },
+      });
+
+      if (!originalPlayer) throw new NotFoundError("Player not found");
+
+      // 1. Clear pending action state
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: Prisma.JsonNull,
+          pending_action_timestamp: null,
+          nope_count: 0,
+        },
+      });
+
+      // 2. If cancelled, action is voided
+      if (isCancelled) {
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: "ACTION_CANCELLED",
+            action_details: { reason: "NOPED" },
+            is_noped: true,
+            turn_number: session.turn_number,
+          },
+        });
+        return {
+          success: true as const,
+          action: "ACTION_CANCELLED" as const,
+          originalAction: pendingActionData.type,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+        };
+      }
+
+      // 3. If NOT cancelled, apply the original effect
+      if (pendingActionData.type === "PLAY_CARD") {
+        const cardCode = pendingActionData.cardCode;
+        const normalizedCode = cardCode.replace(/^GVE_/, "");
+
+        const effectData = await applyCardEffect(normalizedCode, {
+          tx,
+          session,
+          roomId,
+          currentPlayerId: originalPlayer.player_id,
+          targetPlayerToken: pendingActionData.targetPlayerToken,
+          advanceTurn: gameService.advanceTurn,
+        });
+
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: ActionType.PLAY_CARD,
+            action_details: {
+              card: cardCode,
+              target: pendingActionData.targetPlayerToken ?? null,
+              effect: effectData.effect?.type,
+            },
+            turn_number: session.turn_number,
+          },
+        });
+
+        return {
+          success: true as const,
+          action: ActionType.CARD_PLAYED,
+          cardCode,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+          playedByToken: pendingActionData.playedByToken,
+          targetToken: pendingActionData.targetPlayerToken,
+          target: pendingActionData.targetPlayerToken ?? null,
+          effect: effectData.effect,
+          nextTurn: effectData.turnResult?.nextTurn,
+        };
+      } else if (pendingActionData.type === "COMBO_CARD") {
+        const { comboCards, targetPlayerToken, demandedCard } = pendingActionData;
+        const isThreeCard = comboCards.length === 3;
+
+        const target = await tx.player.findFirst({
+          where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+        });
+
+        if (!target) {
+           return { success: false, reason: "Target not found" }; 
+        }
+
+        const targetHand = await tx.cardHand.findUnique({
+          where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+        });
+        const targetCards = [...((targetHand?.cards ?? []) as string[])];
+
+        const thiefHand = await tx.cardHand.findUnique({
+          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id }},
+        });
+        const remaining = [...((thiefHand?.cards ?? []) as string[])];
+
+        let stolenCard: string | undefined;
+        let wasVoid = false;
+
+        if (targetCards.length === 0) {
+          wasVoid = true;
+        } else {
+          if (isThreeCard) {
+            const normalizedDemand = demandedCard.replace(/^GVE_/, "");
+            if (["EK", "IK"].includes(normalizedDemand)) throw new BadRequestError("Cannot demand Exploding Kitten or Imploding Kitten");
+            const demandIdx = targetCards.indexOf(demandedCard);
+            if (demandIdx === -1) {
+              wasVoid = true;
+            } else {
+              stolenCard = demandedCard;
+              targetCards.splice(demandIdx, 1);
+            }
+          } else {
+            const stealable = targetCards.filter(
+              (c) => c !== "EK" && c !== "GVE_EK" && c !== "DF" && c !== "GVE_DF"
+            );
+            const pool = stealable.length > 0 ? stealable : targetCards;
+            const randomIdx = Math.floor(Math.random() * pool.length);
+            stolenCard = pool[randomIdx]!;
+            const realIdx = targetCards.indexOf(stolenCard);
+            targetCards.splice(realIdx, 1);
+          }
+        }
+
+        if (stolenCard) {
+          await tx.cardHand.update({
+            where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+            data: { cards: targetCards, card_count: targetCards.length },
+          });
+
+          const newThiefCards = [...remaining, stolenCard];
+          await tx.cardHand.update({
+            where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id } },
+            data: { cards: newThiefCards, card_count: newThiefCards.length },
+          });
+        }
+
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: ActionType.PLAY_CARD,
+            action_details: {
+              combo_type: isThreeCard ? "THREE_CARD" : "TWO_CARD",
+              combo_cards: comboCards,
+              target_player_id: target.player_id,
+              demanded_card: demandedCard ?? null,
+              stolen_card: stolenCard ?? null,
+              was_void: wasVoid,
+            },
+            turn_number: session.turn_number,
+          },
+        });
+
+        const thiefFinalCards = stolenCard ? [...remaining, stolenCard] : remaining;
+
+        return {
+          success: true as const,
+          action: "COMBO_PLAYED" as const,
+          nextTurn: {
+            player_id: session.current_turn_player_id!,
+            display_name: originalPlayer.display_name,
+            turn_number: session.turn_number,
+          },
+          comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
+          stolenCard,
+          wasVoid,
+          robbedFromDisplayName: target.display_name,
+          robbedFromPlayerId: target.player_id,
+          robbedFromToken: targetPlayerToken,
+          playedByToken: pendingActionData.playedByToken,
+          thiefHand: thiefFinalCards,
+          targetHand: targetCards,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+          comboCards,
+        };
+      }
+      return { success: false, reason: "UNKNOWN_PENDING_ACTION_TYPE" };
     });
   },
 
