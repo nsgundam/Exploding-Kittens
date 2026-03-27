@@ -76,81 +76,127 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
+    const handleBroadcastPlayedCard = async (roomId: string, payloadPlayerToken: string, result: any) => {
+      if (result.effect?.type === "SEE_THE_FUTURE") {
+        const sockets = await io.in(roomId).fetchSockets();
+        const s = sockets.find(so => so.data.playerToken === payloadPlayerToken);
+        if (s) s.emit("cardPlayed", result);
+        io.to(roomId).except(s?.id || "").emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
+
+      } else if (result.effect?.type === "FAVOR") {
+        const effect = result.effect as {
+          type: string;
+          targetPlayerId: string;
+          targetDisplayName: string;
+          availableCards: string[];
+        };
+
+        io.to(roomId).emit("cardPlayed", {
+          ...result,
+          effect: {
+            type: "FAVOR",
+            targetPlayerId: effect.targetPlayerId,
+            targetDisplayName: effect.targetDisplayName,
+          },
+        });
+
+        const sockets = await io.in(roomId).fetchSockets();
+        const targetPlayerToken = result.target;
+        const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken!);
+
+        const favorPayload = {
+          requesterPlayerId: result.playedBy,
+          requesterName: result.playedByDisplayName,
+          availableCards: effect.availableCards,
+        };
+
+        let sent = false;
+        for (const s of sockets) {
+          const sToken = s.data.playerToken as string | undefined;
+          if (
+            (sToken && targetPlayer && sToken === targetPlayer.player_token) ||
+            (s.data.playerId && s.data.playerId === effect.targetPlayerId)
+          ) {
+            s.emit("favorRequested", favorPayload);
+            sent = true;
+          }
+        }
+
+        if (!sent) {
+          io.to(roomId).emit("favorRequestedBroadcast", {
+            ...favorPayload,
+            targetPlayerId: effect.targetPlayerId,
+          });
+        }
+      } else {
+        io.to(roomId).emit("cardPlayed", result);
+      }
+    };
+
+    const handleBroadcastComboPlayed = async (roomId: string, socketIdOrNull: string | null, payloadPlayerToken: string, targetPlayerToken: string, result: any) => {
+      const publicResult = {
+        ...result,
+        stolenCard: undefined,
+        thiefHand: undefined,
+        targetHand: undefined,
+        robbedFromToken: undefined,
+      };
+
+      const sockets = await io.in(roomId).fetchSockets();
+      const thiefSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+      if (thiefSocket) {
+        thiefSocket.emit("comboPlayed", { ...result, targetHand: undefined, robbedFromToken: undefined });
+      }
+
+      const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken);
+      for (const s of sockets) {
+        const sToken = s.data.playerToken as string | undefined;
+        if (sToken && targetPlayer && sToken === targetPlayer.player_token) {
+          s.emit("comboPlayed", {
+            ...publicResult,
+            targetHand: result.targetHand,
+          });
+        }
+      }
+
+      const excludedIds = [];
+      if (thiefSocket) excludedIds.push(thiefSocket.id);
+      const ttSocket = sockets.find(s => s.data.playerToken === targetPlayerToken);
+      if (ttSocket) excludedIds.push(ttSocket.id);
+
+      io.to(roomId).except(excludedIds).emit("comboPlayed", publicResult);
+    };
+
+    const scheduleResolvePendingAction = (roomId: string, payloadPlayerToken: string, targetPlayerToken: string | undefined) => {
+      setTimeout(async () => {
+        try {
+          const res = await gameService.resolvePendingAction(roomId);
+          if (res.success) {
+            if (res.action === "ACTION_CANCELLED") {
+              io.to(roomId).emit("actionCancelled", res);
+            } else if (res.action === "CARD_PLAYED") {
+              await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
+            } else if (res.action === "COMBO_PLAYED") {
+              await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+            }
+          }
+        } catch (err) {
+          console.error("Resolve error:", err);
+        }
+      }, 3000); // 3 seconds Nope window
+    };
+
     // ── Play Card (S2-18) ──────────────────────────────────────
     socket.on("playCard", async (payload: PlayCardPayload) => {
       try {
         const { roomId, playerToken, cardCode, targetPlayerToken } = payload;
+        const result = await gameService.playCard(roomId, playerToken, cardCode, targetPlayerToken);
 
-        const result = await gameService.playCard(
-          roomId,
-          playerToken,
-          cardCode,
-          targetPlayerToken
-        );
-
-        if (result.effect?.type === "SEE_THE_FUTURE") {
-          socket.emit("cardPlayed", result);
-          socket.to(roomId).emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
-
-        } else if (result.effect?.type === "FAVOR") {
-          const effect = result.effect as {
-            type: string;
-            targetPlayerId: string;
-            targetDisplayName: string;
-            availableCards: string[];
-          };
-
-          // Broadcast cardPlayed ให้ทุกคนรู้ (ไม่แสดง availableCards)
-          io.to(roomId).emit("cardPlayed", {
-            ...result,
-            effect: {
-              type: "FAVOR",
-              targetPlayerId: effect.targetPlayerId,
-              targetDisplayName: effect.targetDisplayName,
-            },
-          });
-
-          // ── ส่ง favorRequested ไปหา target ──
-          // วิธี 1: หา socket ที่ match player_token
-          const sockets = await io.in(roomId).fetchSockets();
-          const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken!);
-
-          console.log("🤝 FAVOR — targetPlayerToken:", targetPlayerToken);
-          console.log("🤝 FAVOR — targetPlayer found:", targetPlayer?.display_name);
-          console.log("🤝 FAVOR — sockets:", sockets.map(s => ({ id: s.id, token: s.data.playerToken, roomId: s.data.roomId })));
-
-          const favorPayload = {
-            requesterPlayerId: result.playedBy,
-            requesterName: result.playedByDisplayName,
-            availableCards: effect.availableCards,
-          };
-
-          let sent = false;
-          for (const s of sockets) {
-            const sToken = s.data.playerToken as string | undefined;
-            // Match ด้วย playerToken หรือ targetPlayerId ที่ set ไว้ใน socket.data
-            if (
-              (sToken && targetPlayer && sToken === targetPlayer.player_token) ||
-              (s.data.playerId && s.data.playerId === effect.targetPlayerId)
-            ) {
-              console.log("🤝 FAVOR — sending favorRequested to:", s.id);
-              s.emit("favorRequested", favorPayload);
-              sent = true;
-            }
-          }
-
-          // วิธี 2 fallback: ถ้าหา socket ไม่เจอ (token ไม่ match)
-          // emit ผ่าน targetPlayerId room — frontend กรอง player_id เอง
-          if (!sent) {
-            console.warn("🤝 FAVOR — no matching socket found, broadcasting favorRequested to room");
-            io.to(roomId).emit("favorRequestedBroadcast", {
-              ...favorPayload,
-              targetPlayerId: effect.targetPlayerId,
-            });
-          }
-
+        if (result.action === "ACTION_PENDING") {
+          io.to(roomId).emit("actionPending", result);
+          scheduleResolvePendingAction(roomId, playerToken, targetPlayerToken);
         } else {
-          io.to(roomId).emit("cardPlayed", result);
+          await handleBroadcastPlayedCard(roomId, playerToken, result);
         }
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
@@ -161,43 +207,27 @@ export const registerGameSocket = (io: Server): void => {
     socket.on("playCombo", async (payload: PlayComboPayload) => {
       try {
         const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard } = payload;
+        const result = await gameService.comboCard(roomId, playerToken, comboCards, targetPlayerToken, demandedCard);
 
-        const result = await gameService.comboCard(
-          roomId,
-          playerToken,
-          comboCards,
-          targetPlayerToken,
-          demandedCard,
-        );
-
-        // public result — ซ่อน private fields
-        const publicResult = {
-          ...result,
-          stolenCard: undefined,
-          thiefHand: undefined,
-          targetHand: undefined,
-          robbedFromToken: undefined,
-        };
-
-        // ส่ง thiefHand เฉพาะคนขโมย (socket นี้)
-        socket.emit("comboPlayed", { ...result, targetHand: undefined, robbedFromToken: undefined });
-
-        // ส่ง targetHand เฉพาะ target socket
-        const sockets = await io.in(roomId).fetchSockets();
-        const targetPlayer = await gameService.getPlayerByToken(roomId, targetPlayerToken);
-        for (const s of sockets) {
-          const sToken = s.data.playerToken as string | undefined;
-          if (sToken && targetPlayer && sToken === targetPlayer.player_token) {
-            s.emit("comboPlayed", {
-              ...publicResult,
-              targetHand: result.targetHand,  // ส่ง targetHand เฉพาะ target
-            });
-          }
+        if (result.action === "ACTION_PENDING") {
+          io.to(roomId).emit("actionPending", result);
+          scheduleResolvePendingAction(roomId, playerToken, targetPlayerToken);
+        } else {
+          await handleBroadcastComboPlayed(roomId, socket.id, playerToken, targetPlayerToken, result);
         }
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
 
-        // ส่ง public result ให้คนอื่นในห้อง (ไม่รวม thief และ target)
-        socket.to(roomId).emit("comboPlayed", publicResult);
-
+    // ── Play Nope (Nope Window) ────────────────────────────────
+    socket.on("playNope", async (payload: { roomId: string; playerToken: string }) => {
+      try {
+        const { roomId, playerToken } = payload;
+        const result = await gameService.playNope(roomId, playerToken);
+        
+        io.to(roomId).emit("nopePlayed", result);
+        scheduleResolvePendingAction(roomId, playerToken, undefined);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

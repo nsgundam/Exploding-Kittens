@@ -74,7 +74,7 @@ export interface DrawCardResult {
 export interface PlayCardResult {
   success: boolean;
   action: string;
-  cardCode: string;
+  cardCode: string; // Action card played
   playedBy: string;
   playedByDisplayName: string;
   target?: string | null;
@@ -250,6 +250,7 @@ export interface FavorResponsePayload {
   targetPlayerToken: string;
   cardCode?: string; // undefined = timeout สุ่มให้
 }
+
 export interface NopePendingResult {
   success: true;
   action: "NOPE_PLAYED";
@@ -282,14 +283,17 @@ export interface PlayComboPayload {
  */
 export interface ComboResult {
   success: boolean;
-  action: "COMBO_PLAYED";
-  nextTurn: TurnInfo;   // current turn player — ไม่เปลี่ยน turn
+  action: "COMBO_PLAYED" | "ACTION_PENDING" | "ACTION_CANCELLED";
+  nextTurn?: TurnInfo;   // current turn player — ไม่เปลี่ยน turn
   comboType: "TWO_CARD" | "THREE_CARD";
   stolenCard?: string;
-  wasVoid: boolean;
-  robbedFromDisplayName: string;
-  robbedFromPlayerId: string;
+  wasVoid?: boolean;
+  robbedFromDisplayName?: string;
+  robbedFromPlayerId?: string;
   robbedFromToken?: string;  // ใช้ใน socket เพื่อ route targetHand
   thiefHand?: string[];      // private — ส่งเฉพาะคนขโมย
   targetHand?: string[];     // private — ส่งเฉพาะ target
+  playedBy?: string;
+  playedByDisplayName?: string;
+  comboCards?: string[];
 }
