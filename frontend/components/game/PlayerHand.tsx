@@ -14,6 +14,14 @@ export interface PlayerHandProps {
   expansions?: string[];
   onPlayCard: (cardCode: string, targetPlayerToken?: string, demandedCard?: string) => void;
   onPlayCombo: (cardCodes: string[]) => void;
+  /** True when Nope Window is active (3-second countdown) */
+  nopeWindowActive?: boolean;
+  /** Called when the player clicks a glowing Nope card */
+  onPlayNope?: () => void;
+}
+
+function isNopeCard(code: string): boolean {
+  return code === "NP" || code === "GVE_NP";
 }
 
 // ── Cat card detection ───────────────────────────────────────
@@ -42,6 +50,8 @@ export function PlayerHand({
   isMyTurn,
   onPlayCard,
   onPlayCombo,
+  nopeWindowActive = false,
+  onPlayNope,
 }: PlayerHandProps) {
   // selectedIndices: indices of cat cards selected for combo
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
@@ -66,6 +76,14 @@ export function PlayerHand({
 
   const handleCardClick = (idx: number) => {
     const code = myCards[idx];
+
+    // During Nope Window: only allow clicking Nope cards
+    if (nopeWindowActive) {
+      if (isNopeCard(code) && onPlayNope) {
+        onPlayNope();
+      }
+      return;
+    }
 
     // Non-cat cards: play immediately (existing behavior)
     if (!isCatCard(code)) {
@@ -175,50 +193,87 @@ export function PlayerHand({
         )}
 
         {/* ── CARD FAN ── */}
+        <style>{`
+          @keyframes nopeCardGlow {
+            0%, 100% { box-shadow: 0 0 14px rgba(239,68,68,0.7), 0 0 40px rgba(239,68,68,0.3); }
+            50%      { box-shadow: 0 0 24px rgba(239,68,68,1),   0 0 60px rgba(239,68,68,0.5); }
+          }
+        `}</style>
         <div className="flex items-end justify-center">
           {myCards.map((cardCode, i) => {
             const isCat = isCatCard(cardCode);
+            const isNope = isNopeCard(cardCode);
             const isSelected = selectedIndices.includes(i);
             const isComboMode = selectedIndices.length > 0;
 
+            // During Nope Window: only Nope cards are active
+            const isNopeActive = nopeWindowActive && isNope;
+
             // Determine if card is interactable
-            const isActive =
-              isMyTurn &&
-              cardCode !== "DF" &&
-              cardCode !== "EK" &&
-              cardCode !== "GVE_EK";
+            const isActive = nopeWindowActive
+              ? isNopeActive
+              : isMyTurn &&
+                cardCode !== "DF" &&
+                cardCode !== "EK" &&
+                cardCode !== "GVE_EK";
 
             // In combo mode: non-compatible cards are dimmed
             const isCompatible = !isComboMode || canAddToCombo(i);
-            const isDimmed = isActive && isComboMode && !isCompatible && !isSelected;
+            const isDimmed = nopeWindowActive
+              ? !isNope  // dim everything except Nope during window
+              : isActive && isComboMode && !isCompatible && !isSelected;
 
             return (
               <div
                 key={`${i}-${cardCode}`}
+                className="relative"
                 style={{
                   transform: isSelected
                     ? "rotate(0deg) translateY(-32px) scale(1.08)"
-                    : `rotate(${(i - mid) * 5}deg) translateY(${Math.abs(i - mid) * 4}px)`,
+                    : isNopeActive
+                      ? "rotate(0deg) translateY(-20px) scale(1.1)"
+                      : `rotate(${(i - mid) * 5}deg) translateY(${Math.abs(i - mid) * 4}px)`,
                   marginLeft: i === 0 ? 0 : "-16px",
-                  zIndex: isSelected ? 30 : i === mid ? 5 : i,
-                  transition: "transform 0.2s ease",
-                  opacity: isDimmed ? 0.35 : 1,
-                  filter: isDimmed ? "grayscale(0.6)" : "none",
+                  zIndex: isSelected ? 30 : isNopeActive ? 25 : i === mid ? 5 : i,
+                  transition: "transform 0.25s ease, opacity 0.25s, filter 0.25s",
+                  opacity: isDimmed ? 0.3 : 1,
+                  filter: isDimmed ? "grayscale(0.7) brightness(0.6)" : "none",
+                  cursor: isNopeActive ? "pointer" : undefined,
                 }}
                 onMouseEnter={(e) => {
-                  if (isActive && !isSelected) {
+                  if (isNopeActive) {
+                    (e.currentTarget as HTMLElement).style.transform =
+                      "rotate(0deg) translateY(-32px) scale(1.15)";
+                    (e.currentTarget as HTMLElement).style.zIndex = "30";
+                  } else if (isActive && !isSelected && !nopeWindowActive) {
                     (e.currentTarget as HTMLElement).style.transform =
                       "rotate(0deg) translateY(-24px) scale(1.08)";
                     (e.currentTarget as HTMLElement).style.zIndex = "20";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isSelected) {
+                  if (isNopeActive) {
+                    (e.currentTarget as HTMLElement).style.transform =
+                      "rotate(0deg) translateY(-20px) scale(1.1)";
+                    (e.currentTarget as HTMLElement).style.zIndex = "25";
+                  } else if (!isSelected) {
                     (e.currentTarget as HTMLElement).style.transform = `rotate(${(i - mid) * 5}deg) translateY(${Math.abs(i - mid) * 4}px)`;
                     (e.currentTarget as HTMLElement).style.zIndex = String(i === mid ? 5 : i);
                   }
                 }}
               >
+                {/* Nope card glow ring */}
+                {isNopeActive && (
+                  <div
+                    className="absolute -inset-1 rounded-xl pointer-events-none"
+                    style={{
+                      zIndex: 1,
+                      animation: "nopeCardGlow 1.2s ease-in-out infinite",
+                      borderRadius: "14px",
+                    }}
+                  />
+                )}
+
                 {/* Cat card selection ring */}
                 {isSelected && (
                   <div
@@ -239,8 +294,24 @@ export function PlayerHand({
                   onClick={() => isActive && handleCardClick(i)}
                 />
 
+                {/* NOPE badge during window */}
+                {isNopeActive && (
+                  <div
+                    className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full pointer-events-none animate-bounce"
+                    style={{
+                      background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                      color: "#fff",
+                      whiteSpace: "nowrap",
+                      zIndex: 10,
+                      boxShadow: "0 2px 8px rgba(239,68,68,0.6)",
+                    }}
+                  >
+                    🚫 NOPE!
+                  </div>
+                )}
+
                 {/* Cat indicator badge */}
-                {isCat && isMyTurn && !isComboMode && (
+                {isCat && isMyTurn && !isComboMode && !nopeWindowActive && (
                   <div
                     className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full pointer-events-none"
                     style={{

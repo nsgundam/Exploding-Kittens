@@ -54,11 +54,26 @@ export type GamePhase =
   | "FAVOR_PICK_CARD"
   | "COMBO_SELECT_TARGET"
   | "COMBO_DEMAND_CARD"
+  | "NOPE_WINDOW"
   | "GAME_OVER";
 
 export interface EKBombState {
   drawnCard: string;
   hasDefuse: boolean;
+}
+
+export interface PendingActionState {
+  playedBy: string;
+  playedByDisplayName: string;
+  cardCode?: string;
+  comboCards?: string[];
+  target?: string | null;
+}
+
+export interface NopeState {
+  nopeCount: number;
+  isCancel: boolean;
+  lastPlayedByDisplayName: string;
 }
 
 export const useGameState = (socket: Socket | null, roomId: string) => {
@@ -74,6 +89,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [winner, setWinner] = useState<{ player_id: string; display_name: string } | null>(null);
   const [favorState, setFavorState] = useState<FavorState | null>(null);
   const [comboState, setComboState] = useState<ComboState | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingActionState | null>(null);
+  const [nopeState, setNopeState] = useState<NopeState | null>(null);
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [deckCount, setDeckCount] = useState<number | null>(null);
@@ -186,6 +203,10 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         );
       }
       if (data?.success) {
+        setGamePhase("PLAYING");
+        setPendingAction(null);
+        setNopeState(null);
+
         const playedPlayer = roomDataRef.current?.players?.find((p: Player) => p.player_id === data.playedBy);
         const displayName = data.playedByDisplayName || playedPlayer?.display_name || "ผู้เล่น";
         const logMsg = data.message || `${displayName} เล่นไพ่ ${data.cardCode}`;
@@ -417,6 +438,95 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
         // คนอื่นในห้องเห็น log นี้
         setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
       }
+
+      setGamePhase("PLAYING");
+      setPendingAction(null);
+      setNopeState(null);
+    };
+
+    // ── actionPending ── (backend แจ้งว่ามีคนเล่น action card/combo — เปิด Nope Window 3 วิ)
+    const handleActionPending = (data: {
+      action: "ACTION_PENDING";
+      playedBy: string;
+      playedByDisplayName: string;
+      target?: string | null;
+      cardCode?: string;
+      comboCards?: string[];
+      comboType?: string;
+      demandedCard?: string;
+    }) => {
+      console.log("⏳ Action Pending (Nope Window):", data);
+      
+      // ลบจากมือเมื่อเราเป็นคนเล่น
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      
+      if (me?.player_id === data.playedBy) {
+        // ถ้าเป็นคนเล่น เราจัดการลดการ์ดตัวเองใน useGameActions แล้ว แต่เพื่อความชัวร์ จะไม่ทำซ้ำตรงนี้สำหรับคนเล่น
+      } else {
+        // อัปเดต card_count คนเล่น
+        setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.playedBy) {
+              const cardsToSubtract = data.comboCards ? data.comboCards.length : (data.cardCode ? 1 : 0);
+              return { ...hand, card_count: Math.max(0, hand.card_count - cardsToSubtract) };
+            }
+            return hand;
+          })
+        );
+      }
+
+      setPendingAction({
+        playedBy: data.playedBy,
+        playedByDisplayName: data.playedByDisplayName,
+        cardCode: data.cardCode,
+        comboCards: data.comboCards,
+        target: data.target,
+      });
+      setNopeState(null);
+      setGamePhase("NOPE_WINDOW");
+    };
+
+    // ── nopePlayed ──
+    const handleNopePlayed = (data: {
+      action: "NOPE_PLAYED";
+      nopeCount: number;
+      isCancel: boolean;
+      playedBy: string;
+      playedByDisplayName: string;
+    }) => {
+      console.log("🚫 Nope Played:", data);
+      setNopeState({
+        nopeCount: data.nopeCount,
+        isCancel: data.isCancel,
+        lastPlayedByDisplayName: data.playedByDisplayName,
+      });
+
+      // Update card_count
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      
+      if (me?.player_id !== data.playedBy) {
+        setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.playedBy) {
+              return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+            }
+            return hand;
+          })
+        );
+      }
+
+      setGameLogs((prev) => [...prev.slice(-19), `🚫 ${data.playedByDisplayName} เล่น Nope! (${data.isCancel ? "ยกเลิก" : "ผ่าน"})`]);
+    };
+
+    // ── actionCancelled ──
+    const handleActionCancelled = (data: { action: "ACTION_CANCELLED" }) => {
+      console.log("❌ Action Cancelled:", data);
+      showToast("❌ Action was Noped!", 3000);
+      setGamePhase("PLAYING");
+      setPendingAction(null);
+      setNopeState(null);
     };
 
     socket.on("roomUpdated", handleRoomUpdated);
@@ -432,6 +542,9 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     socket.on("ekInserted", handleEkInserted);
     socket.on("playerEliminated", handlePlayerEliminated);
     socket.on("comboPlayed", handleComboPlayed);
+    socket.on("actionPending", handleActionPending);
+    socket.on("nopePlayed", handleNopePlayed);
+    socket.on("actionCancelled", handleActionCancelled);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -447,6 +560,9 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       socket.off("ekInserted", handleEkInserted);
       socket.off("playerEliminated", handlePlayerEliminated);
       socket.off("comboPlayed", handleComboPlayed);
+      socket.off("actionPending", handleActionPending);
+      socket.off("nopePlayed", handleNopePlayed);
+      socket.off("actionCancelled", handleActionCancelled);
     };
   }, [socket, roomId]); // gamePhaseRef used instead of gamePhase to avoid re-registering listeners
 
@@ -478,6 +594,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     winner, setWinner,
     favorState, setFavorState,
     comboState, setComboState,
+    pendingAction, setPendingAction,
+    nopeState, setNopeState,
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     pendingAttacks,

@@ -11,6 +11,7 @@ import { CatComboModal } from "./CatComboModal";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
 import { FavorPickModal } from "./FavorPickModal";
+import { NopeToast } from "./NopeWindow";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
 
 function WinnerPopup({
@@ -126,6 +127,9 @@ export interface GameBoardProps {
   emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
   cancelCombo?: () => void;
   onPlayCombo?: (cardCodes: string[]) => void;
+  pendingAction?: { playedByDisplayName: string; cardCode?: string; comboCards?: string[]; target?: string | null } | null;
+  nopeState?: { nopeCount: number; isCancel: boolean; lastPlayedByDisplayName: string } | null;
+  playNope?: () => void;
 }
 
 export function GameBoard({
@@ -159,6 +163,8 @@ export function GameBoard({
   comboState,
   emitCombo,
   cancelCombo,
+  pendingAction,
+  nopeState,
 }: GameBoardProps) {
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
@@ -241,7 +247,20 @@ export function GameBoard({
         </div>
       )}
 
+      {/* ── NOPE TOAST (non-blocking, top of screen) ── */}
+      <NopeToast
+        isOpen={gamePhase === "NOPE_WINDOW"}
+        pendingAction={pendingAction ?? null}
+        nopeState={nopeState ?? null}
+        targetDisplayName={
+          pendingAction?.target
+            ? roomData.players?.find((p: Player) => p.player_token === pendingAction.target)?.display_name
+            : undefined
+        }
+      />
+
       {/* ── MODALS & SEQUENCES ── */}
+
       <EKBombSequence
         active={gamePhase === "EK_DRAWN" && !!ekBombState}
         drawnCard={ekBombState?.drawnCard || "EK"}

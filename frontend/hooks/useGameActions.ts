@@ -246,6 +246,27 @@ export const useGameActions = (
     [socket, roomId, setMyCards, setFavorState, setGamePhase]
   );
 
+  // ── Play Nope ──
+  const playNope = useCallback(() => {
+    if (!socket) return;
+    const playerToken = localStorage.getItem("player_token");
+    socket.emit("playNope", { roomId, playerToken });
+
+    setMyCards((prev) => {
+      const gveNope = prev.includes("GVE_NP") ? "GVE_NP" : null;
+      const nopeType = gveNope || (prev.includes("NP") ? "NP" : null);
+      if (nopeType) {
+        const idx = prev.indexOf(nopeType);
+        if (idx !== -1) {
+          const next = [...prev];
+          next.splice(idx, 1);
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, [socket, roomId, setMyCards]);
+
   return {
     selectSeat,
     startGame,
@@ -264,5 +285,6 @@ export const useGameActions = (
     updateDeckConfig,
     selectFavorTarget,
     pickFavorCard,
+    playNope,
   };
 };

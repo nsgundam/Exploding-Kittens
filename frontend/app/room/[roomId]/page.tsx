@@ -47,6 +47,9 @@ export default function RoomPage() {
     emitCombo,
     cancelCombo,
     comboState,
+    pendingAction,
+    nopeState,
+    playNope,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -339,6 +342,9 @@ export default function RoomPage() {
             emitCombo={emitCombo}
             cancelCombo={cancelCombo}
             deckCount={deckCount}
+            pendingAction={pendingAction}
+            nopeState={nopeState}
+            playNope={playNope}
           />
         </div>
 
@@ -409,6 +415,8 @@ export default function RoomPage() {
             expansions={roomData.deck_config?.expansions ?? []}
             onPlayCard={playCard}
             onPlayCombo={handlePlayCombo}
+            nopeWindowActive={gamePhase === "NOPE_WINDOW"}
+            onPlayNope={playNope}
           />
 
           {/* Right: Actions */}
