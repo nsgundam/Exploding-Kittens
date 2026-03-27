@@ -19,13 +19,6 @@ export const useGameTimer = (
   const cardPlayedCountRef = useRef(0);
   const lastCardPlayedCountRef = useRef(0);
 
-  // expose function ให้ useGameState เรียก reset timer
-  const resetTimerRef = useRef(() => {
-    timeLeftRef.current = 30;
-    hasAutoDrawnThisTurnRef.current = false;
-    setTimeLeft(30);
-  });
-
   useEffect(() => {
     // Reset timer เมื่อ turn เปลี่ยนหรือ phase เปลี่ยน
     timeLeftRef.current = 30;
