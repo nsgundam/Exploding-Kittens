@@ -1,11 +1,21 @@
 const { createDefaultPreset } = require("ts-jest");
 
-const tsJestTransformCfg = createDefaultPreset().transform;
-
 /** @type {import("jest").Config} **/
 module.exports = {
   testEnvironment: "node",
   transform: {
-    ...tsJestTransformCfg,
+    "^.+\\.tsx?$": ["ts-jest", {
+      tsconfig: {
+        moduleResolution: "node",
+        module: "commonjs",
+      },
+    }],
+  },
+  roots: ["<rootDir>/src"],
+  testMatch: ["**/*.test.ts"],
+  moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
+  moduleNameMapper: {
+    // strip .js extension that nodenext imports add
+    "^(\\.{1,2}/.*)\\.js$": "$1",
   },
 };
