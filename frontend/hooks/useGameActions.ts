@@ -144,6 +144,11 @@ export const useGameActions = (
     setGamePhase("PLAYING");
   }, [setComboState, setGamePhase]);
 
+  const cancelFavor = useCallback(() => {
+    setFavorState(null);
+    setGamePhase("PLAYING");
+  }, [setFavorState, setGamePhase]);
+
   const insertEK = useCallback(
     (position: number) => {
       if (!socket) return;
@@ -275,6 +280,7 @@ export const useGameActions = (
     playCombo,
     emitCombo,
     cancelCombo,
+    cancelFavor,
     insertEK,
     closeInsertEK,
     closeSeeTheFuture,
