@@ -4,9 +4,9 @@
   "description": "",
   "main": "server.ts",
   "scripts": {
-    "dev": "ts-node src/server.ts",
-    "build": "tsc",
-    "start": "ts-node src/server.ts",
+    "dev": "nodemon src/server.ts",
+    "build": "prisma generate && tsc",
+    "start": "node dist/server.js",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:studio": "npx prisma studio",
