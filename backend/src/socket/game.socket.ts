@@ -77,11 +77,16 @@ export const registerGameSocket = (io: Server): void => {
     });
 
     const handleBroadcastPlayedCard = async (roomId: string, payloadPlayerToken: string, result: any) => {
-      if (result.effect?.type === "SEE_THE_FUTURE") {
+      if (result.effect?.type === "SEE_THE_FUTURE" || result.effect?.type === "ALTER_THE_FUTURE") {
+        // Private: only the player who played sees the top cards
         const sockets = await io.in(roomId).fetchSockets();
         const s = sockets.find(so => so.data.playerToken === payloadPlayerToken);
         if (s) s.emit("cardPlayed", result);
-        io.to(roomId).except(s?.id || "").emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
+        // Broadcast to others without card info
+        io.to(roomId).except(s?.id || "").emit("cardPlayed", {
+          ...result,
+          effect: { type: result.effect.type }, // strip topCards
+        });
 
       } else if (result.effect?.type === "FAVOR") {
         const effect = result.effect as {
@@ -311,6 +316,19 @@ export const registerGameSocket = (io: Server): void => {
         const { roomId, playerToken, position } = payload;
         const result = await gameService.insertEK(roomId, playerToken, position);
         io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Alter the Future — Step 2: commit new order ────────────
+    socket.on("alterTheFuture", async (payload: { roomId: string; playerToken: string; newOrder: string[] }) => {
+      try {
+        const { roomId, playerToken, newOrder } = payload;
+        const result = await gameService.commitAlterTheFuture(roomId, playerToken, newOrder);
+        // Only the player knows the actual new order; others just get notified it was committed
+        socket.emit("alterTheFutureCommitted", result);
+        socket.to(roomId).emit("alterTheFutureCommitted", { success: true, action: "ALTER_THE_FUTURE_COMMITTED" });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

@@ -191,3 +191,22 @@ export const placeIKBack = asyncHandler(async (req: Request, res: Response) => {
   const result = await gameService.placeIKBack(roomId, playerToken, position);
   res.status(200).json(result);
 });
+
+/**
+ * POST /api/rooms/:roomId/alter-future
+ * FR-AF: Commit the new order of top 3 cards after playing Alter the Future
+ * Body: { newOrder: string[] }  — topmost card first
+ */
+export const alterTheFuture = asyncHandler(async (req: Request, res: Response) => {
+  const roomId = req.params.roomId as string;
+  const playerToken = req.playerToken!;
+  const { newOrder } = req.body;
+
+  if (!Array.isArray(newOrder) || newOrder.length === 0) {
+    res.status(400).json({ message: "newOrder (string[]) is required" });
+    return;
+  }
+
+  const result = await gameService.commitAlterTheFuture(roomId, playerToken, newOrder);
+  res.status(200).json(result);
+});

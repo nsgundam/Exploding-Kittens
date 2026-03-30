@@ -752,6 +752,74 @@ export const gameService = {
     return { success: true, ikOnTop };
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // Alter the Future (AF) — Step 2: commit the new top-3 order
+  // newOrder: string[] — the 3 cards in player's chosen order (topmost first)
+  // ─────────────────────────────────────────────────────────────
+  async commitAlterTheFuture(
+    roomId: string,
+    playerToken: string,
+    newOrder: string[],
+  ): Promise<{ success: boolean; action: string }> {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken, is_alive: true },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id) {
+        throw new BadRequestError("It's not your turn");
+      }
+
+      const deckState = await tx.deckState.findUnique({
+        where: { session_id: session.session_id },
+      });
+      if (!deckState) throw new NotFoundError("Deck state");
+
+      const deck = deckState.deck_order as string[];
+      const n = Math.min(3, deck.length);
+
+      // Validate length
+      if (newOrder.length !== n) {
+        throw new BadRequestError(`newOrder must have exactly ${n} cards`);
+      }
+
+      // Validate same cards (permutation check)
+      const currentTop = deck.slice(-n); // bottom-to-top order
+      const sortedCurrent = [...currentTop].sort();
+      const sortedNew = [...newOrder].sort();
+      if (!sortedCurrent.every((c, i) => c === sortedNew[i])) {
+        throw new BadRequestError("newOrder must be a permutation of the current top cards");
+      }
+
+      // newOrder is topmost-first; deck stores bottom-to-top → reverse before splice
+      const newTopSection = [...newOrder].reverse();
+      const newDeck = [...deck.slice(0, deck.length - n), ...newTopSection];
+
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { deck_order: newDeck },
+      });
+
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAY_CARD,
+          action_details: { card: CardCode.ALTER_THE_FUTURE, altered: true },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return { success: true, action: "ALTER_THE_FUTURE_COMMITTED" };
+    });
+  },
+
   /**
    * Eliminate a player (timer expired, no Defuse).
    * FR-04-7/8, S2-25

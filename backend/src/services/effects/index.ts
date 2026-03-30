@@ -162,6 +162,17 @@ const handleSeeTheFutureEffect: EffectHandler = async ({ tx, session }) => {
   return { effect: { type: "SEE_THE_FUTURE", topCards: deck.slice(-3).reverse() } };
 };
 
+// ── Alter the Future (AF) ──────────────────────────────
+// See top 3 AND rearrange them. Requires a follow-up commitAlterTheFuture call.
+const handleAlterTheFutureEffect: EffectHandler = async ({ tx, session }) => {
+  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+  if (!deckState) throw new NotFoundError("Deck state");
+  const deck = deckState.deck_order as string[];
+  // Return top cards in viewing order (topmost first) — same as SF
+  const topCards = deck.slice(-3).reverse();
+  return { effect: { type: "ALTER_THE_FUTURE", topCards } };
+};
+
 const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
   const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
   if (!deckState) throw new NotFoundError("Deck state");
@@ -216,6 +227,7 @@ const effectHandlers: Record<string, EffectHandler> = {
   [CardCode.TARGETED_ATTACK]: handleTargetedAttackEffect,
   [CardCode.SKIP]: handleSkipEffect,
   [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
+  [CardCode.ALTER_THE_FUTURE]: handleAlterTheFutureEffect,
   [CardCode.SHUFFLE]: handleShuffleEffect,
   [CardCode.REVERSE]: handleReverseEffect,
   FV: handleFavorEffect,
@@ -225,7 +237,7 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["NP", "RH", "AG", "AF", "FC"].includes(normalizedCode)) {
+  if (["NP", "RH", "AG", "FC"].includes(normalizedCode)) {
     throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {

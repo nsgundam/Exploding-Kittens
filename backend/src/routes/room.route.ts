@@ -68,4 +68,7 @@ router.post("/:roomId/combo", extractPlayerToken, gameControllers.comboCard);
 // POST /api/rooms/:roomId/ik/place — FR-07-IK2: ใส่ IK กลับ deck
 router.post("/:roomId/ik/place", extractPlayerToken, gameControllers.placeIKBack);
 
+// POST /api/rooms/:roomId/alter-future — เล่น Alter the Future (AF) ขั้นที่ 2 (ส่งลำดับไพ่ใหม่กลับไป)
+router.post("/:roomId/alter-future", extractPlayerToken, gameControllers.alterTheFuture);
+
 export default router;
