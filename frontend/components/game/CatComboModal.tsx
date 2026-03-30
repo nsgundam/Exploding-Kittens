@@ -128,7 +128,7 @@ export function CatComboModal({
     <div className="fixed inset-0 z-3000 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/30 backdrop-blur-md"
         onClick={handleClose}
       />
 
@@ -139,9 +139,10 @@ export function CatComboModal({
           maxWidth: "95vw",
           maxHeight: "90vh",
           overflowY: "auto",
-          background: "linear-gradient(160deg, #0d0820 0%, #060410 100%)",
-          border: `2px solid ${cardConfig.color}66`,
-          boxShadow: `0 0 80px ${cardConfig.color}25, 0 24px 60px rgba(0,0,0,0.95)`,
+          background: "rgba(13,8,32,0.45)",
+          backdropFilter: "blur(24px)",
+          border: `2px solid ${cardConfig.color}55`,
+          boxShadow: `0 0 80px ${cardConfig.color}18, 0 24px 60px rgba(0,0,0,0.5)`,
           fontFamily: "'Fredoka One', cursive",
         }}
         onClick={(e) => e.stopPropagation()}

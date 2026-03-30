@@ -64,6 +64,7 @@ export const useRoomSocket = (roomId: string) => {
     selectFavorTarget: actions.selectFavorTarget,
     emitCombo: actions.emitCombo,
     cancelCombo: actions.cancelCombo,
+    cancelFavor: actions.cancelFavor,
     pickFavorCard: actions.pickFavorCard,
     playNope: actions.playNope,
     timeLeft,

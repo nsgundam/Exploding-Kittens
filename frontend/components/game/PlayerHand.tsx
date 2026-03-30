@@ -129,13 +129,14 @@ export function PlayerHand({
         {/* ── COMBO BAR ── shows when 1+ cat selected */}
         {isMyTurn && selectedIndices.length >= 1 && (
           <div
-            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl mb-1"
+            className="fixed left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-2.5 rounded-2xl"
             style={{
               background: "rgba(0,0,0,0.75)",
               border: "2px solid rgba(250,204,21,0.5)",
               boxShadow: "0 0 24px rgba(250,204,21,0.2)",
               backdropFilter: "blur(12px)",
               fontFamily: "'Fredoka One', cursive",
+              bottom: "210px",
               transition: "all 0.2s",
             }}
           >

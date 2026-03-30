@@ -25,16 +25,16 @@ export function FavorPickModal({
 
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" />
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
         style={{
           width: "520px",
           maxWidth: "95vw",
-          background: "rgba(0,5,26,0.75)",
-          backdropFilter: "blur(20px)",
-          border: "2px solid rgba(59,130,246,0.5)",
-          boxShadow: "0 0 60px rgba(59,130,246,0.2), 0 24px 60px rgba(0,0,0,0.9)",
+          background: "rgba(0,5,26,0.45)",
+          backdropFilter: "blur(24px)",
+          border: "2px solid rgba(59,130,246,0.4)",
+          boxShadow: "0 0 60px rgba(59,130,246,0.15), 0 24px 60px rgba(0,0,0,0.5)",
           fontFamily: "'Fredoka One', cursive",
         }}
       >

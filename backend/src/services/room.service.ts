@@ -1,4 +1,5 @@
-import { RoomStatus, PlayerRole } from "@prisma/client";
+import { RoomStatus, PlayerRole, GameSessionStatus } from "@prisma/client";
+import { gameService } from "./game.service";
 import { prisma } from "../config/prisma";
 import { CreateRoomInput, UpdateDeckConfigInput, RoomWithRelations, CurrentRoomResponse } from "../types/types";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../utils/errors";
@@ -260,26 +261,74 @@ export const roomService = {
    * Leave a room. If empty, delete the room. If host leaves, migrate host.
    * FR-03-11, S1-22/23
    */
-  async leaveRoom(roomId: string, playerToken: string): Promise<RoomWithRelations | null> {
+  async leaveRoom(
+    roomId: string,
+    playerToken: string,
+  ): Promise<{ room: RoomWithRelations | null; gameOver?: { winner: { player_id: string; display_name: string } } }> {
     return await prisma.$transaction(async (tx) => {
       const player = await tx.player.findUnique({
-        where: {
-          player_token_room_id: {
-            player_token: playerToken,
-            room_id: roomId,
-          },
-        },
+        where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
       });
 
-      if (!player) return null;
+      if (!player) return { room: null };
 
+      const room = await tx.room.findUnique({ where: { room_id: roomId } });
+
+      // ── เช็คว่าห้องกำลัง PLAYING และผู้เล่นที่ออกยังมีชีวิตอยู่ ──
+      if (room?.status === RoomStatus.PLAYING && player.is_alive) {
+        const session = await tx.gameSession.findFirst({
+          where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+        });
+
+        if (session) {
+          // mark ตายก่อน เพื่อให้ checkWinner นับถูก
+          await tx.player.update({
+            where: { player_id: player.player_id },
+            data: { is_alive: false },
+          });
+
+          await tx.gameLog.create({
+            data: {
+              session_id: session.session_id,
+              player_id: player.player_id,
+              player_display_name: player.display_name,
+              action_type: "PLAYER_ELIMINATED",
+              action_details: { reason: "left_room" },
+              turn_number: session.turn_number,
+            },
+          });
+
+          const winResult = await gameService.checkWinner(
+            tx,
+            session,
+            roomId,
+            player.player_id,
+            "LEFT_ROOM",
+          );
+
+          if (winResult.action === "GAME_OVER") {
+            // ลบผู้เล่นออกหลัง game over
+            await tx.player.delete({
+              where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
+            });
+
+            const updatedRoom = await tx.room.findUnique({
+              where: { room_id: roomId },
+              include: { players: true, deck_config: true },
+            });
+
+            return {
+              room: updatedRoom as RoomWithRelations,
+              gameOver: { winner: (winResult as any).winner },
+            };
+          }
+          // ไม่ game over — ไหลต่อลบผู้เล่นปกติ
+        }
+      }
+
+      // ── ลบผู้เล่นออกจากห้องปกติ ──
       await tx.player.delete({
-        where: {
-          player_token_room_id: {
-            player_token: playerToken,
-            room_id: roomId,
-          },
-        },
+        where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
       });
 
       const remainingPlayers = await tx.player.findMany({
@@ -288,17 +337,11 @@ export const roomService = {
       });
 
       if (remainingPlayers.length === 0) {
-        await tx.room.delete({
-          where: { room_id: roomId },
-        });
-        return null;
+        await tx.room.delete({ where: { room_id: roomId } });
+        return { room: null };
       }
 
-      const room = await tx.room.findUnique({
-        where: { room_id: roomId },
-      });
-
-      // Migrate host if the leaving player was the host (FR-03-11)
+      // Migrate host ถ้าคนที่ออกเป็น host (FR-03-11)
       if (room && room.host_token === playerToken) {
         const candidateHost =
           remainingPlayers.find((p) => p.role === PlayerRole.PLAYER) || remainingPlayers[0];
@@ -310,10 +353,12 @@ export const roomService = {
         }
       }
 
-      return await tx.room.findUnique({
+      const updatedRoom = await tx.room.findUnique({
         where: { room_id: roomId },
         include: { players: true, deck_config: true },
       });
+
+      return { room: updatedRoom as RoomWithRelations };
     });
   },
 

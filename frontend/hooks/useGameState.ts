@@ -119,6 +119,17 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       } else if (updatedRoom.status === "PLAYING" && gamePhaseRef.current === "WAITING") {
         setGamePhase("PLAYING");
       }
+
+      // เช็คว่าเกมกำลังเล่นอยู่ และเหลือผู้เล่นที่มีชีวิต 1 คน → ชนะ
+      if (updatedRoom.status === "PLAYING" && gamePhaseRef.current !== "GAME_OVER") {
+        const alivePlayers = updatedRoom.players?.filter((p: Player) => p.is_alive && p.role === "PLAYER") ?? [];
+        if (alivePlayers.length === 1) {
+          const winner = alivePlayers[0]!;
+          setWinner({ player_id: winner.player_id, display_name: winner.display_name });
+          setGamePhase("GAME_OVER");
+          setGameLogs((prev) => [...prev.slice(-19), `🏆 ${winner.display_name} ชนะ! (ผู้เล่นออกจากห้อง)`]);
+        }
+      }
     };
 
     // ── gameStarted ──

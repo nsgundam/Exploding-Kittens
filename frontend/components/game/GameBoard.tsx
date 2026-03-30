@@ -126,6 +126,7 @@ export interface GameBoardProps {
   comboState?: { comboCards: string[]; isThreeCard: boolean } | null;
   emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
   cancelCombo?: () => void;
+  cancelFavor?: () => void;
   onPlayCombo?: (cardCodes: string[]) => void;
   pendingAction?: { playedByDisplayName: string; cardCode?: string; comboCards?: string[]; target?: string | null } | null;
   nopeState?: { nopeCount: number; isCancel: boolean; lastPlayedByDisplayName: string } | null;
@@ -163,6 +164,7 @@ export function GameBoard({
   comboState,
   emitCombo,
   cancelCombo,
+  cancelFavor,
   pendingAction,
   nopeState,
 }: GameBoardProps) {
@@ -238,6 +240,31 @@ export function GameBoard({
           {cancelCombo && (
             <button
               onClick={cancelCombo}
+              className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
+            >
+              ยกเลิก
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── FAVOR SELECT TARGET banner ── */}
+      {gamePhase === "FAVOR_SELECT_TARGET" && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          style={{
+            background: "rgba(10,5,30,0.95)",
+            border: "2px solid #facc15",
+            boxShadow: "0 0 24px #facc1566",
+            fontFamily: "'Fredoka One', cursive",
+          }}
+        >
+          <span className="text-xl">🐱</span>
+          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
+          {cancelFavor && (
+            <button
+              onClick={cancelFavor}
               className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
               style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
             >
@@ -540,7 +567,7 @@ export function GameBoard({
               className="text-4xl"
               style={{ color: "rgba(255,240,200,0.7)" }}
             >
-              ⟳
+              ⟲
             </div>
 
             {/* PLAY CARD ZONE */}
