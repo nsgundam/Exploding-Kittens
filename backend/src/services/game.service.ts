@@ -1,6 +1,7 @@
 import { CardCode, ActionType, GAME_CONFIG } from "../constants/game";
 import { applyCardEffect } from "./effects/index";
 import { prisma } from "../config/prisma";
+import { handleDrawIK, insertIKBack, isIKOnTop } from "./imploding.service";
 import {
   Prisma,
   RoomStatus,
@@ -588,7 +589,7 @@ export const gameService = {
         throw new BadRequestError("It's not your turn");
       }
 
-      // Verify last action was drawing EK
+      // Verify last action was drawing EK (not IK — IK cannot be defused)
       const lastLog = await tx.gameLog.findFirst({
         where: { session_id: session.session_id, player_id: player.player_id },
         orderBy: { timestamp: "desc" },
@@ -598,6 +599,12 @@ export const gameService = {
       }
 
       const ekCard = (lastLog.action_details as { card: string }).card;
+
+      // IK cannot be defused under any circumstances (FR-07)
+      if (ekCard === CardCode.IMPLODING_KITTEN) {
+        throw new BadRequestError("Imploding Kitten cannot be defused");
+      }
+
       const dfCode =
         room.deck_config?.card_version === "good_and_evil" ? CardCode.GVE_DEFUSE : CardCode.DEFUSE;
 
@@ -722,6 +729,27 @@ export const gameService = {
       );
       return { ...turnResult, deck_count: deckWithEK.length };
     });
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // FR-07-IK2: player picks a position to insert IK back into deck
+  // ─────────────────────────────────────────────────────────────
+  async placeIKBack(
+    roomId: string,
+    playerToken: string,
+    position: number,
+  ): Promise<{ success: boolean; ikOnTop: boolean }> {
+    const session = await prisma.gameSession.findFirst({
+      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+    });
+    if (!session) throw new NotFoundError("No active session");
+
+    await insertIKBack(session.session_id, position);
+
+    // FR-07-IK3: warn UI if IK (now face-up) lands on top of the deck
+    const ikOnTop = await isIKOnTop(session.session_id);
+
+    return { success: true, ikOnTop };
   },
 
   /**
@@ -1098,28 +1126,42 @@ export const gameService = {
     player: Player,
     roomId: string,
     drawnCard: string,
-  ): Promise<TurnAdvancedResult | GameOverResult> {
-    await tx.player.update({
-      where: { player_id: player.player_id },
-      data: { is_alive: false },
-    });
-    await tx.gameLog.create({
-      data: {
-        session_id: session.session_id,
-        player_id: player.player_id,
-        player_display_name: player.display_name,
-        action_type: ActionType.PLAYER_ELIMINATED,
-        action_details: { card: drawnCard, reason: "imploding_kitten" },
-        turn_number: session.turn_number,
-      },
-    });
-    return await gameService.checkWinner(
-      tx,
-      session,
-      roomId,
-      player.player_id,
+  ): Promise<TurnAdvancedResult | GameOverResult | ExplodingKittenDrawnResult> {
+    const ikResult = await handleDrawIK(session.session_id);
+
+    if (ikResult.playerEliminated) {
+      // FR-07-IK4: face-up → ตายทันที
+      await tx.player.update({
+        where: { player_id: player.player_id },
+        data: { is_alive: false },
+      });
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAYER_ELIMINATED,
+          action_details: { card: drawnCard, reason: "imploding_kitten_face_up" },
+          turn_number: session.turn_number,
+        },
+      });
+      return await gameService.checkWinner(
+        tx,
+        session,
+        roomId,
+        player.player_id,
+        drawnCard,
+      );
+    }
+
+    // FR-07-IK2: face-down → ผู้เล่นต้องเลือกตำแหน่งใส่ IK กลับ
+    // ยังไม่ eliminate — รอ placeIKBack() จาก frontend
+    return {
+      success: true,
+      action: ActionType.DREW_EXPLODING_KITTEN,
       drawnCard,
-    );
+      hasDefuse: true, // true = ยังไม่ตาย, frontend แสดง placement modal
+    };
   },
 
   // ── Helper: Handle Exploding Kitten ──────────────────────────
@@ -1485,6 +1527,14 @@ export const gameService = {
         throw new BadRequestError("No pending action to Nope");
       }
 
+      // IK cannot be Noped — it is not an action card (FR-07)
+      if (
+        typeof session.pending_action === "object" &&
+        (session.pending_action as Record<string, unknown>)["card"] === CardCode.IMPLODING_KITTEN
+      ) {
+        throw new BadRequestError("Imploding Kitten cannot be Noped");
+      }
+
       const player = await tx.player.findFirst({
         where: { room_id: roomId, player_token: playerToken, is_alive: true },
       });
@@ -1650,7 +1700,7 @@ export const gameService = {
         });
 
         if (!target) {
-           return { success: false, reason: "Target not found" }; 
+          return { success: false, reason: "Target not found" };
         }
 
         const targetHand = await tx.cardHand.findUnique({
@@ -1659,7 +1709,7 @@ export const gameService = {
         const targetCards = [...((targetHand?.cards ?? []) as string[])];
 
         const thiefHand = await tx.cardHand.findUnique({
-          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id }},
+          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id } },
         });
         const remaining = [...((thiefHand?.cards ?? []) as string[])];
 

@@ -172,3 +172,22 @@ export const comboCard = async (req: Request, res: Response): Promise<void> => {
     res.status(getErrorStatusCode(error)).json({ message: getErrorMessage(error) });
   }
 };
+
+/**
+ * POST /api/rooms/:roomId/ik/place
+ * FR-07-IK2: ผู้เล่นเลือกตำแหน่งใส่ Imploding Kitten กลับเข้า deck
+ * Body: { position: number }  — 0 = บนสุด, N = ล่างสุด
+ */
+export const placeIKBack = asyncHandler(async (req: Request, res: Response) => {
+  const roomId = req.params.roomId as string;
+  const playerToken = req.playerToken!;
+  const { position } = req.body;
+
+  if (position === undefined || typeof position !== "number") {
+    res.status(400).json({ message: "position (number) is required" });
+    return;
+  }
+
+  const result = await gameService.placeIKBack(roomId, playerToken, position);
+  res.status(200).json(result);
+});

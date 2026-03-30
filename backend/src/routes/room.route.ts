@@ -65,4 +65,7 @@ router.post("/:roomId/nope", extractPlayerToken, gameControllers.nopeCard);
 // POST /api/rooms/:roomId/combo — เล่น Cat Combo (2 หรือ 3 ใบ)
 router.post("/:roomId/combo", extractPlayerToken, gameControllers.comboCard);
 
+// POST /api/rooms/:roomId/ik/place — FR-07-IK2: ใส่ IK กลับ deck
+router.post("/:roomId/ik/place", extractPlayerToken, gameControllers.placeIKBack);
+
 export default router;
