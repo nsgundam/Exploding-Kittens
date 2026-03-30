@@ -1118,6 +1118,116 @@ export const gameService = {
     return null;
   },
 
+  // ── Helper: Draw from Bottom (DB) ───────────────────────────
+  // Draws deck[0] instead of deck[last]. Handles EK/IK same as drawCard.
+
+  async resolveDrawFromBottom(
+    tx: Prisma.TransactionClient,
+    session: GameSession,
+    player: Player,
+    roomId: string,
+  ) {
+    const deckState = await tx.deckState.findUnique({
+      where: { session_id: session.session_id },
+    });
+    if (!deckState) throw new NotFoundError("Deck state");
+
+    const deck = deckState.deck_order as string[];
+    if (deck.length === 0) throw new BadRequestError("Deck is empty");
+
+    // Draw from bottom (index 0) instead of top (index -1)
+    const drawnCard = deck[0]!;
+    const newDeck = deck.slice(1);
+
+    await tx.deckState.update({
+      where: { session_id: session.session_id },
+      data: { deck_order: newDeck, cards_remaining: newDeck.length },
+    });
+
+    await tx.gameLog.create({
+      data: {
+        session_id: session.session_id,
+        player_id: player.player_id,
+        player_display_name: player.display_name,
+        action_type: ActionType.DREW_CARD,
+        action_details: { card: drawnCard, source: "bottom" },
+        turn_number: session.turn_number,
+      },
+    });
+
+    const isEK = drawnCard === CardCode.EXPLODING_KITTEN || drawnCard === CardCode.GVE_EXPLODING_KITTEN;
+    const isIK = drawnCard === CardCode.IMPLODING_KITTEN;
+
+    if (isEK || isIK) {
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.DREW_EXPLODING_KITTEN,
+          action_details: { card: drawnCard, source: "bottom" },
+          turn_number: session.turn_number,
+        },
+      });
+
+      if (isIK) {
+        const res = await gameService.handleImplodingKitten(tx, session, player, roomId, drawnCard);
+        return { ...res, drawnCard, source: "bottom", deck_count: newDeck.length };
+      }
+
+      const room = await tx.room.findUnique({ where: { room_id: roomId }, include: { deck_config: true } });
+      if (!room) throw new NotFoundError("Room");
+      const res = await gameService.handleExplodingKitten(tx, session, player, room, drawnCard);
+      return { ...res, drawnCard, source: "bottom", deck_count: newDeck.length };
+    }
+
+    // Normal card — add to hand and advance turn
+    const hand = await tx.cardHand.findUnique({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+    });
+    const currentCards = (hand?.cards ?? []) as string[];
+    const newCards = [...currentCards, drawnCard];
+
+    await tx.cardHand.update({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+      data: { cards: newCards, card_count: newCards.length },
+    });
+
+    const pendingAttacks = session.pending_attacks ?? 0;
+    let turnResult: TurnAdvancedResult;
+
+    if (pendingAttacks > 1) {
+      const nextPending = pendingAttacks - 1;
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: { turn_number: session.turn_number + 1, pending_attacks: nextPending },
+      });
+      turnResult = {
+        success: true,
+        action: ActionType.TURN_ADVANCED,
+        nextTurn: {
+          player_id: player.player_id,
+          display_name: player.display_name,
+          turn_number: session.turn_number + 1,
+          pending_attacks: nextPending,
+        },
+      };
+    } else {
+      const sessionForAdvance = pendingAttacks === 1
+        ? { ...session, pending_attacks: 0 }
+        : session;
+      turnResult = await gameService.advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
+    }
+
+    return {
+      ...turnResult,
+      drawnCard,
+      source: "bottom",
+      hand: { cards: newCards },
+      deck_count: newDeck.length,
+    };
+  },
+
   // ── Helper: Handle Imploding Kitten ──────────────────────────
 
   async handleImplodingKitten(
@@ -1654,6 +1764,13 @@ export const gameService = {
       if (pendingActionData.type === "PLAY_CARD") {
         const cardCode = pendingActionData.cardCode;
         const normalizedCode = cardCode.replace(/^GVE_/, "");
+
+        // DB (Draw from Bottom) — special: involves a full draw with EK/IK handling
+        if (normalizedCode === CardCode.DRAW_FROM_BOTTOM) {
+          return await gameService.resolveDrawFromBottom(
+            tx, session, originalPlayer, roomId
+          );
+        }
 
         const effectData = await applyCardEffect(normalizedCode, {
           tx,

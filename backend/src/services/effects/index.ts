@@ -217,7 +217,7 @@ const effectHandlers: Record<string, EffectHandler> = {
   [CardCode.SKIP]: handleSkipEffect,
   [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
   [CardCode.SHUFFLE]: handleShuffleEffect,
-  RF: handleReverseEffect,
+  [CardCode.REVERSE]: handleReverseEffect,
   FV: handleFavorEffect,
 };
 
@@ -225,7 +225,7 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["NP", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
+  if (["NP", "RH", "AG", "AF", "FC"].includes(normalizedCode)) {
     throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {

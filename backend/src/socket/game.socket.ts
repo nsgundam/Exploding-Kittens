@@ -178,13 +178,27 @@ export const registerGameSocket = (io: Server): void => {
               await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
             } else if (res.action === "COMBO_PLAYED") {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+            } else if (res.action === "TURN_ADVANCED") {
+              // DB card resolved and drew a normal card → broadcast like a draw
+              io.to(roomId).emit("cardDrawn", res);
+            } else if (res.action === "DREW_EXPLODING_KITTEN") {
+              // DB card drew EK or IK → same flow as normal draw EK
+              io.to(roomId).emit("cardDrawn", res);
+            } else if (res.action === "GAME_OVER") {
+              // DB card drew EK/IK and caused elimination → game over
+              io.to(roomId).emit("playerEliminated", res);
+              const updatedRoom = await roomService.getRoomById(roomId);
+              io.to(roomId).emit("roomUpdated", updatedRoom);
+              io.emit("roomListUpdated");
             }
           }
         } catch (err) {
           console.error("Resolve error:", err);
+          io.to(roomId).emit("errorMessage", getErrorMessage(err));
         }
       }, 3000); // 3 seconds Nope window
     };
+
 
     // ── Play Card (S2-18) ──────────────────────────────────────
     socket.on("playCard", async (payload: PlayCardPayload) => {
