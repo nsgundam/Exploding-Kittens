@@ -55,7 +55,7 @@ model Room {
   created_at           DateTime       @default(now())
   updated_at           DateTime       @updatedAt
   restart_available_at DateTime?
-
+  last_winner_token String?
   players       Player[]      @relation("RoomPlayers")
   deck_config   DeckConfig?
   game_sessions GameSession[]
@@ -107,6 +107,10 @@ model GameSession {
   end_time               DateTime?
   status                 GameSessionStatus @default(WAITING)
   winner_player_id       String?
+
+  pending_action           Json?
+  pending_action_timestamp DateTime?
+  nope_count               Int               @default(0)
 
   room                Room       @relation(fields: [room_id], references: [room_id], onDelete: Cascade)
   current_turn_player Player?    @relation("CurrentTurn", fields: [current_turn_player_id], references: [player_id])

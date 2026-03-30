@@ -96,6 +96,7 @@ export interface CardDrawnPayload {
   isExplodingKitten?: boolean;
   eliminated?: boolean;
   player_id?: string;
+  isAutoDraw?: boolean;
   nextTurn?: {
     player_id: string;
     display_name: string;
@@ -129,6 +130,42 @@ export interface DeckConfigChangedPayload {
   room_id: string;
   card_version: CardVersion;
   expansions: DeckExpansions;
+}
+
+export interface CardDefusedPayload {
+  success: true;
+  action: "WAITING_FOR_INSERT";
+  nextTurn?: {
+    player_id: string;
+    display_name: string;
+    turn_number: number;
+    pending_attacks?: number;
+  };
+}
+
+export interface PlayerEliminatedPayload {
+  action: string;
+  winner?: {
+    player_id: string;
+    display_name: string;
+  };
+  nextTurn?: {
+    player_id: string;
+    display_name?: string;
+    turn_number?: number;
+  };
+}
+
+export interface EKInsertedPayload {
+  success: true;
+  action: "TURN_ADVANCED";
+  nextTurn: {
+    player_id: string;
+    display_name: string;
+    turn_number: number;
+    pending_attacks?: number;
+  };
+  deck_count: number;
 }
 
 // ── Lobby API Types ─────────────────────────────────────────

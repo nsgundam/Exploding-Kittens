@@ -9,6 +9,7 @@ interface DeckConfigModalProps {
   currentExpansions: string[];
   onClose: () => void;
   onSaved: (cardVersion: string, expansions: string[]) => void;
+  onSave?: (cardVersion: string, expansions: string[]) => void; // socket-based save
 }
 
 export default function DeckConfigModal({
@@ -18,6 +19,7 @@ export default function DeckConfigModal({
   currentExpansions,
   onClose,
   onSaved,
+  onSave,
 }: DeckConfigModalProps) {
   const [selectedDeck, setSelectedDeck] = useState(
     currentCardVersion === "good_and_evil" ? 2 : 1
@@ -32,25 +34,32 @@ export default function DeckConfigModal({
   const handleSave = async () => {
     setLoading(true);
     try {
-      const playerToken = localStorage.getItem("player_token");
       const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
       const expansions = addonEnabled ? ["imploding_kittens"] : [];
-      const res = await fetch(`/api/rooms/${roomId}/config`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-player-token": playerToken || "",
-        },
-        body: JSON.stringify({ cardVersion, expansions }),
-      });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message || "Failed to update deck config");
+      if (onSave) {
+        // ใช้ socket emit (preferred)
+        onSave(cardVersion, expansions);
+        onSaved(cardVersion, expansions);
+        onClose();
+      } else {
+        // fallback: REST API
+        const playerToken = localStorage.getItem("player_token");
+        const res = await fetch(`/api/rooms/${roomId}/config`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-player-token": playerToken || "",
+          },
+          body: JSON.stringify({ cardVersion, expansions }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.message || "Failed to update deck config");
+        }
+        onSaved(cardVersion, expansions);
+        onClose();
       }
-
-      onSaved(cardVersion, expansions);
-      onClose();
     } catch (err) {
       alert(`เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : String(err)}`);
     } finally {

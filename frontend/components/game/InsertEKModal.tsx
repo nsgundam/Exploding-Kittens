@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Card } from "./Card";
 
 interface InsertEKModalProps {
   drawnCard: string;
@@ -8,84 +7,160 @@ interface InsertEKModalProps {
   onConfirm: (position: number) => void;
 }
 
-export function InsertEKModal({
-  drawnCard,
-  deckCount,
-  isOpen,
-  onConfirm,
-}: InsertEKModalProps) {
-  const [selectedPosition, setSelectedPosition] = useState<number>(0);
+export function InsertEKModal({ deckCount, isOpen, onConfirm }: InsertEKModalProps) {
+  const [selectedPosition, setSelectedPosition] = useState<number>(() => Math.floor(Math.max(deckCount, 1) / 2));
 
   if (!isOpen) return null;
 
+  const safeMax = Math.max(deckCount, 1);
+  const totalCards = 13;
+  const insertSlot = Math.round((selectedPosition / safeMax) * (totalCards - 1));
+
+  const positionLabel =
+    selectedPosition === 0
+      ? "บนสุด (Top)"
+      : selectedPosition >= safeMax
+      ? "ล่างสุด (Bottom)"
+      : `ใบที่ ${selectedPosition + 1} จากบนสุด`;
+
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] animate-fade-in backdrop-blur-sm">
-      <div className="bg-zinc-900/90 border-2 border-green-500/50 rounded-3xl p-8 flex flex-col items-center gap-6 shadow-[0_0_50px_rgba(34,197,94,0.3)] animate-scale-in max-w-2xl w-full mx-4">
-        
+    <div className="fixed inset-0 z-3000 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <div
+        className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
+        style={{
+          width: "460px",
+          background: "linear-gradient(160deg, #1a0505 0%, #0d0000 100%)",
+          border: "2px solid rgba(220,38,38,0.5)",
+          boxShadow: "0 0 80px rgba(220,38,38,0.25), 0 24px 60px rgba(0,0,0,0.9)",
+          fontFamily: "'Fredoka One', cursive",
+        }}
+      >
         <div className="text-center">
-          <div className="text-4xl mb-3 animate-bounce">🛡️</div>
-          <h2 className="text-3xl font-bold text-green-400 font-bungee drop-shadow-md">
-            DEFUSE สำเร็จ!
+          <h2
+            className="text-2xl font-black text-white tracking-wide"
+            style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}
+          >
+            เลือกตำแหน่งระเบิดกลับเข้ากอง
           </h2>
-          <p className="text-gray-300 mt-2 font-medium">คุณต้องการใส่ระเบิดกลับเข้าไปตรงไหนของสำรับ?</p>
-          <p className="text-sm text-gray-500 mt-1">(คนอื่นจะไม่เห็นตำแหน่งที่คุณเลือก)</p>
+          <p className="text-xs mt-1" style={{ color: "rgba(255,180,180,0.5)" }}>
+            กองมี {deckCount} ใบ
+          </p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center gap-10 my-6 bg-black/40 p-6 rounded-3xl border border-white/10 w-full justify-center">
-          
-          {/* Card to insert */}
-          <div className="flex flex-col items-center gap-3">
-            <span className="text-sm text-red-500 font-bold bg-red-500/10 px-3 py-1 rounded">ใส่ใบนี้กลับ</span>
-            <div className="relative group">
-              <div className="absolute -inset-2 bg-red-500/20 rounded-xl blur-lg group-hover:bg-red-500/30 transition-all opacity-0 group-hover:opacity-100" />
-              <Card cardCode={drawnCard} className="transform scale-110 relative z-10" />
-            </div>
-          </div>
+        <div
+          className="px-5 py-2 rounded-full text-sm font-black text-white tracking-wide"
+          style={{
+            background: "rgba(220,38,38,0.3)",
+            border: "1px solid rgba(220,38,38,0.6)",
+          }}
+        >
+          {positionLabel}
+        </div>
 
-          <div className="hidden md:block text-4xl text-white/20">➡️</div>
-          <div className="md:hidden text-4xl text-white/20 rotate-90">➡️</div>
+        <div className="relative w-full flex items-end justify-center" style={{ height: "100px" }}>
+          {Array.from({ length: totalCards }).map((_, i) => {
+            const isInsertPoint = i === insertSlot;
+            const centerIndex = (totalCards - 1) / 2;
+            const offset = (i - centerIndex) * 26;
+            const zIdx = isInsertPoint ? 20 : totalCards - Math.abs(i - centerIndex);
+            const scale = 1 - Math.abs(i - centerIndex) * 0.025;
 
-          {/* Position Selector */}
-          <div className="flex flex-col items-center gap-4 w-full md:w-auto">
-            <label className="text-sm text-green-400 font-bold bg-green-500/10 px-3 py-1 rounded w-full text-center">
-              ไพ่ในกอง: {deckCount} ใบ
-            </label>
-            
-            <div className="bg-gray-800 p-4 rounded-2xl border border-gray-600 w-full max-w-[250px] flex flex-col items-center gap-3">
-              <div className="text-center w-full pb-2 border-b border-gray-700">
-                <div className="text-3xl font-bungee text-white mb-1">
-                  {selectedPosition === 0 ? "บนสุด" : 
-                   selectedPosition === deckCount ? "ล่างสุด" : 
-                   `ใบที่ ${selectedPosition + 1}`}
-                </div>
-              </div>
-              
-              <input 
-                type="range" 
-                min="0" 
-                max={deckCount} 
-                value={selectedPosition}
-                onChange={(e) => setSelectedPosition(parseInt(e.target.value, 10))}
-                className="w-full accent-green-500 cursor-pointer my-2 outline-none h-2 bg-gray-900 rounded-lg appearance-none"
+            return (
+              <div
+                key={i}
+                className="absolute rounded-xl transition-all duration-200"
                 style={{
-                  background: `linear-gradient(to right, #22c55e ${(selectedPosition / deckCount) * 100}%, #111827 ${(selectedPosition / deckCount) * 100}%)`
+                  width: "44px",
+                  height: isInsertPoint ? "90px" : "58px",
+                  left: `calc(50% + ${offset}px - 22px)`,
+                  bottom: 0,
+                  transform: isInsertPoint ? `scale(${scale}) translateY(-24px)` : `scale(${scale})`,
+                  background: isInsertPoint
+                    ? "linear-gradient(180deg, #ef4444 0%, #7f1d1d 100%)"
+                    : "linear-gradient(180deg, #1e3a5f 0%, #0f1f33 100%)",
+                  border: isInsertPoint ? "2px solid #f87171" : "1px solid rgba(99,132,200,0.35)",
+                  boxShadow: isInsertPoint
+                    ? "0 0 20px rgba(239,68,68,0.8), 0 4px 12px rgba(0,0,0,0.5)"
+                    : "0 2px 6px rgba(0,0,0,0.4)",
+                  zIndex: zIdx,
                 }}
-              />
-              
-              <div className="flex justify-between w-full text-xs text-gray-400 font-bold">
-                <span>บนสุด (0)</span>
-                <span>ล่างสุด ({deckCount})</span>
+              >
+                {!isInsertPoint && (
+                  <div
+                    className="absolute inset-1 rounded-lg opacity-20"
+                    style={{
+                      backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",
+                      backgroundSize: "5px 5px",
+                    }}
+                  />
+                )}
+                {isInsertPoint && (
+                  <div className="absolute inset-0 flex items-center justify-center text-xl">💣</div>
+                )}
               </div>
-            </div>
+            );
+          })}
+        </div>
+
+        <div className="w-full flex flex-col gap-2 px-1">
+          <div className="flex items-center gap-3 w-full">
+            <button
+              onClick={() => setSelectedPosition(Math.max(0, selectedPosition - 1))}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-2xl font-black text-white shrink-0 transition-all hover:scale-110 active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, #dc2626, #7f1d1d)",
+                border: "2px solid #f87171",
+                boxShadow: "0 4px 0 #450a0a",
+              }}
+            >
+              −
+            </button>
+
+            <input
+              type="range"
+              min={0}
+              max={safeMax}
+              value={selectedPosition}
+              onChange={(e) => setSelectedPosition(parseInt(e.target.value, 10))}
+              className="flex-1 h-2 rounded-full appearance-none cursor-pointer outline-none"
+              style={{
+                background: `linear-gradient(to right, #ef4444 ${(selectedPosition / safeMax) * 100}%, #374151 ${(selectedPosition / safeMax) * 100}%)`,
+                accentColor: "#ef4444",
+              }}
+            />
+
+            <button
+              onClick={() => setSelectedPosition(Math.min(safeMax, selectedPosition + 1))}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-2xl font-black text-white shrink-0 transition-all hover:scale-110 active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, #dc2626, #7f1d1d)",
+                border: "2px solid #f87171",
+                boxShadow: "0 4px 0 #450a0a",
+              }}
+            >
+              +
+            </button>
           </div>
 
+          <div className="flex justify-between text-xs font-bold px-1" style={{ color: "rgba(255,180,180,0.45)" }}>
+            <span>บนสุด (Top)</span>
+            <span>ล่างสุด (Bottom)</span>
+          </div>
         </div>
 
         <button
           onClick={() => onConfirm(selectedPosition)}
-          className="mt-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bungee py-4 px-16 rounded-xl text-xl shadow-lg shadow-green-900/50 transition-transform hover:scale-105 active:scale-95 border-2 border-green-400"
+          className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95"
+          style={{
+            background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+            border: "2px solid rgba(239,68,68,0.6)",
+            boxShadow: "0 5px 0 #450a0a, 0 8px 20px rgba(220,38,38,0.3)",
+            fontFamily: "'Fredoka One', cursive",
+          }}
         >
-          ยืนยัน
+          ยืนยัน (CONFIRM)
+          <div className="text-xs font-normal opacity-60 mt-0.5">ใส่คืนกอง (PUT BACK IN DECK)</div>
         </button>
       </div>
     </div>

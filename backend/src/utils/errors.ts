@@ -1,12 +1,3 @@
-// ============================================================
-// Custom Error Classes — Exploding Kittens Backend
-// ============================================================
-
-/**
- * Base application error with HTTP status code.
- * Used across controllers to provide typed error handling
- * instead of `catch (error: any)`.
- */
 export class AppError extends Error {
   public readonly statusCode: number;
 

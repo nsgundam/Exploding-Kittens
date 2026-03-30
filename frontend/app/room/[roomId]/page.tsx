@@ -20,22 +20,42 @@ export default function RoomPage() {
     startGame,
     drawCard,
     playCard,
+    defuseCard,
+    eliminatePlayer,
+    eliminatedPlayerId,
+    dismissEliminated,
+    winner,
     leaveRoom,
+    updateDeckConfig,
+    favorState,
+    selectFavorTarget,
+    pickFavorCard,
     myCards,
     gameLogs,
     gamePhase,
     ekBombState,
     seeTheFutureCards,
     closeSeeTheFuture,
+    insertEK,
     error,
     timeLeft,
     lastPlayedCard,
     currentTurnPlayerId,
+    pendingAttacks,
     deckCount,
+    playCombo,
+    emitCombo,
+    cancelCombo,
+    cancelFavor,
+    comboState,
+    pendingAction,
+    nopeState,
+    playNope,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
   const [showDeckConfig, setShowDeckConfig] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   useEffect(() => {
     setTimeout(() => setIsMounted(true), 0);
@@ -106,6 +126,14 @@ export default function RoomPage() {
     router.push("/Lobby");
   };
 
+  const handlePlayCombo = (cardCodes: string[]) => {
+    playCombo(cardCodes);
+  };
+
+  const canStartGame =
+    !!roomData.players &&
+    roomData.players.filter((p) => p.seat_number !== null).length >= 2;
+
   return (
     <>
       <style>{`
@@ -122,6 +150,11 @@ export default function RoomPage() {
         .float { animation: floatUp 4s ease-in-out infinite; }
         .glow  { animation: glow 2s ease-in-out infinite; }
 
+        @keyframes startPulse {
+          0%, 100% { box-shadow: 0 4px 0 #14532d, 0 0 20px rgba(74,222,128,0.4); }
+          50%       { box-shadow: 0 4px 0 #14532d, 0 0 40px rgba(74,222,128,0.9), 0 0 60px rgba(74,222,128,0.4); }
+        }
+        .start-pulse { animation: startPulse 1.6s ease-in-out infinite; }
         .card-shadow {
           box-shadow: 4px 4px 0 rgba(0,0,0,0.5), 8px 8px 20px rgba(0,0,0,0.4);
         }
@@ -148,13 +181,14 @@ export default function RoomPage() {
           {/* Left: Leave button */}
           <div className="flex-1 flex items-center">
             <button
-              onClick={handleLeaveRoom}
+              onClick={() => setShowLeaveConfirm(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black tracking-wider uppercase transition-all duration-150"
               style={{
                 fontFamily: "'Fredoka One', cursive",
                 background: "linear-gradient(135deg, #c0392b 0%, #922b21 100%)",
                 border: "none",
                 color: "#fff",
+                cursor: "pointer",
                 boxShadow: "0 4px 0 #641e16, 0 6px 12px rgba(0,0,0,0.3)",
               }}
               onMouseEnter={(e) => {
@@ -204,29 +238,21 @@ export default function RoomPage() {
             >
               {roomData.room_name}
             </div>
-            <div
-              className="text-[10px] px-2 py-0.5 rounded-full"
-              style={{
-                background: "rgba(120,60,0,0.15)",
-                border: "1px solid rgba(120,60,0,0.35)",
-                color: "#7a4000",
-                letterSpacing: "0.15em",
-              }}
-            >
-              #{roomId}
-            </div>
           </div>
 
-          {/* Right: Status + Deck name + Settings */}
+          {/* Right: Status + Deck config */}
           <div className="flex-1 flex items-center justify-end gap-3">
             <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black tracking-wider uppercase"
+              className="px-3 py-1.5 rounded-full text-xs font-bold tracking-wider"
               style={{
-                fontFamily: "'Fredoka One', cursive",
                 background:
                   roomData.status === "PLAYING"
-                    ? "linear-gradient(135deg, #4ade80, #16a34a)"
-                    : "linear-gradient(135deg, #f5a623, #d45f00)",
+                    ? "rgba(22,163,74,0.25)"
+                    : "rgba(180,100,20,0.25)",
+                border:
+                  roomData.status === "PLAYING"
+                    ? "1px solid rgba(22,163,74,0.6)"
+                    : "1px solid rgba(180,100,20,0.6)",
                 color: "#fff",
                 boxShadow:
                   roomData.status === "PLAYING"
@@ -297,11 +323,31 @@ export default function RoomPage() {
             selectSeat={selectSeat}
             drawCard={drawCard}
             playCard={playCard}
+            onPlayCombo={handlePlayCombo}
+            defuseCard={defuseCard}
+            eliminatePlayer={eliminatePlayer}
+            insertEK={insertEK}
+            eliminatedPlayerId={eliminatedPlayerId}
+            dismissEliminated={dismissEliminated}
+            winner={winner}
+            myPlayerToken={myPlayerToken}
+            favorState={favorState}
+            selectFavorTarget={selectFavorTarget}
+            pickFavorCard={pickFavorCard}
+            myCards={myCards}
             isMySeat={isMySeat}
             gameLogs={gameLogs}
             timeLeft={timeLeft}
             lastPlayedCard={lastPlayedCard}
+            pendingAttacks={pendingAttacks}
+            comboState={comboState}
+            emitCombo={emitCombo}
+            cancelCombo={cancelCombo}
+            cancelFavor={cancelFavor}
             deckCount={deckCount}
+            pendingAction={pendingAction}
+            nopeState={nopeState}
+            playNope={playNope}
           />
         </div>
 
@@ -313,6 +359,51 @@ export default function RoomPage() {
             borderTop: "1px solid rgba(150,100,20,0.25)",
           }}
         >
+          {/* Top Center: Start Game Button */}
+          {isHost && roomData.status === "WAITING" && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1">
+              <button
+                onClick={() => canStartGame && startGame()}
+                disabled={!canStartGame}
+                className={`px-10 py-3 rounded-2xl text-white font-black tracking-widest text-base uppercase ${canStartGame ? "start-pulse" : ""}`}
+                style={{
+                  fontFamily: "'Fredoka One', cursive",
+                  background: canStartGame
+                    ? "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)"
+                    : "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
+                  cursor: canStartGame ? "pointer" : "not-allowed",
+                  opacity: canStartGame ? 1 : 0.55,
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  if (!canStartGame) return;
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-3px) scale(1.04)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(0) scale(1)";
+                }}
+                onMouseDown={(e) => {
+                  if (!canStartGame) return;
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(2px) scale(0.97)";
+                }}
+                onMouseUp={(e) => {
+                  if (!canStartGame) return;
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-3px) scale(1.04)";
+                }}
+              >
+                🚀 เริ่มเกม
+              </button>
+              {!canStartGame && (
+                <div
+                  className="text-xs"
+                  style={{ color: "rgba(180,100,20,1)", fontFamily: "'Fredoka One', cursive" }}
+                >
+                  ต้องการผู้เล่นอย่างน้อย 2 คน
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Left: Player Profile */}
           <div className="absolute left-6 bottom-4 flex items-center gap-3 shrink-0 z-50">
             <div
@@ -366,56 +457,20 @@ export default function RoomPage() {
             myCards={myCards}
             status={roomData.status}
             isMyTurn={isMyTurn}
+            players={roomData.players ?? []}
+            myPlayerToken={myPlayerToken}
+            cardVersion={roomData.deck_config?.card_version ?? "classic"}
+            expansions={roomData.deck_config?.expansions ?? []}
             onPlayCard={playCard}
+            onPlayCombo={handlePlayCombo}
+            nopeWindowActive={gamePhase === "NOPE_WINDOW"}
+            onPlayNope={playNope}
           />
 
-          {/* Right: Actions */}
-          <div className="absolute right-6 bottom-4 flex flex-col gap-2 shrink-0 z-50">
-            {isHost && roomData.status === "WAITING" && (
-              <button
-                className="px-6 py-2 rounded-xl text-white font-black tracking-wider text-sm uppercase drop-shadow-lg"
-                style={{
-                  fontFamily: "'Fredoka One', cursive",
-                  background:
-                    "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)",
-                  boxShadow: "0 4px 0 #14532d, 0 6px 12px rgba(0,0,0,0.4)",
-                  transition: "all 0.1s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform =
-                    "translateY(-2px)";
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 6px 0 #14532d, 0 8px 16px rgba(0,0,0,0.5)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform =
-                    "translateY(0)";
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 4px 0 #14532d, 0 6px 12px rgba(0,0,0,0.4)";
-                }}
-                onMouseDown={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform =
-                    "translateY(2px)";
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 2px 0 #14532d";
-                }}
-                onMouseUp={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform =
-                    "translateY(-2px)";
-                }}
-                onClick={() => startGame()}
-                disabled={
-                  !roomData.players ||
-                  roomData.players.filter((p) => p.seat_number !== null)
-                    .length < 2
-                }
-              >
-                🚀 เริ่มเกม
-              </button>
-            )}
-          </div>
         </footer>
       </div>
+
+      {/* ── DECK CONFIG MODAL ────────────────────────────────────────── */}
       {showDeckConfig && (
         <DeckConfigModal
           isOpen={showDeckConfig}
@@ -423,10 +478,101 @@ export default function RoomPage() {
           currentCardVersion={roomData.deck_config?.card_version ?? "classic"}
           currentExpansions={roomData.deck_config?.expansions ?? []}
           onClose={() => setShowDeckConfig(false)}
+          onSave={(cardVersion, expansions) =>
+            updateDeckConfig(cardVersion, expansions)
+          }
           onSaved={(cardVersion: string, expansions: string[]) => {
-            console.log("Deck config updated locally", cardVersion, expansions);
+            console.log("Deck config updated", cardVersion, expansions);
+            setShowDeckConfig(false);
           }}
         />
+      )}
+
+      {/* ── LEAVE CONFIRM MODAL ──────────────────────────────────────── */}
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <div
+            className="flex flex-col items-center gap-6 rounded-2xl px-10 py-8"
+            style={{
+              background: "linear-gradient(160deg, #3d1f0a 0%, #1a0d04 100%)",
+              border: "2px solid rgba(245,166,35,0.35)",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+              fontFamily: "'Fredoka One', cursive",
+              minWidth: 320,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className="text-2xl font-black text-[#f5a623] mb-1">
+                ออกจากห้อง?
+              </div>
+              <div className="text-sm text-[#c8a06a]">
+                คุณจะถูกพาออกไปที่ Lobby
+              </div>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button
+                className="flex-1 py-2.5 rounded-xl text-sm font-black tracking-wider uppercase transition-all"
+                style={{
+                  background: "rgba(120,70,10,0.25)",
+                  border: "2px solid rgba(245,166,35,0.3)",
+                  color: "#c8a06a",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "rgba(120,70,10,0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "rgba(120,70,10,0.25)";
+                }}
+                onClick={() => setShowLeaveConfirm(false)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="flex-1 py-2.5 rounded-xl text-sm font-black tracking-wider uppercase transition-all"
+                style={{
+                  background: "linear-gradient(135deg, #c0392b 0%, #922b21 100%)",
+                  border: "none",
+                  color: "#fff",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 0 #641e16",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.transform =
+                    "translateY(-2px)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                    "0 6px 0 #641e16";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.transform =
+                    "translateY(0)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                    "0 4px 0 #641e16";
+                }}
+                onMouseDown={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.transform =
+                    "translateY(2px)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                    "0 2px 0 #641e16";
+                }}
+                onMouseUp={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.transform =
+                    "translateY(-2px)";
+                }}
+                onClick={handleLeaveRoom}
+              >
+                ออกเลย
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

@@ -1,3 +1,5 @@
+import { CardCode, ActionType, GAME_CONFIG } from "../constants/game";
+import { applyCardEffect } from "./effects/index";
 import { prisma } from "../config/prisma";
 import {
   Prisma,
@@ -18,6 +20,10 @@ import {
   CardEffectResult,
   RoomWithDeckConfig,
   PlayerHandsMap,
+  FavorPendingResult,
+  FavorResponseResult,
+  ComboResult,
+  NopePendingResult,
 } from "../types/types";
 import {
   NotFoundError,
@@ -36,18 +42,56 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
+// ── Cat Combo Helpers ──────────────────────────────────────────
+
+const CAT_CODES = new Set([
+  "CAT_TACO", "CAT_MELON", "CAT_BEARD", "CAT_RAINBOW", "CAT_POTATO",
+  "FC", "GVE_FC", "MC", "GVE_MC",
+]);
+
+function isCatCard(code: string): boolean {
+  return CAT_CODES.has(code);
+}
+
+function isFeralCat(code: string): boolean {
+  return code === "FC" || code === "GVE_FC";
+}
+
+function validateCombo(comboCards: string[]): void {
+  if (comboCards.length < 2 || comboCards.length > 3) {
+    throw new BadRequestError("Combo must be 2 or 3 cards");
+  }
+  for (const c of comboCards) {
+    if (!isCatCard(c)) {
+      throw new BadRequestError(`Card ${c} is not a cat card`);
+    }
+  }
+  const nonFeral = comboCards.filter((c) => !isFeralCat(c));
+  if (nonFeral.length > 1) {
+    const base = nonFeral[0]!;
+    if (!nonFeral.every((c) => c === base)) {
+      throw new BadRequestError(
+        "Combo cards must all be the same type (Feral Cat can substitute any)"
+      );
+    }
+  }
+}
+
 // ── Deck Building (Decomposed from startGame) ──────────────────
 
 /**
  * Build the initial deck from CardMaster based on card version and expansions.
  * Returns the base deck (without EK, DF, IK which are handled separately).
- * FR-04-1, S2-07
  */
 async function buildBaseDeck(
   tx: Prisma.TransactionClient,
   cardVersion: string,
-  expansions: string[]
-): Promise<{ baseDeck: string[]; totalDF: number; cardMasters: Awaited<ReturnType<typeof tx.cardMaster.findMany>> }> {
+  expansions: string[],
+): Promise<{
+  baseDeck: string[];
+  totalDF: number;
+  cardMasters: Awaited<ReturnType<typeof tx.cardMaster.findMany>>;
+}> {
   const basePackFilter =
     cardVersion === "good_and_evil"
       ? { expansion_pack: "good_and_evil" }
@@ -65,16 +109,15 @@ async function buildBaseDeck(
   });
 
   const totalDF =
-    cardMasters.find(
-      (c) => c.card_code === "DF" || c.card_code === "GVE_DF"
-    )?.quantity_in_deck ?? 6;
+    cardMasters.find((c) => c.card_code === CardCode.DEFUSE || c.card_code === CardCode.GVE_DEFUSE)
+      ?.quantity_in_deck ?? 6;
 
   const baseDeck: string[] = [];
 
   for (const card of cardMasters) {
-    const isEK = card.card_code === "EK" || card.card_code === "GVE_EK";
-    const isDF = card.card_code === "DF" || card.card_code === "GVE_DF";
-    const isIK = card.card_code === "IK";
+    const isEK = card.card_code === CardCode.EXPLODING_KITTEN || card.card_code === CardCode.GVE_EXPLODING_KITTEN;
+    const isDF = card.card_code === CardCode.DEFUSE || card.card_code === CardCode.GVE_DEFUSE;
+    const isIK = card.card_code === CardCode.IMPLODING_KITTEN;
 
     if (isEK || isDF || isIK) continue;
 
@@ -89,13 +132,12 @@ async function buildBaseDeck(
 /**
  * Deal cards to players: 1 Defuse + 4 random cards each.
  * Returns the remaining deck and the player hands map.
- * FR-04-1, S2-08
  */
 function dealCards(
   baseDeck: string[],
   players: Player[],
   dfCode: string,
-  cardsPerHand = 4
+  cardsPerHand = 4,
 ): { remainingDeck: string[]; hands: PlayerHandsMap } {
   const deck = [...baseDeck];
   const hands: PlayerHandsMap = {};
@@ -114,7 +156,6 @@ function dealCards(
 
 /**
  * Finalize the deck by inserting remaining Defuse cards, EK cards, and IK.
- * FR-04-1, S2-07
  */
 function finalizeDeck(
   remainingDeck: string[],
@@ -122,7 +163,7 @@ function finalizeDeck(
   totalDF: number,
   dfCode: string,
   ekCode: string,
-  expansions: string[]
+  expansions: string[],
 ): string[] {
   const deck = [...remainingDeck];
 
@@ -140,7 +181,7 @@ function finalizeDeck(
 
   // Imploding Kitten if expansion is active (FR-07-IK1)
   if (expansions.includes("imploding_kittens")) {
-    deck.push("IK");
+    deck.push(CardCode.IMPLODING_KITTEN);
   }
 
   return shuffleArray(deck);
@@ -148,7 +189,6 @@ function finalizeDeck(
 
 /**
  * Create GameSession, DeckState, CardHands, and GameLog in a single transaction step.
- * S2-06, S2-07
  */
 async function createGameSession(
   tx: Prisma.TransactionClient,
@@ -156,10 +196,11 @@ async function createGameSession(
   players: Player[],
   finalDeck: string[],
   hands: PlayerHandsMap,
-  hostPlayerToken: string
+  hostPlayerToken: string,
 ): Promise<{ session: GameSession; cardHands: CardHand[] }> {
   const firstPlayer = players[0];
-  if (!firstPlayer) throw new BadRequestError("No players available to start game");
+  if (!firstPlayer)
+    throw new BadRequestError("No players available to start game");
 
   const session = await tx.gameSession.create({
     data: {
@@ -202,7 +243,7 @@ async function createGameSession(
       session_id: session.session_id,
       player_id: hostPlayer.player_id,
       player_display_name: hostPlayer.display_name,
-      action_type: "GAME_STARTED",
+      action_type: ActionType.GAME_STARTED,
       action_details: {
         player_count: players.length,
         turn_order: players.map((p) => ({
@@ -226,131 +267,16 @@ async function createGameSession(
   return { session, cardHands };
 }
 
-// ── Card Effect Handlers (Sprint 2: AT, SK, SF, SH) ───────────
 
 /**
  * Handle Attack card: end turn without drawing, next player gets +2 turns.
- * FR-05-A1, S2-14
  */
-async function handleAttackEffect(
-  tx: Prisma.TransactionClient,
-  session: GameSession,
-  roomId: string,
-  currentPlayerId: string
-): Promise<TurnAdvancedResult> {
-  const newPending = (session.pending_attacks ?? 0) + 2;
-
-  await tx.gameSession.update({
-    where: { session_id: session.session_id },
-    data: { pending_attacks: newPending },
-  });
-
-  // Update session with new pending attacks before advancing turn
-  const updatedSession = { ...session, pending_attacks: newPending };
-  return await gameService.advanceTurn(tx, updatedSession, roomId, currentPlayerId);
-}
-
-/**
- * Handle Skip card: end turn without drawing.
- * FR-05, S2-15
- */
-async function handleSkipEffect(
-  tx: Prisma.TransactionClient,
-  session: GameSession,
-  roomId: string,
-  currentPlayerId: string
-): Promise<TurnAdvancedResult> {
-  // If there are pending attacks, Skip only cancels one turn
-  const pendingAttacks = session.pending_attacks ?? 0;
-  if (pendingAttacks > 0) {
-    await tx.gameSession.update({
-      where: { session_id: session.session_id },
-      data: { pending_attacks: pendingAttacks - 1 },
-    });
-  }
-
-  // Skip behaves differently from Attack: it doesn't advance to next player
-  // if there are remaining attack turns for the current player
-  if (pendingAttacks > 1) {
-    // Still have more turns to play — stay on current player
-    return {
-      success: true,
-      action: "TURN_ADVANCED",
-      nextTurn: {
-        player_id: currentPlayerId,
-        display_name: "", // Will be filled by caller
-        turn_number: session.turn_number + 1,
-        pending_attacks: pendingAttacks - 1,
-      },
-    };
-  }
-
-  return await gameService.advanceTurn(
-    tx,
-    { ...session, pending_attacks: 0 },
-    roomId,
-    currentPlayerId
-  );
-}
-
-/**
- * Handle See The Future: peek at top 3 cards (private).
- * FR-05, S2-16
- */
-async function handleSeeTheFutureEffect(
-  tx: Prisma.TransactionClient,
-  sessionId: string
-): Promise<CardEffectResult> {
-  const deckState = await tx.deckState.findUnique({
-    where: { session_id: sessionId },
-  });
-  if (!deckState) throw new NotFoundError("Deck state");
-
-  const deck = deckState.deck_order as string[];
-  // Top 3 cards (end of array = top of deck)
-  const topCards = deck.slice(-3).reverse();
-
-  return {
-    type: "SEE_THE_FUTURE",
-    topCards,
-  };
-}
-
-/**
- * Handle Shuffle: randomly shuffle the draw pile.
- * FR-05, S2-17
- */
-async function handleShuffleEffect(
-  tx: Prisma.TransactionClient,
-  sessionId: string
-): Promise<CardEffectResult> {
-  const deckState = await tx.deckState.findUnique({
-    where: { session_id: sessionId },
-  });
-  if (!deckState) throw new NotFoundError("Deck state");
-
-  const deck = deckState.deck_order as string[];
-  const shuffled = shuffleArray(deck);
-
-  await tx.deckState.update({
-    where: { session_id: sessionId },
-    data: { deck_order: shuffled },
-  });
-
-  return {
-    type: "SHUFFLE",
-    shuffled: true,
-  };
-}
-
-// ── Game Service ───────────────────────────────────────────────
-
 export const gameService = {
-  /**
-   * Start a game: validate, build deck, deal cards, create session.
-   * FR-03-10, FR-04-1, S2-06/07/08/09
-   */
-  async startGame(roomId: string, playerToken: string): Promise<StartGameResult> {
+  //Start a game: validate, build deck, deal cards, create session.
+  async startGame(
+    roomId: string,
+    playerToken: string,
+  ): Promise<StartGameResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and host permissions
       const room = await tx.room.findUnique({
@@ -379,11 +305,15 @@ export const gameService = {
         ? (room.deck_config!.expansions as string[])
         : [];
 
-      const { baseDeck, totalDF } = await buildBaseDeck(tx, cardVersion, expansions);
+      const { baseDeck, totalDF } = await buildBaseDeck(
+        tx,
+        cardVersion,
+        expansions,
+      );
 
       // 4. Determine version-specific codes
-      const dfCode = cardVersion === "good_and_evil" ? "GVE_DF" : "DF";
-      const ekCode = cardVersion === "good_and_evil" ? "GVE_EK" : "EK";
+      const dfCode = cardVersion === "good_and_evil" ? CardCode.GVE_DEFUSE : CardCode.DEFUSE;
+      const ekCode = cardVersion === "good_and_evil" ? CardCode.GVE_EXPLODING_KITTEN : CardCode.EXPLODING_KITTEN;
 
       // 5. Deal cards to players
       const { remainingDeck, hands } = dealCards(baseDeck, players, dfCode);
@@ -395,17 +325,32 @@ export const gameService = {
         totalDF,
         dfCode,
         ekCode,
-        expansions
+        expansions,
       );
+
+      // 7. เรียงลำดับ players ให้คนชนะรอบที่แล้วเป็นคนแรก
+      let orderedPlayers = [...players];
+      if (room.last_winner_token) {
+        const winnerIndex = players.findIndex(
+          (p) => p.player_token === room.last_winner_token
+        );
+        if (winnerIndex > 0) {
+          // หมุน array ให้ winner อยู่ตำแหน่งแรก
+          orderedPlayers = [
+            ...players.slice(winnerIndex),
+            ...players.slice(0, winnerIndex),
+          ];
+        }
+      }
 
       // 7. Create game session, deck state, card hands, and game log
       const { session, cardHands } = await createGameSession(
         tx,
         roomId,
-        players,
+        orderedPlayers,
         finalDeck,
         hands,
-        playerToken
+        playerToken,
       );
 
       // 8. Update room status to PLAYING
@@ -424,14 +369,11 @@ export const gameService = {
     });
   },
 
-  /**
-   * Draw a card from the top of the deck.
-   * S2-07, S2-19/20
-   */
+  //Draw a card from the top of the deck.
   async drawCard(
     roomId: string,
     playerToken: string,
-    isAutoDrawn = false
+    isAutoDrawn = false,
   ): Promise<TurnAdvancedResult | GameOverResult | ExplodingKittenDrawnResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and session
@@ -459,8 +401,18 @@ export const gameService = {
 
       // 3. AFK tracking
       if (isAutoDrawn) {
-        const afkResult = await gameService.handleAFK(tx, session, player, roomId);
+        const afkResult = await gameService.handleAFK(
+          tx,
+          session,
+          player,
+          roomId,
+        );
         if (afkResult) return afkResult;
+      } else if (player.afk_count > 0) {
+        await tx.player.update({
+          where: { player_id: player.player_id },
+          data: { afk_count: 0 },
+        });
       }
 
       // 4. Get deck state
@@ -482,8 +434,8 @@ export const gameService = {
       });
 
       // 6. Check for EK or IK
-      const isEK = drawnCard === "EK" || drawnCard === "GVE_EK";
-      const isIK = drawnCard === "IK";
+      const isEK = drawnCard === CardCode.EXPLODING_KITTEN || drawnCard === CardCode.GVE_EXPLODING_KITTEN;
+      const isIK = drawnCard === CardCode.IMPLODING_KITTEN;
 
       if (isEK || isIK) {
         await tx.gameLog.create({
@@ -491,7 +443,7 @@ export const gameService = {
             session_id: session.session_id,
             player_id: player.player_id,
             player_display_name: player.display_name,
-            action_type: "DREW_EXPLODING_KITTEN",
+            action_type: ActionType.DREW_EXPLODING_KITTEN,
             action_details: { card: drawnCard },
             turn_number: session.turn_number,
           },
@@ -503,7 +455,7 @@ export const gameService = {
             session,
             player,
             roomId,
-            drawnCard
+            drawnCard,
           );
           return { ...res, deck_count: newDeck.length };
         }
@@ -514,7 +466,7 @@ export const gameService = {
             session,
             player,
             room,
-            drawnCard
+            drawnCard,
           );
           return { ...res, deck_count: newDeck.length };
         }
@@ -547,14 +499,53 @@ export const gameService = {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "DREW_CARD",
+          action_type: ActionType.DREW_CARD,
           action_details: { card: drawnCard, auto_drawn: isAutoDrawn },
           turn_number: session.turn_number,
         },
       });
 
       // 8. Advance turn
-      const turnResult = await gameService.advanceTurn(tx, session, roomId, player.player_id);
+      // pending_attacks = จำนวนเทิร์นที่ยังต้องเล่นอยู่ (รวมเทิร์นนี้)
+      // - pending = 0 → advance ปกติ
+      // - pending = 1 → เทิร์นสุดท้ายของ attack (เทิร์นนี้) → advance ไปคนถัดไป, pending = 0
+      // - pending > 1 → ยังต้องเล่นต่อ → ยังอยู่คนเดิม, ลด pending - 1
+      const pendingAttacks = session.pending_attacks ?? 0;
+      let turnResult: TurnAdvancedResult;
+
+      if (pendingAttacks > 1) {
+        // ยังต้องเล่นต่อ — ลด pending แต่ยังอยู่คนเดิม
+        const nextPending = pendingAttacks - 1;
+        await tx.gameSession.update({
+          where: { session_id: session.session_id },
+          data: {
+            turn_number: session.turn_number + 1,
+            pending_attacks: nextPending,
+          },
+        });
+        turnResult = {
+          success: true,
+          action: ActionType.TURN_ADVANCED,
+          nextTurn: {
+            player_id: player.player_id,
+            display_name: player.display_name,
+            turn_number: session.turn_number + 1,
+            pending_attacks: nextPending,
+          },
+        };
+      } else {
+        // pending = 0 หรือ 1 → advance ไปคนถัดไป, reset pending = 0
+        const sessionForAdvance = pendingAttacks === 1
+          ? { ...session, pending_attacks: 0 }
+          : session;
+        turnResult = await gameService.advanceTurn(
+          tx,
+          sessionForAdvance,
+          roomId,
+          player.player_id,
+        );
+      }
+
       return {
         ...turnResult,
         drawnCard,
@@ -562,6 +553,7 @@ export const gameService = {
         drawnByDisplayName: player.display_name,
         hand: { cards: newCards },
         deck_count: newDeck.length,
+        isAutoDraw: isAutoDrawn,
       };
     });
   },
@@ -572,8 +564,8 @@ export const gameService = {
    */
   async defuseCard(
     roomId: string,
-    playerToken: string
-  ): Promise<TurnAdvancedResult | GameOverResult> {
+    playerToken: string,
+  ): Promise<{ success: true; action: ActionType.WAITING_FOR_INSERT }> {
     return await prisma.$transaction(async (tx) => {
       const room = await tx.room.findUnique({
         where: { room_id: roomId },
@@ -601,13 +593,13 @@ export const gameService = {
         where: { session_id: session.session_id, player_id: player.player_id },
         orderBy: { timestamp: "desc" },
       });
-      if (lastLog?.action_type !== "DREW_EXPLODING_KITTEN") {
+      if (lastLog?.action_type !== ActionType.DREW_EXPLODING_KITTEN) {
         throw new BadRequestError("No Exploding Kitten to defuse");
       }
 
       const ekCard = (lastLog.action_details as { card: string }).card;
       const dfCode =
-        room.deck_config?.card_version === "good_and_evil" ? "GVE_DF" : "DF";
+        room.deck_config?.card_version === "good_and_evil" ? CardCode.GVE_DEFUSE : CardCode.DEFUSE;
 
       // Remove Defuse from hand
       const hand = await tx.cardHand.findUnique({
@@ -641,17 +633,70 @@ export const gameService = {
         data: { cards: newCards, card_count: newCards.length },
       });
 
-      // Insert EK back at random position
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.DEFUSED,
+          action_details: { ek_card: ekCard },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return { success: true as const, action: ActionType.WAITING_FOR_INSERT as const };
+    });
+  },
+
+  async insertEK(
+    roomId: string,
+    playerToken: string,
+    position: number,
+  ): Promise<TurnAdvancedResult & { deck_count: number }> {
+    return await prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUnique({
+        where: { room_id: roomId },
+        include: { deck_config: true },
+      });
+      if (!room) throw new NotFoundError("Room");
+      if (room.status !== RoomStatus.PLAYING)
+        throw new BadRequestError("Game is not active");
+
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id)
+        throw new BadRequestError("It's not your turn");
+
+      // Validate last action was DEFUSED (waiting for insert position)
+      const lastLog = await tx.gameLog.findFirst({
+        where: { session_id: session.session_id, player_id: player.player_id },
+        orderBy: { timestamp: "desc" },
+      });
+      if (lastLog?.action_type !== ActionType.DEFUSED)
+        throw new BadRequestError("No pending EK insertion");
+
+      const ekCard = (lastLog.action_details as { ek_card: string }).ek_card;
+
       const deckState = await tx.deckState.findUnique({
         where: { session_id: session.session_id },
       });
       const deck = deckState!.deck_order as string[];
-      const insertAt = Math.floor(Math.random() * (deck.length + 1));
-      const deckWithEK = [
-        ...deck.slice(0, insertAt),
-        ekCard,
-        ...deck.slice(insertAt),
-      ];
+
+      // position: 0 = top (draw side), position = max = bottom
+      // deck array: index 0 = bottom, deck[deck.length-1] = top card
+      // Normalize position relative to actual deck length to avoid off-by-one
+      // when deckCount from frontend differs from actual deck.length
+      const insertIndex = Math.max(0, Math.min(deck.length - position, deck.length));
+
+      const deckWithEK = [...deck];
+      deckWithEK.splice(insertIndex, 0, ekCard);
 
       await tx.deckState.update({
         where: { session_id: session.session_id },
@@ -663,18 +708,19 @@ export const gameService = {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "DEFUSED",
-          action_details: { ek_card: ekCard, insert_at: insertAt },
+          action_type: ActionType.EK_INSERTED,
+          action_details: { ek_card: ekCard, insert_at: insertIndex },
           turn_number: session.turn_number,
         },
       });
 
-      return await gameService.advanceTurn(
+      const turnResult = await gameService.advanceTurn(
         tx,
         session,
         roomId,
-        player.player_id
+        player.player_id,
       );
+      return { ...turnResult, deck_count: deckWithEK.length };
     });
   },
 
@@ -684,7 +730,7 @@ export const gameService = {
    */
   async eliminatePlayer(
     roomId: string,
-    playerToken: string
+    playerToken: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     return await prisma.$transaction(async (tx) => {
       const session = await tx.gameSession.findFirst({
@@ -705,7 +751,7 @@ export const gameService = {
         where: { session_id: session.session_id, player_id: player.player_id },
         orderBy: { timestamp: "desc" },
       });
-      if (lastLog?.action_type !== "DREW_EXPLODING_KITTEN") {
+      if (lastLog?.action_type !== ActionType.DREW_EXPLODING_KITTEN) {
         throw new BadRequestError("No pending Exploding Kitten");
       }
 
@@ -721,7 +767,7 @@ export const gameService = {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "PLAYER_ELIMINATED",
+          action_type: ActionType.PLAYER_ELIMINATED,
           action_details: { card: ekCard, reason: "no_defuse_or_timeout" },
           turn_number: session.turn_number,
         },
@@ -732,7 +778,7 @@ export const gameService = {
         session,
         roomId,
         player.player_id,
-        ekCard
+        ekCard,
       );
     });
   },
@@ -746,7 +792,7 @@ export const gameService = {
     roomId: string,
     playerToken: string,
     cardCode: string,
-    targetPlayerToken?: string
+    targetPlayerToken?: string,
   ): Promise<PlayCardResult> {
     return await prisma.$transaction(async (tx) => {
       // 1. Validate room and session
@@ -770,6 +816,14 @@ export const gameService = {
       if (!player) throw new NotFoundError("Player");
       if (session.current_turn_player_id !== player.player_id) {
         throw new BadRequestError("It's not your turn");
+      }
+
+      // Reset AFK count on manual play
+      if (player.afk_count > 0) {
+        await tx.player.update({
+          where: { player_id: player.player_id },
+          data: { afk_count: 0 },
+        });
       }
 
       // 3. Validate card is in hand
@@ -818,86 +872,33 @@ export const gameService = {
         data: { discard_pile: [...discardPile, cardCode] },
       });
 
-      // 6. Handle card effect
-      let effect: CardEffectResult | undefined;
-      let turnResult: TurnAdvancedResult | undefined;
+      // 6. Save as Pending Action for Nope Window
+      const pendingAction = {
+        type: "PLAY_CARD",
+        cardCode,
+        playedByToken: playerToken,
+        targetPlayerToken,
+      };
 
-      // Normalize card code for GVE variants
-      const normalizedCode = cardCode.replace(/^GVE_/, "");
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: pendingAction as any,
+          pending_action_timestamp: new Date(),
+          nope_count: 0,
+        },
+      });
 
-      switch (normalizedCode) {
-        case "AT": {
-          // Attack: end turn, next player +2 turns
-          turnResult = await handleAttackEffect(
-            tx,
-            session,
-            roomId,
-            player.player_id
-          );
-          effect = { type: "ATTACK", extraTurns: 2 };
-          break;
-        }
-
-        case "SK": {
-          // Skip: end turn without drawing
-          turnResult = await handleSkipEffect(
-            tx,
-            session,
-            roomId,
-            player.player_id
-          );
-          effect = { type: "SKIP" };
-          break;
-        }
-
-        case "SF": {
-          // See The Future: peek top 3 (private)
-          effect = await handleSeeTheFutureEffect(tx, session.session_id);
-          break;
-        }
-
-        case "SH": {
-          // Shuffle the deck
-          effect = await handleShuffleEffect(tx, session.session_id);
-          break;
-        }
-
-        // Sprint 3+ cards — not yet implemented
-        case "FV":
-        case "NP":
-        case "TA":
-        case "RF":
-        case "RH":
-        case "AG":
-        case "AF":
-        case "DB":
-        case "FC":
-          throw new BadRequestError(
-            `Card ${cardCode} action is not yet implemented (planned for Sprint 3/4)`
-          );
-
-        default: {
-          // Cat cards used for combo — Sprint 3
-          if (cardCode.startsWith("CAT_") || normalizedCode === "MC") {
-            throw new BadRequestError(
-              `Combo cards are not yet implemented (planned for Sprint 3)`
-            );
-          }
-          throw new BadRequestError(`Unknown card: ${cardCode}`);
-        }
-      }
-
-      // 7. Log the action
+      // 7. Log the pending action
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "PLAY_CARD",
+          action_type: "ACTION_PENDING",
           action_details: {
             card: cardCode,
             target: targetPlayerToken ?? null,
-            effect: effect?.type,
           },
           turn_number: session.turn_number,
         },
@@ -905,26 +906,156 @@ export const gameService = {
 
       return {
         success: true,
-        action: "CARD_PLAYED",
+        action: "ACTION_PENDING",
         cardCode,
         playedBy: player.player_id,
         playedByDisplayName: player.display_name,
         target: targetPlayerToken ?? null,
-        effect,
-        nextTurn: turnResult?.nextTurn,
+      };
+    });
+  },
+
+  /**
+   * Cat Combo — 2-card (สุ่มขโมย) หรือ 3-card (ระบุการ์ดที่ต้องการ)
+   */
+  async comboCard(
+    roomId: string,
+    playerToken: string,
+    comboCards: string[],
+    targetPlayerToken: string,
+    demandedCard?: string,
+  ): Promise<ComboResult> {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Validate session & turn
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken, is_alive: true },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id)
+        throw new BadRequestError("It's not your turn");
+      if (playerToken === targetPlayerToken)
+        throw new BadRequestError("Cannot target yourself");
+
+      // 2. Validate combo legality
+      validateCombo(comboCards);
+      const isThreeCard = comboCards.length === 3;
+
+      // 3. Verify all combo cards are in hand
+      const hand = await tx.cardHand.findUnique({
+        where: {
+          player_id_session_id: {
+            player_id: player.player_id,
+            session_id: session.session_id,
+          },
+        },
+      });
+      const remaining = [...((hand?.cards ?? []) as string[])];
+      for (const cardCode of comboCards) {
+        const idx = remaining.indexOf(cardCode);
+        if (idx === -1) throw new BadRequestError(`Card ${cardCode} not in hand`);
+        remaining.splice(idx, 1);
+      }
+
+      // 4. Validate target
+      const target = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+      });
+      if (!target) throw new NotFoundError("Target player not found or eliminated");
+
+      const targetHand = await tx.cardHand.findUnique({
+        where: {
+          player_id_session_id: {
+            player_id: target.player_id,
+            session_id: session.session_id,
+          },
+        },
+      });
+      const targetCards = [...((targetHand?.cards ?? []) as string[])];
+      if (targetCards.length === 0)
+        throw new BadRequestError("Target player has no cards");
+
+      // 5. Remove combo cards from player hand → discard pile
+      await tx.cardHand.update({
+        where: {
+          player_id_session_id: {
+            player_id: player.player_id,
+            session_id: session.session_id,
+          },
+        },
+        data: { cards: remaining, card_count: remaining.length },
+      });
+
+      const deckState = await tx.deckState.findUnique({
+        where: { session_id: session.session_id },
+      });
+      if (!deckState) throw new NotFoundError("Deck state");
+      const discardPile = (deckState.discard_pile as string[]) ?? [];
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { discard_pile: [...discardPile, ...comboCards] },
+      });
+
+      // 6. Save as Pending Action for Nope Window
+      const pendingAction = {
+        type: "COMBO_CARD",
+        comboCards,
+        playedByToken: playerToken,
+        targetPlayerToken,
+        demandedCard,
+      };
+
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: pendingAction as any,
+          pending_action_timestamp: new Date(),
+          nope_count: 0,
+        },
+      });
+
+      // 7. Log
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: "ACTION_PENDING",
+          action_details: {
+            combo_type: isThreeCard ? "THREE_CARD" : "TWO_CARD",
+            combo_cards: comboCards,
+            target_player_id: target.player_id,
+            demanded_card: demandedCard ?? null,
+          },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return {
+        success: true as const,
+        action: "ACTION_PENDING" as const,
+        comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
+        comboCards,
+        playedBy: player.player_id,
+        playedByDisplayName: player.display_name,
+        robbedFromDisplayName: target.display_name,
+        robbedFromPlayerId: target.player_id,
       };
     });
   },
 
   // ── Helper: Handle AFK ───────────────────────────────────────
-  // AI Instructions line 29: kick at afk_count == 2
 
   async handleAFK(
     tx: Prisma.TransactionClient,
     session: GameSession,
     player: Player,
-    roomId: string
-  ): Promise<TurnAdvancedResult | null> {
+    roomId: string,
+  ): Promise<TurnAdvancedResult | GameOverResult | null> {
     const newAfkCount = player.afk_count + 1;
     await tx.player.update({
       where: { player_id: player.player_id },
@@ -932,7 +1063,6 @@ export const gameService = {
     });
 
     if (newAfkCount >= 2) {
-      // AFK kick threshold = 2 (per AI Instructions)
       await tx.player.update({
         where: { player_id: player.player_id },
         data: { is_alive: false, role: PlayerRole.SPECTATOR },
@@ -942,30 +1072,32 @@ export const gameService = {
           session_id: session.session_id,
           player_id: player.player_id,
           player_display_name: player.display_name,
-          action_type: "PLAYER_AFK_KICKED",
+          action_type: ActionType.PLAYER_AFK_KICKED,
           action_details: { afk_count: newAfkCount },
           turn_number: session.turn_number,
         },
       });
-      return await gameService.advanceTurn(
+      const kickResult = await gameService.checkWinner(
         tx,
         session,
         roomId,
-        player.player_id
+        player.player_id,
+        "AFK_TIMEOUT",
       );
+      // Tag result so socket handler knows to emit playerEliminated
+      return { ...kickResult, isAfkKick: true, afkPlayerId: player.player_id };
     }
     return null;
   },
 
   // ── Helper: Handle Imploding Kitten ──────────────────────────
-  // FR-07-IK4: face-up IK = instant death, no Defuse
 
   async handleImplodingKitten(
     tx: Prisma.TransactionClient,
     session: GameSession,
     player: Player,
     roomId: string,
-    drawnCard: string
+    drawnCard: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     await tx.player.update({
       where: { player_id: player.player_id },
@@ -976,7 +1108,7 @@ export const gameService = {
         session_id: session.session_id,
         player_id: player.player_id,
         player_display_name: player.display_name,
-        action_type: "PLAYER_ELIMINATED",
+        action_type: ActionType.PLAYER_ELIMINATED,
         action_details: { card: drawnCard, reason: "imploding_kitten" },
         turn_number: session.turn_number,
       },
@@ -986,19 +1118,18 @@ export const gameService = {
       session,
       roomId,
       player.player_id,
-      drawnCard
+      drawnCard,
     );
   },
 
   // ── Helper: Handle Exploding Kitten ──────────────────────────
-  // FR-04-6/7: check if player has Defuse
 
   async handleExplodingKitten(
     tx: Prisma.TransactionClient,
     session: GameSession,
     player: Player,
     room: RoomWithDeckConfig,
-    drawnCard: string
+    drawnCard: string,
   ): Promise<ExplodingKittenDrawnResult> {
     const hand = await tx.cardHand.findUnique({
       where: {
@@ -1010,25 +1141,24 @@ export const gameService = {
     });
     const cards = (hand?.cards ?? []) as string[];
     const dfCode =
-      room.deck_config?.card_version === "good_and_evil" ? "GVE_DF" : "DF";
+      room.deck_config?.card_version === "good_and_evil" ? CardCode.GVE_DEFUSE : CardCode.DEFUSE;
     const hasDefuse = cards.includes(dfCode);
 
     return {
       success: true,
-      action: "DREW_EXPLODING_KITTEN",
+      action: ActionType.DREW_EXPLODING_KITTEN,
       drawnCard,
       hasDefuse,
     };
   },
 
   // ── Helper: Advance to next turn ─────────────────────────────
-  // FR-04-3, S2-09
 
   async advanceTurn(
     tx: Prisma.TransactionClient,
     session: GameSession,
     roomId: string,
-    currentPlayerId: string
+    currentPlayerId: string,
   ): Promise<TurnAdvancedResult> {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
@@ -1036,53 +1166,53 @@ export const gameService = {
     });
 
     const currentIndex = alivePlayers.findIndex(
-      (p) => p.player_id === currentPlayerId
+      (p) => p.player_id === currentPlayerId,
     );
     const direction = session.direction ?? 1;
     const nextIndex =
-      ((currentIndex + direction) + alivePlayers.length) % alivePlayers.length;
+      (currentIndex + direction + alivePlayers.length) % alivePlayers.length;
     const nextPlayer = alivePlayers[nextIndex];
 
     if (!nextPlayer) {
       throw new BadRequestError(
-        "Cannot determine next player, no alive players found"
+        "Cannot determine next player, no alive players found",
       );
     }
 
     const pendingAttacks = session.pending_attacks ?? 0;
-    const nextPendingAttacks = pendingAttacks > 0 ? pendingAttacks - 1 : 0;
     const nextTurnNumber = session.turn_number + 1;
 
+    // advanceTurn เปลี่ยนคนและส่ง pending_attacks ต่อไปโดยไม่ลด
+    // การลด pending_attacks เป็นหน้าที่ของ drawCard เมื่อคนนั้นจั่วจริง
     await tx.gameSession.update({
       where: { session_id: session.session_id },
       data: {
         current_turn_player_id: nextPlayer.player_id,
         turn_number: nextTurnNumber,
-        pending_attacks: nextPendingAttacks,
+        pending_attacks: pendingAttacks,
       },
     });
 
     return {
       success: true,
-      action: "TURN_ADVANCED",
+      action: ActionType.TURN_ADVANCED,
       nextTurn: {
         player_id: nextPlayer.player_id,
         display_name: nextPlayer.display_name,
         turn_number: nextTurnNumber,
-        pending_attacks: nextPendingAttacks,
+        pending_attacks: pendingAttacks,
       },
     };
   },
 
   // ── Helper: Check for winner ─────────────────────────────────
-  // FR-08-1/2/5, S2-27/28
 
   async checkWinner(
     tx: Prisma.TransactionClient,
     session: GameSession,
     roomId: string,
     eliminatedPlayerId: string,
-    byCard: string
+    byCard: string,
   ): Promise<TurnAdvancedResult | GameOverResult> {
     const alivePlayers = await tx.player.findMany({
       where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
@@ -1101,12 +1231,35 @@ export const gameService = {
         },
       });
 
-      // Auto-reset room to WAITING (FR-08-5/6)
+      // บันทึก winner token และ reset ห้องกลับ WAITING
       await tx.room.update({
         where: { room_id: roomId },
         data: {
           status: RoomStatus.WAITING,
           restart_available_at: new Date(),
+          last_winner_token: winner.player_token ?? null,
+        },
+      });
+
+      // Reset ผู้เล่นทุกคนกลับมา is_alive: true, role: PLAYER, afk_count: 0
+      await tx.player.updateMany({
+        where: { room_id: roomId, role: { not: PlayerRole.SPECTATOR } },
+        data: {
+          is_alive: true,
+          afk_count: 0,
+        },
+      });
+      // Reset AFK-kicked players (SPECTATOR) กลับเป็น PLAYER ด้วย
+      await tx.player.updateMany({
+        where: {
+          room_id: roomId,
+          role: PlayerRole.SPECTATOR,
+          seat_number: { not: null }, // มีที่นั่ง = เคยเป็น PLAYER
+        },
+        data: {
+          is_alive: true,
+          role: PlayerRole.PLAYER,
+          afk_count: 0,
         },
       });
 
@@ -1115,7 +1268,7 @@ export const gameService = {
           session_id: session.session_id,
           player_id: winner.player_id,
           player_display_name: winner.display_name,
-          action_type: "GAME_FINISHED",
+          action_type: ActionType.GAME_FINISHED,
           action_details: {
             winner_id: winner.player_id,
             eliminated_last: eliminatedPlayerId,
@@ -1127,7 +1280,7 @@ export const gameService = {
 
       return {
         success: true,
-        action: "GAME_OVER",
+        action: ActionType.GAME_OVER,
         winner: {
           player_id: winner.player_id,
           display_name: winner.display_name,
@@ -1139,7 +1292,467 @@ export const gameService = {
       tx,
       session,
       roomId,
-      eliminatedPlayerId
+      eliminatedPlayerId,
     );
+  },
+
+  async favorCard(
+    roomId: string,
+    playerToken: string,
+    targetPlayerToken: string,
+  ): Promise<FavorPendingResult> {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id)
+        throw new BadRequestError("It's not your turn");
+      if (playerToken === targetPlayerToken)
+        throw new BadRequestError("Cannot target yourself");
+
+      const target = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+      });
+      if (!target) throw new NotFoundError("Target player");
+
+      const targetHand = await tx.cardHand.findUnique({
+        where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+      });
+      const targetCards = (targetHand?.cards ?? []) as string[];
+      if (targetCards.length === 0)
+        throw new BadRequestError("Target has no cards to give");
+
+      const hand = await tx.cardHand.findUnique({
+        where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+      });
+      const cards = (hand?.cards ?? []) as string[];
+      const fvCode = cards.includes("GVE_FV") ? "GVE_FV" : "FV";
+      if (!cards.includes(fvCode))
+        throw new BadRequestError("No Favor card in hand");
+
+      let removed = false;
+      const newCards = cards.filter((c) => {
+        if (c === fvCode && !removed) { removed = true; return false; }
+        return true;
+      });
+      await tx.cardHand.update({
+        where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+        data: { cards: newCards, card_count: newCards.length },
+      });
+
+      const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+      const discardPile = (deckState?.discard_pile as string[]) ?? [];
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { discard_pile: [...discardPile, fvCode] },
+      });
+
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAY_CARD,
+          action_details: {
+            card: fvCode,
+            target_player_token: targetPlayerToken,
+            target_player_id: target.player_id,
+            effect: ActionType.FAVOR_PENDING,
+          },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return {
+        success: true as const,
+        action: ActionType.FAVOR_PENDING,
+        requesterId: player.player_id,
+        requesterDisplayName: player.display_name,
+        targetId: target.player_id,
+        targetDisplayName: target.display_name,
+        targetCardCount: targetCards.length,
+      };
+    });
+  },
+
+  async favorResponse(
+    roomId: string,
+    targetPlayerToken: string,
+    cardCode?: string,
+  ): Promise<FavorResponseResult> {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const target = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: targetPlayerToken },
+      });
+      if (!target) throw new NotFoundError("Target player");
+
+      const lastFavorLog = await tx.gameLog.findFirst({
+        where: {
+          session_id: session.session_id,
+          action_type: ActionType.PLAY_CARD,
+          action_details: { path: ["effect"], string_contains: "FAVOR" },
+        },
+        orderBy: { timestamp: "desc" },
+      });
+      if (!lastFavorLog) throw new BadRequestError("No pending Favor request");
+
+      const requester = await tx.player.findFirst({
+        where: { room_id: roomId, player_id: lastFavorLog.player_id },
+      });
+      if (!requester) throw new NotFoundError("Requester player");
+
+      const targetHand = await tx.cardHand.findUnique({
+        where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+      });
+      const targetCards = (targetHand?.cards ?? []) as string[];
+
+      let selectedCard: string;
+      if (!cardCode) {
+        selectedCard = targetCards[Math.floor(Math.random() * targetCards.length)]!;
+      } else {
+        if (!targetCards.includes(cardCode))
+          throw new BadRequestError("Card not in target's hand");
+        selectedCard = cardCode;
+      }
+
+      let removed = false;
+      const newTargetCards = targetCards.filter((c) => {
+        if (c === selectedCard && !removed) { removed = true; return false; }
+        return true;
+      });
+      await tx.cardHand.update({
+        where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+        data: { cards: newTargetCards, card_count: newTargetCards.length },
+      });
+
+      const requesterHand = await tx.cardHand.findUnique({
+        where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
+      });
+      const requesterCards = (requesterHand?.cards ?? []) as string[];
+      await tx.cardHand.update({
+        where: { player_id_session_id: { player_id: requester.player_id, session_id: session.session_id } },
+        data: { cards: [...requesterCards, selectedCard], card_count: requesterCards.length + 1 },
+      });
+
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: target.player_id,
+          player_display_name: target.display_name,
+          action_type: ActionType.FAVOR_RESPONSE,
+          action_details: { card: selectedCard, given_to_player_id: requester.player_id, was_random: !cardCode },
+          turn_number: session.turn_number,
+        },
+      });
+
+      // ไม่ advance turn ที่นี่ — requester ยังต้องจั่วไพ่ต่อในเทิร์นเดิม
+      return {
+        success: true as const,
+        action: "TURN_ADVANCED" as const,
+        nextTurn: {
+          player_id: session.current_turn_player_id!,
+          display_name: requester.display_name,
+          turn_number: session.turn_number,
+        },
+        transferredCard: selectedCard,
+        wasRandom: !cardCode,
+      };
+    });
+  },
+
+  async playNope(
+    roomId: string,
+    playerToken: string,
+  ): Promise<NopePendingResult> {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      if (!session.pending_action) {
+        throw new BadRequestError("No pending action to Nope");
+      }
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken, is_alive: true },
+      });
+      if (!player) throw new NotFoundError("Player");
+
+      // Note: We bypass turn validation because Nope can be played out of turn.
+
+      const hand = await tx.cardHand.findUnique({
+        where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+      });
+      const cards = (hand?.cards ?? []) as string[];
+      const npCode = cards.includes("GVE_NP") ? "GVE_NP" : "NP";
+      if (!cards.includes(npCode))
+        throw new BadRequestError("No Nope card in hand");
+
+      let removed = false;
+      const newCards = cards.filter((c) => {
+        if (c === npCode && !removed) { removed = true; return false; }
+        return true;
+      });
+      await tx.cardHand.update({
+        where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+        data: { cards: newCards, card_count: newCards.length },
+      });
+
+      const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+      const discardPile = (deckState?.discard_pile as string[]) ?? [];
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { discard_pile: [...discardPile, npCode] },
+      });
+
+      const newNopeCount = session.nope_count + 1;
+      const isCancel = newNopeCount % 2 !== 0;
+
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          nope_count: newNopeCount,
+          pending_action_timestamp: new Date(),
+        },
+      });
+
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: "NOPE_PLAYED",
+          action_details: { card: npCode, nope_count: newNopeCount, is_cancel: isCancel },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return { success: true as const, action: "NOPE_PLAYED" as const, nopeCount: newNopeCount, isCancel, playedBy: player.player_id, playedByDisplayName: player.display_name };
+    });
+  },
+
+  async resolvePendingAction(roomId: string) {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const pendingActionData = session.pending_action as any;
+      if (!pendingActionData || !session.pending_action_timestamp) {
+        return { success: false, reason: "NO_PENDING_ACTION" };
+      }
+
+      // Check if 3000ms passed
+      const elapsed = Date.now() - session.pending_action_timestamp.getTime();
+      if (elapsed < 2800) { // small buffer for latency
+        return { success: false, reason: "TIMER_NOT_EXPIRED", timeLeft: 3000 - elapsed };
+      }
+
+      const isCancelled = session.nope_count % 2 !== 0;
+      const originalPlayer = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: pendingActionData.playedByToken },
+      });
+
+      if (!originalPlayer) throw new NotFoundError("Player not found");
+
+      // 1. Clear pending action state
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: {
+          pending_action: Prisma.JsonNull,
+          pending_action_timestamp: null,
+          nope_count: 0,
+        },
+      });
+
+      // 2. If cancelled, action is voided
+      if (isCancelled) {
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: "ACTION_CANCELLED",
+            action_details: { reason: "NOPED" },
+            is_noped: true,
+            turn_number: session.turn_number,
+          },
+        });
+        return {
+          success: true as const,
+          action: "ACTION_CANCELLED" as const,
+          originalAction: pendingActionData.type,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+        };
+      }
+
+      // 3. If NOT cancelled, apply the original effect
+      if (pendingActionData.type === "PLAY_CARD") {
+        const cardCode = pendingActionData.cardCode;
+        const normalizedCode = cardCode.replace(/^GVE_/, "");
+
+        const effectData = await applyCardEffect(normalizedCode, {
+          tx,
+          session,
+          roomId,
+          currentPlayerId: originalPlayer.player_id,
+          targetPlayerToken: pendingActionData.targetPlayerToken,
+          advanceTurn: gameService.advanceTurn,
+        });
+
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: ActionType.PLAY_CARD,
+            action_details: {
+              card: cardCode,
+              target: pendingActionData.targetPlayerToken ?? null,
+              effect: effectData.effect?.type,
+            },
+            turn_number: session.turn_number,
+          },
+        });
+
+        return {
+          success: true as const,
+          action: ActionType.CARD_PLAYED,
+          cardCode,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+          playedByToken: pendingActionData.playedByToken,
+          targetToken: pendingActionData.targetPlayerToken,
+          target: pendingActionData.targetPlayerToken ?? null,
+          effect: effectData.effect,
+          nextTurn: effectData.turnResult?.nextTurn,
+        };
+      } else if (pendingActionData.type === "COMBO_CARD") {
+        const { comboCards, targetPlayerToken, demandedCard } = pendingActionData;
+        const isThreeCard = comboCards.length === 3;
+
+        const target = await tx.player.findFirst({
+          where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+        });
+
+        if (!target) {
+           return { success: false, reason: "Target not found" }; 
+        }
+
+        const targetHand = await tx.cardHand.findUnique({
+          where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+        });
+        const targetCards = [...((targetHand?.cards ?? []) as string[])];
+
+        const thiefHand = await tx.cardHand.findUnique({
+          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id }},
+        });
+        const remaining = [...((thiefHand?.cards ?? []) as string[])];
+
+        let stolenCard: string | undefined;
+        let wasVoid = false;
+
+        if (targetCards.length === 0) {
+          wasVoid = true;
+        } else {
+          if (isThreeCard) {
+            const normalizedDemand = demandedCard.replace(/^GVE_/, "");
+            if (["EK", "IK"].includes(normalizedDemand)) throw new BadRequestError("Cannot demand Exploding Kitten or Imploding Kitten");
+            const demandIdx = targetCards.indexOf(demandedCard);
+            if (demandIdx === -1) {
+              wasVoid = true;
+            } else {
+              stolenCard = demandedCard;
+              targetCards.splice(demandIdx, 1);
+            }
+          } else {
+            const stealable = targetCards.filter(
+              (c) => c !== "EK" && c !== "GVE_EK" && c !== "DF" && c !== "GVE_DF"
+            );
+            const pool = stealable.length > 0 ? stealable : targetCards;
+            const randomIdx = Math.floor(Math.random() * pool.length);
+            stolenCard = pool[randomIdx]!;
+            const realIdx = targetCards.indexOf(stolenCard);
+            targetCards.splice(realIdx, 1);
+          }
+        }
+
+        if (stolenCard) {
+          await tx.cardHand.update({
+            where: { player_id_session_id: { player_id: target.player_id, session_id: session.session_id } },
+            data: { cards: targetCards, card_count: targetCards.length },
+          });
+
+          const newThiefCards = [...remaining, stolenCard];
+          await tx.cardHand.update({
+            where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id } },
+            data: { cards: newThiefCards, card_count: newThiefCards.length },
+          });
+        }
+
+        await tx.gameLog.create({
+          data: {
+            session_id: session.session_id,
+            player_id: originalPlayer.player_id,
+            player_display_name: originalPlayer.display_name,
+            action_type: ActionType.PLAY_CARD,
+            action_details: {
+              combo_type: isThreeCard ? "THREE_CARD" : "TWO_CARD",
+              combo_cards: comboCards,
+              target_player_id: target.player_id,
+              demanded_card: demandedCard ?? null,
+              stolen_card: stolenCard ?? null,
+              was_void: wasVoid,
+            },
+            turn_number: session.turn_number,
+          },
+        });
+
+        const thiefFinalCards = stolenCard ? [...remaining, stolenCard] : remaining;
+
+        return {
+          success: true as const,
+          action: "COMBO_PLAYED" as const,
+          nextTurn: {
+            player_id: session.current_turn_player_id!,
+            display_name: originalPlayer.display_name,
+            turn_number: session.turn_number,
+          },
+          comboType: isThreeCard ? ("THREE_CARD" as const) : ("TWO_CARD" as const),
+          stolenCard,
+          wasVoid,
+          robbedFromDisplayName: target.display_name,
+          robbedFromPlayerId: target.player_id,
+          robbedFromToken: targetPlayerToken,
+          playedByToken: pendingActionData.playedByToken,
+          thiefHand: thiefFinalCards,
+          targetHand: targetCards,
+          playedBy: originalPlayer.player_id,
+          playedByDisplayName: originalPlayer.display_name,
+          comboCards,
+        };
+      }
+      return { success: false, reason: "UNKNOWN_PENDING_ACTION_TYPE" };
+    });
+  },
+
+  async getPlayerByToken(roomId: string, playerToken: string) {
+    return await prisma.player.findFirst({
+      where: { room_id: roomId, player_token: playerToken },
+    });
   },
 };

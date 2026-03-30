@@ -53,4 +53,16 @@ router.post("/:roomId/eliminate", extractPlayerToken, gameControllers.eliminateP
 // POST /api/rooms/:roomId/play — play an action card [S2-18]
 router.post("/:roomId/play", extractPlayerToken, gameControllers.playCard);
 
+// POST /api/rooms/:roomId/favor — เล่น Favor card
+router.post("/:roomId/favor", extractPlayerToken, gameControllers.favorCard);
+
+// POST /api/rooms/:roomId/favor/response — target ตอบกลับ
+router.post("/:roomId/favor/response", extractPlayerToken, gameControllers.favorResponse);
+
+// POST /api/rooms/:roomId/nope — เล่น Nope card
+router.post("/:roomId/nope", extractPlayerToken, gameControllers.nopeCard);
+
+// POST /api/rooms/:roomId/combo — เล่น Cat Combo (2 หรือ 3 ใบ)
+router.post("/:roomId/combo", extractPlayerToken, gameControllers.comboCard);
+
 export default router;

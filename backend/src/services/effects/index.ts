@@ -1,0 +1,152 @@
+import { Prisma, GameSession } from "@prisma/client";
+import { CardEffectResult, TurnAdvancedResult } from "../../types/types";
+import { CardCode } from "../../constants/game";
+import { NotFoundError, BadRequestError } from "../../utils/errors";
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j] as T, a[i] as T];
+  }
+  return a;
+}
+
+export interface EffectContext {
+  tx: Prisma.TransactionClient;
+  session: GameSession;
+  roomId: string;
+  currentPlayerId: string;
+  targetPlayerToken?: string;
+  advanceTurn: (
+    tx: Prisma.TransactionClient,
+    session: GameSession,
+    roomId: string,
+    currentPlayerId: string
+  ) => Promise<TurnAdvancedResult>;
+}
+
+export type EffectHandler = (
+  context: EffectContext
+) => Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }>;
+
+const handleAttackEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, advanceTurn }) => {
+  const newPending = (session.pending_attacks ?? 0) + 2;
+  await tx.gameSession.update({
+    where: { session_id: session.session_id },
+    data: { pending_attacks: newPending },
+  });
+  const updatedSession = { ...session, pending_attacks: newPending };
+  const turnResult = await advanceTurn(tx, updatedSession, roomId, currentPlayerId);
+  return { effect: { type: "ATTACK", extraTurns: 2 }, turnResult };
+};
+
+const handleSkipEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, advanceTurn }) => {
+  const pendingAttacks = session.pending_attacks ?? 0;
+  if (pendingAttacks > 0) {
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: { pending_attacks: pendingAttacks - 1 },
+    });
+  }
+  if (pendingAttacks > 1) {
+    return {
+      effect: { type: "SKIP" },
+      turnResult: {
+        success: true,
+        action: "TURN_ADVANCED",
+        nextTurn: {
+          player_id: currentPlayerId,
+          display_name: "",
+          turn_number: session.turn_number + 1,
+          pending_attacks: pendingAttacks - 1,
+        },
+      },
+    };
+  }
+  const turnResult = await advanceTurn(tx, { ...session, pending_attacks: 0 }, roomId, currentPlayerId);
+  return { effect: { type: "SKIP" }, turnResult };
+};
+
+const handleSeeTheFutureEffect: EffectHandler = async ({ tx, session }) => {
+  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+  if (!deckState) throw new NotFoundError("Deck state");
+  const deck = deckState.deck_order as string[];
+  return { effect: { type: "SEE_THE_FUTURE", topCards: deck.slice(-3).reverse() } };
+};
+
+const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
+  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+  if (!deckState) throw new NotFoundError("Deck state");
+  const shuffled = shuffleArray(deckState.deck_order as string[]);
+  await tx.deckState.update({ where: { session_id: session.session_id }, data: { deck_order: shuffled } });
+  return { effect: { type: "SHUFFLE", shuffled: true } };
+};
+
+/**
+ * FV (Favor): ขอการ์ดจากผู้เล่นอื่น 1 ใบ
+ * — ไม่ advance turn เพราะต้องรอ target เลือกการ์ดก่อน
+ */
+const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, targetPlayerToken }) => {
+  if (!targetPlayerToken) {
+    throw new BadRequestError("Favor card requires a target player");
+  }
+
+  const targetPlayer = await tx.player.findFirst({
+    where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+  });
+  if (!targetPlayer) throw new NotFoundError("Target player not found");
+
+  const targetHand = await tx.cardHand.findUnique({
+    where: {
+      player_id_session_id: {
+        player_id: targetPlayer.player_id,
+        session_id: session.session_id,
+      },
+    },
+  });
+  const targetCards = ((targetHand?.cards ?? []) as string[]).filter(
+    (c) => c !== CardCode.EXPLODING_KITTEN && c !== CardCode.GVE_EXPLODING_KITTEN &&
+           c !== CardCode.DEFUSE && c !== CardCode.GVE_DEFUSE
+  );
+
+  if (targetCards.length === 0) {
+    throw new BadRequestError("Target player has no cards to give");
+  }
+
+  return {
+    effect: {
+      type: "FAVOR",
+      targetPlayerId: targetPlayer.player_id,
+      targetDisplayName: targetPlayer.display_name,
+      availableCards: targetCards,
+    },
+  };
+};
+
+const effectHandlers: Record<string, EffectHandler> = {
+  [CardCode.ATTACK]: handleAttackEffect,
+  [CardCode.SKIP]: handleSkipEffect,
+  [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
+  [CardCode.SHUFFLE]: handleShuffleEffect,
+  FV: handleFavorEffect,
+};
+
+export const applyCardEffect = async (
+  normalizedCode: string,
+  context: EffectContext
+): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
+  if (["NP", "TA", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
+    throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
+  }
+  if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {
+    throw new BadRequestError(`Combo cards are not yet implemented`);
+  }
+
+  const handler = effectHandlers[normalizedCode];
+  if (!handler) {
+    throw new BadRequestError(`Unknown card: ${normalizedCode}`);
+  }
+
+  return await handler(context);
+};

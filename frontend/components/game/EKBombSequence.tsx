@@ -7,6 +7,7 @@ interface EKBombSequenceProps {
   onDefuse: () => void;
   onExplode: () => void;
   active: boolean;
+  isMyBomb: boolean;
 }
 
 export function EKBombSequence({
@@ -15,66 +16,70 @@ export function EKBombSequence({
   onDefuse,
   onExplode,
   active,
+  isMyBomb,
 }: EKBombSequenceProps) {
-  const [timeLeft, setTimeLeft] = useState(10); // Standard 10s fuse timer
+  const [timeLeft, setTimeLeft] = useState(10);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !isMyBomb) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTimeLeft(10);
     const fuseInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(fuseInterval);
-          onExplode(); // Explode if timer runs out!
+          onExplode();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(fuseInterval);
-  }, [active, onExplode]);
+    return () => {
+      clearInterval(fuseInterval);
+      setTimeLeft(10);
+    };
+  }, [active, isMyBomb, onExplode]);
 
-  if (!active) return null;
+  if (!active || !isMyBomb) return null;
 
   return (
     <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md">
-      
+
       {/* Background radial gradient pulsing effect */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
 
-      <div className="relative z-10 flex flex-col items-center max-w-2xl w-full p-8">
-        
-        {/* Warning Header */}
-        <div className="text-center mb-8 animate-bounce">
-          <span className="text-7xl drop-shadow-[0_0_30px_rgba(239,68,68,0.8)]">💣</span>
-          <h1 className="text-6xl font-black text-white font-bungee mt-6 text-shadow-red uppercase animate-pulse-custom">
+      {/* Modal popup */}
+      <div
+        className="relative z-10 pointer-events-auto flex flex-col items-center gap-4 p-6 rounded-3xl shadow-2xl"
+        style={{
+          width: "440px",
+          background: "rgba(20,0,0,0.92)",
+          border: "2px solid rgba(239,68,68,0.6)",
+          boxShadow: "0 0 60px rgba(239,68,68,0.4), 0 24px 60px rgba(0,0,0,0.8)",
+        }}
+      >
+        {/* Header */}
+        <div className="text-center">
+          <span className="text-5xl drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]">💣</span>
+          <h1 className="text-3xl font-black text-white font-bungee mt-2 uppercase tracking-wider"
+            style={{ textShadow: "0 0 20px rgba(239,68,68,0.8)" }}>
             EXPLODING KITTEN!
           </h1>
         </div>
 
-        {/* The Card */}
-        <div className="mb-10 transform scale-150 animate-wiggle drop-shadow-[0_0_40px_rgba(239,68,68,0.6)]">
+        {/* Card */}
+        <div className="transform scale-110 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)]">
           <Card cardCode={drawnCard} />
         </div>
 
-        {/* Action Area */}
-        <div className="bg-black/60 border border-red-500/50 rounded-3xl p-8 w-full backdrop-blur-md shadow-2xl flex flex-col items-center gap-6">
-          
-          <div className="text-center w-full">
-            <p className="text-gray-300 text-lg mb-2 font-medium">คุณมีเวลาแก้สถานการณ์</p>
-            <div className="text-6xl font-bungee text-red-500 drop-shadow-md mb-4 bg-black/40 py-2 rounded-xl">
-              00:{timeLeft.toString().padStart(2, "0")}
-            </div>
-            {/* Fuse progress bar */}
-            <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden border border-red-900/50">
-              <div 
-                className={`h-full transition-all duration-1000 ease-linear ${timeLeft <= 3 ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}
-                style={{ width: `${(timeLeft / 10) * 100}%` }}
-              />
-            </div>
+        {/* Timer */}
+        <div className="w-full text-center">
+          <p className="text-gray-400 text-sm mb-1 font-medium">คุณมีเวลาแก้สถานการณ์</p>
+          <div
+            className="text-4xl font-bungee mb-2"
+            style={{ color: timeLeft <= 3 ? "#ef4444" : "#f97316" }}
+          >
+            00:{timeLeft.toString().padStart(2, "0")}
           </div>
 
           <div className="flex gap-4 w-full mt-4 justify-center">
@@ -98,7 +103,6 @@ export function EKBombSequence({
               <span>💀</span> ยอมแพ้
             </button>
           </div>
-
         </div>
       </div>
     </div>
