@@ -82,6 +82,52 @@ const handleTargetedAttackEffect: EffectHandler = async ({ tx, session, roomId, 
   };
 };
 
+// ── Reverse (RF) ────────────────────────────────────────────
+// Flips turn direction. If under attack, pending turns bounce back
+// to the player who last attacked (the "previous" player in old direction).
+const handleReverseEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId }) => {
+  const oldDirection = session.direction ?? 1;
+  const newDirection = oldDirection * -1; // flip: 1 → -1 or -1 → 1
+
+  const alivePlayers = await tx.player.findMany({
+    where: { room_id: roomId, is_alive: true, role: "PLAYER" },
+    orderBy: { seat_number: "asc" },
+  });
+
+  const currentIndex = alivePlayers.findIndex((p) => p.player_id === currentPlayerId);
+
+  // "previous" in old direction = "next" in new direction
+  const nextIndex = (currentIndex + newDirection + alivePlayers.length) % alivePlayers.length;
+  const nextPlayer = alivePlayers[nextIndex];
+  if (!nextPlayer) throw new NotFoundError("Cannot determine next player");
+
+  const pendingAttacks = session.pending_attacks ?? 0;
+
+  await tx.gameSession.update({
+    where: { session_id: session.session_id },
+    data: {
+      direction: newDirection,
+      current_turn_player_id: nextPlayer.player_id,
+      pending_attacks: pendingAttacks, // transfer stack to next player (attacker)
+      turn_number: session.turn_number + 1,
+    },
+  });
+
+  return {
+    effect: { type: "REVERSE" },
+    turnResult: {
+      success: true,
+      action: "TURN_ADVANCED" as const,
+      nextTurn: {
+        player_id: nextPlayer.player_id,
+        display_name: nextPlayer.display_name,
+        turn_number: session.turn_number + 1,
+        pending_attacks: pendingAttacks,
+      },
+    },
+  };
+};
+
 const handleSkipEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, advanceTurn }) => {
   const pendingAttacks = session.pending_attacks ?? 0;
   if (pendingAttacks > 0) {
@@ -171,6 +217,7 @@ const effectHandlers: Record<string, EffectHandler> = {
   [CardCode.SKIP]: handleSkipEffect,
   [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
   [CardCode.SHUFFLE]: handleShuffleEffect,
+  RF: handleReverseEffect,
   FV: handleFavorEffect,
 };
 
@@ -178,7 +225,7 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["NP", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
+  if (["NP", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
     throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {
