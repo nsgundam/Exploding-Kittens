@@ -4,6 +4,7 @@ import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import roomRoutes from "./routes/room.route";
+import cardRoutes from "./routes/card.route";
 import { registerRoomSocket } from "./socket/room.socket";
 import { registerGameSocket } from "./socket/game.socket";
 import { getErrorMessage, getErrorStatusCode } from "./utils/errors";
@@ -16,6 +17,7 @@ app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
 
 app.use("/api/rooms", roomRoutes);
+app.use("/api/cards", cardRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {

@@ -1,45 +1,6 @@
 import React from "react";
 import { getCardConfig } from "@/types/cards";
-
-// ── Card Description Map (จาก cards.ts seed data) ────────────
-const CARD_DESCRIPTIONS: Record<string, string> = {
-  // Classic
-  EK: "ถ้าจั่วใบนี้และไม่มี Defuse คุณแพ้เกม ต้องแสดงทันที",
-  DF: "ใช้เพื่อหยุดการระเบิด แล้วใส่ Exploding Kitten กลับในสำรับตำแหน่งที่ต้องการ",
-  AT: "จบเทิร์นโดยไม่จั่วไพ่ ผู้เล่นถัดไปต้องเล่น 2 เทิร์น (stack ได้)",
-  SK: "จบเทิร์นโดยไม่จั่วไพ่ ถ้าใช้ตอบ Attack จะหักได้แค่ 1 เทิร์น",
-  SF: "ดูไพ่ 3 ใบบนสุดของสำรับแบบลับ ไม่เปลี่ยนลำดับ",
-  SH: "สับสำรับใหม่แบบสุ่ม",
-  NP: "หยุด action ใดก็ได้ ยกเว้น Exploding Kitten และ Defuse เล่นได้ทุกเวลา",
-  FV: "บังคับผู้เล่นคนอื่นให้ส่งไพ่ 1 ใบให้คุณ (ผู้ถูกเลือกเป็นคนเลือกใบที่ให้)",
-  CAT_TACO: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-  CAT_MELON: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-  CAT_BEARD: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-  CAT_RAINBOW: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-  CAT_POTATO: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-  // Imploding Kittens
-  IK: "จั่วใบนี้ face up — ตายทันที ไม่มี Defuse ช่วยได้ และ Nope ก็ไม่ได้ผล",
-  RV: "กลับทิศทางการเล่น และจบเทิร์นโดยไม่จั่วไพ่ ถ้ามี 2 คนทำหน้าที่เหมือน Skip",
-  DB: "จบเทิร์นโดยจั่วไพ่จากล่างสุดของสำรับแทนบนสุด",
-  TA: "จบเทิร์นโดยไม่จั่วไพ่ และเลือกผู้เล่นที่ต้องเล่น 2 เทิร์น (stack ได้)",
-  FC: "ใช้แทน cat card ใดก็ได้ในการทำ combo ใช้เป็นการ์ด action อื่นไม่ได้",
-  AF: "ดูไพ่ 3 ใบบนสุดแบบลับ แล้วจัดเรียงลำดับใหม่ได้ตามต้องการ",
-  // Good vs Evil
-  GVE_EK: "ถ้าจั่วใบนี้และไม่มี Defuse คุณแพ้เกม ต้องแสดงทันที",
-  GVE_DF: "ใช้เพื่อหยุดการระเบิด แล้วใส่ Exploding Kitten กลับในสำรับตำแหน่งที่ต้องการ",
-  GVE_NP: "หยุด action ใดก็ได้ ยกเว้น Exploding Kitten, Devilcat และ Defuse เล่นได้ทุกเวลา",
-  GVE_AT: "จบเทิร์นโดยไม่จั่วไพ่ ผู้เล่นถัดไปต้องเล่น 2 เทิร์น (stack ได้)",
-  GVE_TA: "จบเทิร์นโดยไม่จั่วไพ่ และเลือกผู้เล่นที่ต้องเล่น 2 เทิร์น (stack ได้)",
-  GVE_SH: "สับสำรับใหม่แบบสุ่ม",
-  GVE_RF: "เปิดไพ่ 3 ใบบนสุดให้ผู้เล่นทุกคนเห็น แล้วคืนกลับโดยไม่เปลี่ยนลำดับ",
-  GVE_FV: "บังคับผู้เล่นคนอื่นให้ส่งไพ่ 1 ใบให้คุณ (ผู้ถูกเลือกเป็นคนเลือกใบที่ให้)",
-  GVE_RH: "จั่วไพ่จากล่างสุด แล้วเลือกเก็บไว้หรือวางคืนบนสุดของสำรับ จบเทิร์น",
-  GVE_AG: "เริ่ม Armageddon — แจก Godcat/Devilcat ให้ผู้เล่น ใช้ได้เมื่อ Godcat อยู่บน Playmat",
-  GVE_GC: "การ์ดทรงพลังที่สุด ใช้แทนการ์ดใดก็ได้ ยกเว้น Nope หลังเล่นให้วางคืน Playmat",
-  GVE_DC: "ผู้ที่ได้ Devilcat ใน Armageddon ต้องใช้ Defuse หรือตาย ห้ามใส่กลับสำรับ",
-  GVE_FC: "ใช้แทน cat card ใดก็ได้ในการทำ combo ใช้เป็นการ์ด action อื่นไม่ได้",
-  GVE_MC: "ไพ่แมว ใช้คู่ 2 ใบเพื่อขโมยไพ่สุ่มจากผู้เล่นคนอื่น",
-};
+import { useCardDescriptions } from "@/hooks/useCardDescriptions";
 
 interface CardProps {
   cardCode: string;
@@ -57,9 +18,12 @@ export function Card({
   className = "",
 }: CardProps) {
   const config = getCardConfig(cardCode);
+  const descriptions = useCardDescriptions();
+
+  // ลอง exact match ก่อน ถ้าไม่มีลอง strip GVE_ prefix
   const description =
-    CARD_DESCRIPTIONS[cardCode] ??
-    CARD_DESCRIPTIONS[cardCode.replace(/^GVE_/, "")] ??
+    descriptions[cardCode] ??
+    descriptions[cardCode.replace(/^GVE_/, "")] ??
     "";
 
   return (
