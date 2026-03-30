@@ -41,6 +41,47 @@ const handleAttackEffect: EffectHandler = async ({ tx, session, roomId, currentP
   return { effect: { type: "ATTACK", extraTurns: 2 }, turnResult };
 };
 
+// ── Targeted Attack (TA) ────────────────────────────────────────
+// Same stacking as AT but jumps directly to the chosen target.
+const handleTargetedAttackEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, targetPlayerToken }) => {
+  if (!targetPlayerToken) {
+    throw new BadRequestError("Targeted Attack requires a target player");
+  }
+
+  const target = await tx.player.findFirst({
+    where: { room_id: roomId, player_token: targetPlayerToken, is_alive: true },
+  });
+  if (!target) throw new NotFoundError("Target player not found or already eliminated");
+  if (target.player_id === currentPlayerId) {
+    throw new BadRequestError("Cannot target yourself with Targeted Attack");
+  }
+
+  const newPending = (session.pending_attacks ?? 0) + 2;
+
+  await tx.gameSession.update({
+    where: { session_id: session.session_id },
+    data: {
+      current_turn_player_id: target.player_id,
+      pending_attacks: newPending,
+      turn_number: session.turn_number + 1,
+    },
+  });
+
+  return {
+    effect: { type: "TARGETED_ATTACK", extraTurns: newPending },
+    turnResult: {
+      success: true,
+      action: "TURN_ADVANCED" as const,
+      nextTurn: {
+        player_id: target.player_id,
+        display_name: target.display_name,
+        turn_number: session.turn_number + 1,
+        pending_attacks: newPending,
+      },
+    },
+  };
+};
+
 const handleSkipEffect: EffectHandler = async ({ tx, session, roomId, currentPlayerId, advanceTurn }) => {
   const pendingAttacks = session.pending_attacks ?? 0;
   if (pendingAttacks > 0) {
@@ -126,6 +167,7 @@ const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPl
 
 const effectHandlers: Record<string, EffectHandler> = {
   [CardCode.ATTACK]: handleAttackEffect,
+  [CardCode.TARGETED_ATTACK]: handleTargetedAttackEffect,
   [CardCode.SKIP]: handleSkipEffect,
   [CardCode.SEE_THE_FUTURE]: handleSeeTheFutureEffect,
   [CardCode.SHUFFLE]: handleShuffleEffect,
@@ -136,7 +178,7 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["NP", "TA", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
+  if (["NP", "RF", "RH", "AG", "AF", "DB", "FC"].includes(normalizedCode)) {
     throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {
