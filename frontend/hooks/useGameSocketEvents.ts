@@ -1,0 +1,479 @@
+import { useEffect } from "react";
+import { Socket } from "socket.io-client";
+import type {
+  Player,
+  RoomData,
+  CardHand,
+  GameStartedPayload,
+  CardDrawnPayload,
+  CardPlayedPayload,
+  DeckConfigChangedPayload,
+  CardDefusedPayload,
+  PlayerEliminatedPayload,
+  EKInsertedPayload,
+} from "@/types";
+import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
+import { FavorState, ComboState } from "./useGameActions";
+
+// ── Toast notification ─────────────────────────────────────
+function showToast(message: string, duration = 3500) {
+  if (typeof window === "undefined") return;
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position: "fixed", top: "20px", left: "50%",
+    transform: "translateX(-50%) translateY(-80px)",
+    background: "rgba(30,20,5,0.95)", color: "#f5e6c8",
+    padding: "12px 24px", borderRadius: "12px",
+    border: "1.5px solid rgba(245,166,35,0.5)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    fontFamily: "'Fredoka One', cursive", fontSize: "15px",
+    zIndex: "9999",
+    transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.35s ease",
+    opacity: "0", whiteSpace: "nowrap",
+  });
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.transform = "translateX(-50%) translateY(0)";
+    toast.style.opacity = "1";
+  });
+  setTimeout(() => {
+    toast.style.transform = "translateX(-50%) translateY(-80px)";
+    toast.style.opacity = "0";
+    setTimeout(() => document.body.removeChild(toast), 400);
+  }, duration);
+}
+
+export interface GameStateSetters {
+  setRoomData: React.Dispatch<React.SetStateAction<RoomData | null>>;
+  setCardHands: React.Dispatch<React.SetStateAction<CardHand[]>>;
+  setMyCards: React.Dispatch<React.SetStateAction<string[]>>;
+  setSessionId: React.Dispatch<React.SetStateAction<string | null>>;
+  setGameLogs: React.Dispatch<React.SetStateAction<string[]>>;
+  setGamePhase: React.Dispatch<React.SetStateAction<GamePhase>>;
+  setEkBombState: React.Dispatch<React.SetStateAction<EKBombState | null>>;
+  setSeeTheFutureCards: React.Dispatch<React.SetStateAction<string[]>>;
+  setEliminatedPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
+  setWinner: React.Dispatch<React.SetStateAction<{ player_id: string; display_name: string } | null>>;
+  setFavorState: React.Dispatch<React.SetStateAction<FavorState | null>>;
+  setComboState: React.Dispatch<React.SetStateAction<ComboState | null>>;
+  setPendingAction: React.Dispatch<React.SetStateAction<PendingActionState | null>>;
+  setNopeState: React.Dispatch<React.SetStateAction<NopeState | null>>;
+  setLastPlayedCard: React.Dispatch<React.SetStateAction<{ cardCode: string; playedByDisplayName: string } | null>>;
+  setCurrentTurnPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
+  setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
+  setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
+  setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
+  roomDataRef: React.MutableRefObject<RoomData | null>;
+  currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
+  pendingNextTurnRef: React.MutableRefObject<string | null>;
+  gamePhaseRef: React.MutableRefObject<GamePhase>;
+  onCardPlayedRef: React.MutableRefObject<(() => void) | null>;
+}
+
+export function useGameSocketEvents(
+  socket: Socket | null,
+  roomId: string,
+  setters: GameStateSetters
+) {
+  useEffect(() => {
+    if (!socket || !roomId) return;
+
+    // AI Rule 5.1: DRY - Get token once per event cycle
+    const myPlayerToken = typeof window !== "undefined" ? localStorage.getItem("player_token") : null;
+
+    // ── roomUpdated ──
+    const handleRoomUpdated = (updatedRoom: RoomData) => {
+      console.log("🔄 Room Updated:", updatedRoom);
+      setters.setRoomData(updatedRoom);
+      if (updatedRoom.status === "WAITING") {
+        setters.setGamePhase("WAITING");
+      } else if (updatedRoom.status === "PLAYING" && setters.gamePhaseRef.current === "WAITING") {
+        setters.setGamePhase("PLAYING");
+      }
+      // AI Rule 2.1: The Dumb Frontend - Removed Rogue Manual Winner calculation.
+      // Frontend now purely waits for server "GAME_OVER" payload from playerEliminated event.
+    };
+
+    // ── gameStarted ──
+    const handleGameStarted = (data: GameStartedPayload & { deck_count?: number }) => {
+      console.log("🎮 Game Started:", data);
+      if (data?.room) setters.setRoomData(data.room);
+      if (data?.session_id) setters.setSessionId(data.session_id);
+      if (data?.first_turn_player_id) setters.setCurrentTurnPlayerId(data.first_turn_player_id);
+      if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      setters.setGamePhase("PLAYING");
+      setters.setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
+
+      if (data?.cardHands && Array.isArray(data.cardHands)) {
+        setters.setCardHands(data.cardHands);
+        const myPlayer = data.room?.players?.find((p: Player) => p.player_token === myPlayerToken);
+        if (myPlayer) {
+          const myHand = data.cardHands.find((h: CardHand) => h.player_id === myPlayer.player_id);
+          if (myHand) {
+            setters.setMyCards(myHand.cards);
+          }
+        }
+      }
+    };
+
+    // ── cardDrawn ──
+    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number; nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number } }) => {
+      console.log("🃏 Card Drawn:", data);
+      if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      
+      if (data?.player_id) {
+        setters.setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.player_id) {
+              return { ...hand, card_count: hand.card_count + 1, cards: data.hand?.cards ?? hand.cards };
+            }
+            return hand;
+          }),
+        );
+        const myPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+        if (myPlayer && myPlayer.player_id === data.player_id && data.hand?.cards) {
+          setters.setMyCards(data.hand.cards);
+        }
+      }
+
+      const drawnPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.player_id);
+      const displayName = data.drawnByDisplayName || drawnPlayer?.display_name || "ผู้เล่น";
+      
+      if (data?.action === "DREW_EXPLODING_KITTEN") {
+        setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
+        setters.setGamePhase("EK_DRAWN");
+        setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+      } else if (data?.success) {
+        const logMsg = data.isExplodingKitten
+          ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
+          : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)` : `🃏 ${displayName} จั่วไพ่`;
+        setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+      }
+
+      if (data?.nextTurn) {
+        setters.setGamePhase("PLAYING");
+        setters.setEkBombState(null);
+        setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+        if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+        setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+      }
+    };
+
+    // ── cardPlayed ──
+    const handleCardPlayed = (data: CardPlayedPayload & { nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
+      console.log("🎴 Card Played:", data);
+      if (data?.playedBy) {
+        setters.setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.playedBy) {
+              return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+            }
+            return hand;
+          }),
+        );
+      }
+      if (data?.success) {
+        setters.setGamePhase("PLAYING");
+        setters.setPendingAction(null);
+        setters.setNopeState(null);
+
+        const playedPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.playedBy);
+        const displayName = data.playedByDisplayName || playedPlayer?.display_name || "ผู้เล่น";
+        const logMsg = data.message || `${displayName} เล่นไพ่ ${data.cardCode}`;
+        
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🎴 ${logMsg}`]);
+        setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+
+        const skipTurnCards = ["AT", "SK", "TA", "RV"];
+        const normalizedPlayed = data.cardCode?.replace(/^GVE_/, "");
+        if (!skipTurnCards.includes(normalizedPlayed ?? "")) {
+          setters.onCardPlayedRef.current?.();
+        }
+        
+        if (data?.nextTurn?.player_id) {
+          setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+          if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+          setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+        }
+
+        if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
+          setters.setSeeTheFutureCards(data.effect.topCards);
+          setters.setGamePhase("SEE_FUTURE");
+        }
+
+        if (data.effect?.type === "FAVOR") {
+          const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+          if (me?.player_id === data.playedBy) {
+            setters.setGameLogs((prev) => [...prev.slice(-19), `🤝 รอให้ผู้เล่นอื่นเลือกการ์ดให้คุณ...`]);
+          }
+        }
+      }
+    };
+
+    // ── favorRequested ── 
+    const handleFavorRequested = (data: { requesterPlayerId: string; requesterName: string; availableCards?: string[] }) => {
+      console.log("🤝 Favor Requested:", data);
+      setters.setFavorState({
+        requesterPlayerId: data.requesterPlayerId,
+        requesterName: data.requesterName,
+      });
+      setters.setGamePhase("FAVOR_PICK_CARD");
+    };
+
+    const handleFavorRequestedBroadcast = (data: { requesterPlayerId: string; requesterName: string; availableCards?: string[]; targetPlayerId: string; }) => {
+      console.log("🤝 Favor Requested Broadcast:", data);
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      if (me?.player_id === data.targetPlayerId) {
+        setters.setFavorState({
+          requesterPlayerId: data.requesterPlayerId,
+          requesterName: data.requesterName,
+        });
+        setters.setGamePhase("FAVOR_PICK_CARD");
+      }
+    };
+
+    const handleFavorCompleted = (data: { nextTurn?: { player_id: string }; cardCode: string; requesterPlayerId: string }) => {
+      console.log("🤝 Favor Completed:", data);
+      setters.setFavorState(null);
+      setters.setGamePhase("PLAYING");
+      if (data?.nextTurn?.player_id) {
+        setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      if (me?.player_id === data.requesterPlayerId) {
+        setters.setMyCards((prev) => [...prev, data.cardCode]);
+      }
+      setters.setGameLogs((prev) => [...prev.slice(-19), `🤝 Favor เสร็จแล้ว!`]);
+    };
+
+    // ── cardDefused ──
+    const handleCardDefused = (data: CardDefusedPayload) => {
+      console.log("🛡️ Card Defused:", data);
+      setters.setEkBombState(null);
+      
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      const defuserPlayerId = setters.currentTurnPlayerIdRef.current;
+      const isMe = me && me.player_id === defuserPlayerId;
+
+      if (isMe) {
+        setters.setGamePhase("DEFUSE_INSERT");
+        setters.pendingNextTurnRef.current = data?.nextTurn?.player_id ?? null;
+        setters.setMyCards((prev) => {
+          const dfCode = prev.includes("GVE_DF") ? "GVE_DF" : "DF";
+          const idx = prev.indexOf(dfCode);
+          if (idx !== -1) {
+            const next = [...prev];
+            next.splice(idx, 1);
+            return next;
+          }
+          return prev;
+        });
+      } else {
+        setters.setGamePhase("PLAYING");
+        if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+      }
+
+      const defusingPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === defuserPlayerId);
+      const displayName = defusingPlayer?.display_name ?? "ผู้เล่น";
+      setters.setGameLogs((prev) => [...prev.slice(-19), `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`]);
+    };
+
+    // ── ekInserted ──
+    const handleEkInserted = (data: EKInsertedPayload) => {
+      console.log("💣 EK Inserted:", data);
+      if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      setters.setGamePhase("PLAYING");
+      setters.setEkBombState(null);
+      if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+      if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+      setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+      setters.setGameLogs((prev) => [...prev.slice(-19), `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`]);
+    };
+
+    // ── playerEliminated ──
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
+      console.log("💀 Player Eliminated:", data);
+      setters.setEkBombState(null);
+      setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+
+      const eliminatedId = data.isAfkKick
+        ? (data.afkPlayerId ?? setters.currentTurnPlayerIdRef.current)
+        : setters.currentTurnPlayerIdRef.current;
+
+      if (eliminatedId) {
+        if (!data.isAfkKick) {
+          setters.setEliminatedPlayerId(eliminatedId);
+        }
+        setters.setRoomData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            players: prev.players?.map((p: Player) =>
+              p.player_id === eliminatedId ? { ...p, is_alive: false } : p,
+            ),
+          };
+        });
+      }
+
+      if (data.action === "GAME_OVER" && data?.winner) {
+        setters.setWinner(data.winner);
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🏆 ${data.winner!.display_name} ชนะการแข่งขัน!`]);
+      }
+      
+      if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+      if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+      setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+
+      const eliminatedPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
+      const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
+
+      if (data.isAfkKick) {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `⏱️ ${displayName} ถูกคิกเพราะ AFK!`]);
+      } else {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
+      }
+    };
+
+    // ── comboPlayed ── 
+    const handleComboPlayed = (data: { action: string; success: boolean; comboType: "TWO_CARD" | "THREE_CARD"; stolenCard?: string; wasVoid: boolean; robbedFromDisplayName: string; robbedFromPlayerId: string; thiefHand?: string[]; targetHand?: string[]; nextTurn?: { player_id: string; display_name: string; turn_number: number }; }) => {
+      console.log("🐱 Combo Played:", data);
+
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+
+      if (me) {
+        if (data.thiefHand) setters.setMyCards(data.thiefHand);
+        if (data.targetHand && me.player_id === data.robbedFromPlayerId) {
+          setters.setMyCards(data.targetHand);
+        }
+      }
+
+      setters.setCardHands((prev) =>
+        prev.map((hand) => {
+          if (data.thiefHand && me && hand.player_id === me.player_id) {
+            return { ...hand, card_count: data.thiefHand!.length };
+          }
+          if (data.robbedFromPlayerId && !data.wasVoid && hand.player_id === data.robbedFromPlayerId) {
+            return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+          }
+          return hand;
+        })
+      );
+
+      const myDisplayName = me?.display_name ?? "คุณ";
+      if (data.wasVoid) {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo 3 ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
+      } else if (data.stolenCard && me) {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 ${myDisplayName} ขโมยการ์ดจาก ${data.robbedFromDisplayName} สำเร็จ!`]);
+      } else {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
+      }
+
+      setters.setGamePhase("PLAYING");
+      setters.setPendingAction(null);
+      setters.setNopeState(null);
+    };
+
+    // ── actionPending ── 
+    const handleActionPending = (data: { action: "ACTION_PENDING"; playedBy: string; playedByDisplayName: string; target?: string | null; cardCode?: string; comboCards?: string[]; comboType?: string; demandedCard?: string; }) => {
+      console.log("⏳ Action Pending (Nope Window):", data);
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      
+      if (me?.player_id !== data.playedBy) {
+        setters.setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.playedBy) {
+              const cardsToSubtract = data.comboCards ? data.comboCards.length : (data.cardCode ? 1 : 0);
+              return { ...hand, card_count: Math.max(0, hand.card_count - cardsToSubtract) };
+            }
+            return hand;
+          })
+        );
+      }
+
+      setters.setPendingAction({
+        playedBy: data.playedBy,
+        playedByDisplayName: data.playedByDisplayName,
+        cardCode: data.cardCode,
+        comboCards: data.comboCards,
+        target: data.target,
+      });
+      setters.setNopeState(null);
+      setters.setGamePhase("NOPE_WINDOW");
+    };
+
+    // ── nopePlayed ──
+    const handleNopePlayed = (data: { action: "NOPE_PLAYED"; nopeCount: number; isCancel: boolean; playedBy: string; playedByDisplayName: string; }) => {
+      console.log("🚫 Nope Played:", data);
+      setters.setNopeState({
+        nopeCount: data.nopeCount,
+        isCancel: data.isCancel,
+        lastPlayedByDisplayName: data.playedByDisplayName,
+      });
+
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      if (me?.player_id !== data.playedBy) {
+        setters.setCardHands((prev) =>
+          prev.map((hand) => {
+            if (hand.player_id === data.playedBy) {
+              return { ...hand, card_count: Math.max(0, hand.card_count - 1) };
+            }
+            return hand;
+          })
+        );
+      }
+      setters.setGameLogs((prev) => [...prev.slice(-19), `🚫 ${data.playedByDisplayName} เล่น Nope! (${data.isCancel ? "ยกเลิก" : "ผ่าน"})`]);
+    };
+
+    // ── actionCancelled ──
+    const handleActionCancelled = (data: { action: "ACTION_CANCELLED" }) => {
+      console.log("❌ Action Cancelled:", data);
+      showToast("❌ Action was Noped!", 3000);
+      setters.setGamePhase("PLAYING");
+      setters.setPendingAction(null);
+      setters.setNopeState(null);
+    };
+
+    const handleDeckConfigChanged = (data: DeckConfigChangedPayload) => {
+      console.log("⚙️ Deck Config Changed:", data);
+      showToast("⚙️ Deck config changed");
+      setters.setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
+    };
+
+    socket.on("roomUpdated", handleRoomUpdated);
+    socket.on("gameStarted", handleGameStarted);
+    socket.on("cardDrawn", handleCardDrawn);
+    socket.on("cardPlayed", handleCardPlayed);
+    socket.on("deck_config_changed", handleDeckConfigChanged);
+    socket.on("deckConfigUpdated", handleDeckConfigChanged);
+    socket.on("favorRequested", handleFavorRequested);
+    socket.on("favorRequestedBroadcast", handleFavorRequestedBroadcast);
+    socket.on("favorCompleted", handleFavorCompleted);
+    socket.on("cardDefused", handleCardDefused);
+    socket.on("ekInserted", handleEkInserted);
+    socket.on("playerEliminated", handlePlayerEliminated);
+    socket.on("comboPlayed", handleComboPlayed);
+    socket.on("actionPending", handleActionPending);
+    socket.on("nopePlayed", handleNopePlayed);
+    socket.on("actionCancelled", handleActionCancelled);
+
+    return () => {
+      socket.off("roomUpdated", handleRoomUpdated);
+      socket.off("gameStarted", handleGameStarted);
+      socket.off("cardDrawn", handleCardDrawn);
+      socket.off("cardPlayed", handleCardPlayed);
+      socket.off("deck_config_changed", handleDeckConfigChanged);
+      socket.off("deckConfigUpdated", handleDeckConfigChanged);
+      socket.off("favorRequested", handleFavorRequested);
+      socket.off("favorRequestedBroadcast", handleFavorRequestedBroadcast);
+      socket.off("favorCompleted", handleFavorCompleted);
+      socket.off("cardDefused", handleCardDefused);
+      socket.off("ekInserted", handleEkInserted);
+      socket.off("playerEliminated", handlePlayerEliminated);
+      socket.off("comboPlayed", handleComboPlayed);
+      socket.off("actionPending", handleActionPending);
+      socket.off("nopePlayed", handleNopePlayed);
+      socket.off("actionCancelled", handleActionCancelled);
+    };
+  }, [socket, roomId, setters]);
+}
