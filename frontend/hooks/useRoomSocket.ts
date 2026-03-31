@@ -44,6 +44,7 @@ export const useRoomSocket = (roomId: string) => {
     setSeeTheFutureCards: gameState.setSeeTheFutureCards,
     closeSeeTheFuture: actions.closeSeeTheFuture,
     insertEK: actions.insertEK,
+    insertIK: actions.insertIK,
     closeInsertEK: actions.closeInsertEK,
     selectSeat: actions.selectSeat,
     startGame: actions.startGame,

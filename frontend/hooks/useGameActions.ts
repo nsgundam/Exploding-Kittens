@@ -163,6 +163,16 @@ export const useGameActions = (
     [socket, roomId, setGamePhase, setCurrentTurnPlayerId, pendingNextTurnRef]
   );
 
+  const insertIK = useCallback(
+    (position: number) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("insertIK", { roomId, playerToken, position });
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setGamePhase]
+  );
+
   const closeInsertEK = useCallback(() => {
     setGamePhase("PLAYING");
     if (pendingNextTurnRef.current) {
@@ -282,6 +292,7 @@ export const useGameActions = (
     cancelCombo,
     cancelFavor,
     insertEK,
+    insertIK,
     closeInsertEK,
     closeSeeTheFuture,
     dismissEliminated,

@@ -49,6 +49,7 @@ export type GamePhase =
   | "PLAYING"
   | "EK_DRAWN"
   | "DEFUSE_INSERT"
+  | "IK_DRAWN"
   | "SEE_FUTURE"
   | "FAVOR_SELECT_TARGET"
   | "FAVOR_PICK_CARD"
@@ -181,9 +182,26 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       const displayName = data.drawnByDisplayName || drawnPlayer?.display_name || "ผู้เล่น";
       
       if (data?.action === "DREW_EXPLODING_KITTEN") {
-        setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
-        setGamePhase("EK_DRAWN");
-        setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+        const isIK = data.drawnCard === "IK";
+
+        if (isIK) {
+          // ── Imploding Kitten ──
+          // check ว่าเราเป็น current turn player (คนจั่ว) → เปิด modal
+          const myPlayerToken = localStorage.getItem("player_token");
+          const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+          const isMyTurn = me?.player_id === currentTurnPlayerIdRef.current;
+          setGameLogs((prev) => [...prev.slice(-19), `💀 ${displayName} จั่วได้ Imploding Kitten!`]);
+          if (isMyTurn && data.hasDefuse) {
+            // face-down + เราเป็นคนจั่ว → เปิด InsertIKModal
+            setGamePhase("IK_DRAWN");
+          }
+          // face-up หรือคนอื่น → ไม่เปิด modal รอ playerEliminated
+        } else {
+          // ── Exploding Kitten → เปิด EKBombSequence ──
+          setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
+          setGamePhase("EK_DRAWN");
+          setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+        }
       } else if (data?.success) {
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
@@ -531,6 +549,46 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       setGameLogs((prev) => [...prev.slice(-19), `🚫 ${data.playedByDisplayName} เล่น Nope! (${data.isCancel ? "ยกเลิก" : "ผ่าน"})`]);
     };
 
+    // ── ikDrawn ── (IK: รอ player เลือก position ก่อน eliminate)
+    const handleIkDrawn = (data: {
+      action: string;
+      drawnCard: string;
+      player_id: string;
+      drawnByDisplayName: string;
+      deck_count?: number;
+    }) => {
+      console.log("💀 IK Drawn:", data);
+      if (data?.deck_count !== undefined) setDeckCount(data.deck_count);
+
+      const myPlayerToken = localStorage.getItem("player_token");
+      const me = roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+
+      // ทุกคนเห็น log แต่เฉพาะคนจั่วเองเปิด modal
+      setGameLogs((prev) => [...prev.slice(-19), `💀 ${data.drawnByDisplayName} จั่วได้ Imploding Kitten!`]);
+
+      if (me?.player_id === data.player_id) {
+        setGamePhase("IK_DRAWN");
+      }
+    };
+
+    // ── ikInserted ── (IK insert เสร็จ → advance turn)
+    const handleIkInserted = (data: {
+      action: string;
+      nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number };
+      deck_count?: number;
+      eliminatedPlayerId?: string;
+    }) => {
+      console.log("💀 IK Inserted:", data);
+      if (data?.deck_count !== undefined) setDeckCount(data.deck_count);
+      setGamePhase("PLAYING");
+      if (data?.nextTurn?.player_id) {
+        setCurrentTurnPlayerId(data.nextTurn.player_id);
+        if (data.nextTurn.turn_number) setTurnNumber(data.nextTurn.turn_number);
+        setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+      }
+      setGameLogs((prev) => [...prev.slice(-19), `💀 Imploding Kitten ถูกใส่กลับคืนกอง!`]);
+    };
+
     // ── actionCancelled ──
     const handleActionCancelled = (data: { action: "ACTION_CANCELLED" }) => {
       console.log("❌ Action Cancelled:", data);
@@ -551,6 +609,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     socket.on("favorCompleted", handleFavorCompleted);
     socket.on("cardDefused", handleCardDefused);
     socket.on("ekInserted", handleEkInserted);
+    socket.on("ikDrawn", handleIkDrawn);
+    socket.on("ikInserted", handleIkInserted);
     socket.on("playerEliminated", handlePlayerEliminated);
     socket.on("comboPlayed", handleComboPlayed);
     socket.on("actionPending", handleActionPending);
@@ -569,6 +629,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
       socket.off("favorCompleted", handleFavorCompleted);
       socket.off("cardDefused", handleCardDefused);
       socket.off("ekInserted", handleEkInserted);
+      socket.off("ikDrawn", handleIkDrawn);
+      socket.off("ikInserted", handleIkInserted);
       socket.off("playerEliminated", handlePlayerEliminated);
       socket.off("comboPlayed", handleComboPlayed);
       socket.off("actionPending", handleActionPending);

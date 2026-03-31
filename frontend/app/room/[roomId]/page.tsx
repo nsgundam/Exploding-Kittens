@@ -37,6 +37,7 @@ export default function RoomPage() {
     seeTheFutureCards,
     closeSeeTheFuture,
     insertEK,
+    insertIK,
     error,
     timeLeft,
     lastPlayedCard,
@@ -327,6 +328,7 @@ export default function RoomPage() {
             defuseCard={defuseCard}
             eliminatePlayer={eliminatePlayer}
             insertEK={insertEK}
+            insertIK={insertIK}
             eliminatedPlayerId={eliminatedPlayerId}
             dismissEliminated={dismissEliminated}
             winner={winner}

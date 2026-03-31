@@ -9,6 +9,7 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { CatComboModal } from "./CatComboModal";
 import { InsertEKModal } from "./InsertEKModal";
+import { InsertIKModal } from "./InsertIKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
 import { FavorPickModal } from "./FavorPickModal";
 import { NopeToast } from "./NopeWindow";
@@ -110,6 +111,7 @@ export interface GameBoardProps {
   defuseCard: () => void;
   eliminatePlayer: () => void;
   insertEK: (position: number) => void;
+  insertIK?: (position: number) => void;
   eliminatedPlayerId: string | null;
   dismissEliminated: () => void;
   winner: { player_id: string; display_name: string } | null;
@@ -148,6 +150,7 @@ export function GameBoard({
   defuseCard,
   eliminatePlayer,
   insertEK,
+  insertIK,
   eliminatedPlayerId,
   dismissEliminated,
   winner,
@@ -322,6 +325,16 @@ export function GameBoard({
         drawnCard={ekBombState?.drawnCard || "EK"}
         deckCount={deckCount ?? roomData.deck_count ?? 0}
         onConfirm={handleInsertEK}
+      />
+
+      {/* ── INSERT IK MODAL (Imploding Kitten — face-up, ผู้จั่วเลือกตำแหน่ง) ── */}
+      <InsertIKModal
+        key={gamePhase === "IK_DRAWN" ? "ik-open" : "ik-closed"}
+        isOpen={gamePhase === "IK_DRAWN"}
+        deckCount={deckCount ?? roomData.deck_count ?? 0}
+        onConfirm={(position) => {
+          if (insertIK) insertIK(position);
+        }}
       />
 
       <SeeTheFutureModal
