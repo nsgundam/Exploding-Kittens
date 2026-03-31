@@ -1,8 +1,5 @@
 "use client";
 import React from "react";
-
-import { useEffect } from "react";
-import confetti from "canvas-confetti";
 import { Player, RoomData } from "@/types";
 import { getCardConfig } from "@/types/cards";
 import { PlayerAvatar } from "./PlayerAvatar";
@@ -14,84 +11,11 @@ import { FavorPickModal } from "./FavorPickModal";
 import { NopeToast } from "./NopeWindow";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
 
-function WinnerPopup({
-  isMe,
-  displayName,
-}: {
-  isMe: boolean;
-  displayName: string;
-}) {
-  useEffect(() => {
-    const duration = 5 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = {
-      startVelocity: 30,
-      spread: 360,
-      ticks: 60,
-      zIndex: 9999,
-    };
-    const randomInRange = (min: number, max: number) =>
-      Math.random() * (max - min) + min;
-
-    const interval = window.setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-      if (timeLeft <= 0) return clearInterval(interval);
-      const particleCount = 50 * (timeLeft / duration);
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-2000 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
-        style={{
-          width: "420px",
-          background: "rgba(0,10,0,0.95)",
-          border: "2px solid rgba(250,204,21,0.6)",
-          boxShadow:
-            "0 0 80px rgba(250,204,21,0.3), 0 24px 60px rgba(0,0,0,0.8)",
-        }}
-      >
-        <div className="text-7xl animate-bounce">🏆</div>
-        <h2
-          className="text-4xl font-black text-yellow-400 font-bungee uppercase tracking-wider"
-          style={{ textShadow: "0 0 30px rgba(250,204,21,0.8)" }}
-        >
-          {isMe ? "คุณชนะ!" : `${displayName} ชนะ!`}
-        </h2>
-        <p className="text-gray-300 text-base">
-          {isMe
-            ? "เยี่ยมมาก! คุณเป็นผู้รอดชีวิตคนสุดท้าย 🎉"
-            : `${displayName} เป็นผู้รอดชีวิตคนสุดท้าย`}
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-2 px-8 py-3 rounded-2xl font-black text-black font-bungee text-lg transition-all hover:scale-105 active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, #fbbf24, #d97706)",
-            border: "2px solid rgba(250,204,21,0.8)",
-            boxShadow: "0 4px 0 #92400e",
-          }}
-        >
-          กลับสู่ห้อง
-        </button>
-      </div>
-    </div>
-  );
-}
+// ── Newly Decomposed Components ──
+import { WinnerModal } from "./WinnerModal";
+import { EliminatedModal } from "./EliminatedModal";
+import { GameLogPanel } from "./GameLogPanel";
+import { ActionBanners } from "./ActionBanners";
 
 export interface GameBoardProps {
   roomData: RoomData;
@@ -106,7 +30,6 @@ export interface GameBoardProps {
   selectSeat: (seat_number: number) => void;
   drawCard: (isAutoDraw?: boolean) => void;
   playCard: (cardCode: string, target?: string) => void;
-  /** Called when player plays a cat combo (2 or 3 cards) */
   defuseCard: () => void;
   eliminatePlayer: () => void;
   insertEK: (position: number) => void;
@@ -171,18 +94,10 @@ export function GameBoard({
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
 
-  const handleDefuse = () => {
-    defuseCard();
-  };
-  const handleExplode = () => {
-    eliminatePlayer();
-  };
-  const handleInsertEK = (position: number) => {
-    console.log("Inserting EK at position", position);
-    insertEK(position);
-  };
+  const handleDefuse = () => defuseCard();
+  const handleExplode = () => eliminatePlayer();
+  const handleInsertEK = (position: number) => insertEK(position);
 
-  // combo target ref สำหรับ 3-card
   const [pendingComboTarget, setPendingComboTarget] = React.useState<string | null>(null);
 
   return (
@@ -200,81 +115,17 @@ export function GameBoard({
         💥
       </div>
 
-      {/* ── ATTACK PENDING INDICATOR — แสดงเฉพาะคนที่โดน attack ── */}
-      {pendingAttacks > 0 && currentTurnSeat !== null && isMySeat(currentTurnSeat) && (
-        <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl animate-bounce"
-          style={{
-            background: "linear-gradient(135deg, rgba(239,68,68,0.95), rgba(153,27,27,0.95))",
-            border: "2px solid rgba(239,68,68,0.8)",
-            boxShadow: "0 0 30px rgba(239,68,68,0.5), 0 8px 20px rgba(0,0,0,0.5)",
-            fontFamily: "'Fredoka One', cursive",
-          }}
-        >
-          <span className="text-2xl">⚡</span>
-          <div>
-            <div className="text-white font-black text-sm tracking-wider uppercase">
-              ⚡ ATTACK! เหลืออีก {pendingAttacks} เทิร์น
-            </div>
-            <div className="text-red-200 text-xs">
-              {"🔴".repeat(Math.min(pendingAttacks, 5))} จั่วต่อได้เลย!
-            </div>
-          </div>
-          <span className="text-2xl">⚡</span>
-        </div>
-      )}
+      {/* ── BANNERS ── */}
+      <ActionBanners 
+        gamePhase={gamePhase}
+        pendingAttacks={pendingAttacks}
+        currentTurnSeat={currentTurnSeat}
+        isMySeat={isMySeat}
+        cancelCombo={cancelCombo}
+        cancelFavor={cancelFavor}
+      />
 
-      {/* ── COMBO SELECT TARGET banner ── */}
-      {gamePhase === "COMBO_SELECT_TARGET" && (
-        <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
-          style={{
-            background: "rgba(10,5,30,0.95)",
-            border: "2px solid #facc15",
-            boxShadow: "0 0 24px #facc1566",
-            fontFamily: "'Fredoka One', cursive",
-          }}
-        >
-          <span className="text-xl">🐱</span>
-          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
-          {cancelCombo && (
-            <button
-              onClick={cancelCombo}
-              className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
-              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
-            >
-              ยกเลิก
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── FAVOR SELECT TARGET banner ── */}
-      {gamePhase === "FAVOR_SELECT_TARGET" && (
-        <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
-          style={{
-            background: "rgba(10,5,30,0.95)",
-            border: "2px solid #facc15",
-            boxShadow: "0 0 24px #facc1566",
-            fontFamily: "'Fredoka One', cursive",
-          }}
-        >
-          <span className="text-xl">🐱</span>
-          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
-          {cancelFavor && (
-            <button
-              onClick={cancelFavor}
-              className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
-              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
-            >
-              ยกเลิก
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── NOPE TOAST (non-blocking, top of screen) ── */}
+      {/* ── NOPE TOAST ── */}
       <NopeToast
         isOpen={gamePhase === "NOPE_WINDOW"}
         pendingAction={pendingAction ?? null}
@@ -287,7 +138,6 @@ export function GameBoard({
       />
 
       {/* ── MODALS & SEQUENCES ── */}
-
       <EKBombSequence
         active={gamePhase === "EK_DRAWN" && !!ekBombState}
         drawnCard={ekBombState?.drawnCard || "EK"}
@@ -297,7 +147,6 @@ export function GameBoard({
         isMyBomb={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
       />
 
-      {/* ── COMBO 3-CARD: เลือกการ์ดที่ต้องการ ── */}
       {pendingComboTarget && comboState?.isThreeCard && (
         <CatComboModal
           isOpen={true}
@@ -330,7 +179,6 @@ export function GameBoard({
         onClose={onCloseSeeTheFuture}
       />
 
-      {/* ── FAVOR: เลือกการ์ดให้ (target เท่านั้น) ── */}
       <FavorPickModal
         isOpen={gamePhase === "FAVOR_PICK_CARD"}
         requesterName={favorState?.requesterName ?? "ผู้เล่น"}
@@ -339,106 +187,22 @@ export function GameBoard({
         onPickCard={pickFavorCard}
       />
 
-      {/* ── ELIMINATED POPUP ── แสดงเฉพาะคนที่แพ้เท่านั้น */}
-      {eliminatedPlayerId &&
-        !winner &&
-        (() => {
-          const eliminatedPlayer = roomData.players?.find(
-            (p: Player) => p.player_id === eliminatedPlayerId,
-          );
-          const isMe = eliminatedPlayer?.player_token === myPlayerToken;
-          if (!isMe) return null;
-          const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
-          return (
-            <div className="fixed inset-0 z-2000 flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-              <div
-                className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
-                style={{
-                  width: "380px",
-                  background: "rgba(10,0,0,0.93)",
-                  border: "2px solid rgba(239,68,68,0.5)",
-                  boxShadow:
-                    "0 0 60px rgba(239,68,68,0.3), 0 24px 60px rgba(0,0,0,0.8)",
-                }}
-              >
-                <div className="text-6xl animate-bounce">💥</div>
-                <h2
-                  className="text-3xl font-black text-white font-bungee uppercase tracking-wider"
-                  style={{ textShadow: "0 0 20px rgba(239,68,68,0.8)" }}
-                >
-                  {isMe ? "คุณแพ้แล้ว!" : `${displayName} แพ้แล้ว!`}
-                </h2>
-                <p className="text-gray-400 text-base">
-                  {isMe
-                    ? "คุณถูกระเบิด Exploding Kitten!"
-                    : `${displayName} ถูกระเบิดหลุดออกจากเกม`}
-                </p>
-                <button
-                  onClick={dismissEliminated}
-                  className="mt-2 px-8 py-3 rounded-2xl font-black text-white font-bungee text-lg transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    background: "linear-gradient(135deg, #dc2626, #7f1d1d)",
-                    border: "2px solid rgba(239,68,68,0.5)",
-                    boxShadow: "0 4px 0 #450a0a",
-                  }}
-                >
-                  ตกลง
-                </button>
-              </div>
-            </div>
-          );
-        })()}
+      {/* ── ELIMINATION & ENDGAME MODALS ── */}
+      {eliminatedPlayerId && !winner && (() => {
+        const eliminatedPlayer = roomData.players?.find((p: Player) => p.player_id === eliminatedPlayerId);
+        const isMe = eliminatedPlayer?.player_token === myPlayerToken;
+        const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
+        return <EliminatedModal isMe={isMe} displayName={displayName} onDismiss={dismissEliminated} />;
+      })()}
 
-      {/* ── WINNER POPUP ── */}
-      {winner &&
-        (() => {
-          const isMe =
-            roomData.players?.find(
-              (p: Player) => p.player_id === winner.player_id,
-            )?.player_token === myPlayerToken;
-          return <WinnerPopup isMe={isMe} displayName={winner.display_name} />;
-        })()}
+      {winner && (() => {
+        const isMe = roomData.players?.find((p: Player) => p.player_id === winner.player_id)?.player_token === myPlayerToken;
+        return <WinnerModal isMe={isMe} displayName={winner.display_name} />;
+      })()}
 
-      {/* ── LOG PANEL ── */}
-      {roomData.status === "PLAYING" && gameLogs.length > 0 && (
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-60 z-20">
-          <div
-            className="rounded-2xl px-3 py-3 flex flex-col gap-1.5"
-            style={{
-              background: "rgba(240,220,170,0.72)",
-              backdropFilter: "blur(18px)",
-              border: "1px solid rgba(120,70,10,0.45)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-              maxHeight: "220px",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              className="text-[10px] uppercase tracking-widest mb-1 pb-1 font-bold"
-              style={{
-                color: "rgba(120,60,0,0.85)",
-                borderBottom: "1px solid rgba(120,60,0,0.2)",
-              }}
-            >
-              📋 Game Log
-            </div>
-            {gameLogs.slice(-7).map((log, i, arr) => (
-              <div
-                key={i}
-                className="text-xs leading-snug"
-                style={{
-                  color:
-                    i === arr.length - 1
-                      ? "rgba(60,30,0,0.95)"
-                      : `rgba(80,40,0,${0.4 + i * 0.12})`,
-                }}
-              >
-                {log}
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* ── GAME LOG PANEL ── */}
+      {roomData.status === "PLAYING" && (
+        <GameLogPanel gameLogs={gameLogs} />
       )}
 
       {/* ── BOARD LAYOUT ── */}
@@ -467,25 +231,23 @@ export function GameBoard({
                 seat={seatNum}
                 player={player}
                 onSelect={() => selectSeat(seatNum)}
-                onLeaveSeat={
-                  isMyAvatar ? () => selectSeat(-1) : undefined
-                }
+                onLeaveSeat={isMyAvatar ? () => selectSeat(-1) : undefined}
                 myPicture={myProfilePicture}
                 myDisplayName={myDisplayName}
                 isHost={isHost}
                 isCurrentTurn={currentTurnSeat === seatNum}
                 timeLeft={timeLeft}
                 isFavorTargetMode={gamePhase === "FAVOR_SELECT_TARGET"}
-                  isComboTargetMode={gamePhase === "COMBO_SELECT_TARGET"}
-                  onComboSelect={() => {
-                    const p = getPlayerAtSeat(seatNum);
-                    if (!p || !comboState || !emitCombo) return;
-                    if (comboState.isThreeCard) {
-                      setPendingComboTarget(p.player_token);
-                    } else {
-                      emitCombo(comboState.comboCards, p.player_token);
-                    }
-                  }}
+                isComboTargetMode={gamePhase === "COMBO_SELECT_TARGET"}
+                onComboSelect={() => {
+                  const p = getPlayerAtSeat(seatNum);
+                  if (!p || !comboState || !emitCombo) return;
+                  if (comboState.isThreeCard) {
+                    setPendingComboTarget(p.player_token);
+                  } else {
+                    emitCombo(comboState.comboCards, p.player_token);
+                  }
+                }}
                 isMe={isMyAvatar}
                 onFavorSelect={
                   player && !isMyAvatar
