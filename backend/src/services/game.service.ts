@@ -1,6 +1,7 @@
 import { CardCode, ActionType, GAME_CONFIG } from "../constants/game";
 import { applyCardEffect } from "./effects/index";
 import { prisma } from "../config/prisma";
+import { handleDrawIK, insertIKBack, isIKOnTop } from "./imploding.service";
 import {
   Prisma,
   RoomStatus,
@@ -588,7 +589,7 @@ export const gameService = {
         throw new BadRequestError("It's not your turn");
       }
 
-      // Verify last action was drawing EK
+      // Verify last action was drawing EK (not IK — IK cannot be defused)
       const lastLog = await tx.gameLog.findFirst({
         where: { session_id: session.session_id, player_id: player.player_id },
         orderBy: { timestamp: "desc" },
@@ -598,6 +599,12 @@ export const gameService = {
       }
 
       const ekCard = (lastLog.action_details as { card: string }).card;
+
+      // IK cannot be defused under any circumstances (FR-07)
+      if (ekCard === CardCode.IMPLODING_KITTEN) {
+        throw new BadRequestError("Imploding Kitten cannot be defused");
+      }
+
       const dfCode =
         room.deck_config?.card_version === "good_and_evil" ? CardCode.GVE_DEFUSE : CardCode.DEFUSE;
 
@@ -721,6 +728,95 @@ export const gameService = {
         player.player_id,
       );
       return { ...turnResult, deck_count: deckWithEK.length };
+    });
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // FR-07-IK2: player picks a position to insert IK back into deck
+  // ─────────────────────────────────────────────────────────────
+  async placeIKBack(
+    roomId: string,
+    playerToken: string,
+    position: number,
+  ): Promise<{ success: boolean; ikOnTop: boolean }> {
+    const session = await prisma.gameSession.findFirst({
+      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+    });
+    if (!session) throw new NotFoundError("No active session");
+
+    await insertIKBack(session.session_id, position);
+
+    // FR-07-IK3: warn UI if IK (now face-up) lands on top of the deck
+    const ikOnTop = await isIKOnTop(session.session_id);
+
+    return { success: true, ikOnTop };
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // Alter the Future (AF) — Step 2: commit the new top-3 order
+  // newOrder: string[] — the 3 cards in player's chosen order (topmost first)
+  // ─────────────────────────────────────────────────────────────
+  async commitAlterTheFuture(
+    roomId: string,
+    playerToken: string,
+    newOrder: string[],
+  ): Promise<{ success: boolean; action: string }> {
+    return await prisma.$transaction(async (tx) => {
+      const session = await tx.gameSession.findFirst({
+        where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+      });
+      if (!session) throw new NotFoundError("No active session");
+
+      const player = await tx.player.findFirst({
+        where: { room_id: roomId, player_token: playerToken, is_alive: true },
+      });
+      if (!player) throw new NotFoundError("Player");
+      if (session.current_turn_player_id !== player.player_id) {
+        throw new BadRequestError("It's not your turn");
+      }
+
+      const deckState = await tx.deckState.findUnique({
+        where: { session_id: session.session_id },
+      });
+      if (!deckState) throw new NotFoundError("Deck state");
+
+      const deck = deckState.deck_order as string[];
+      const n = Math.min(3, deck.length);
+
+      // Validate length
+      if (newOrder.length !== n) {
+        throw new BadRequestError(`newOrder must have exactly ${n} cards`);
+      }
+
+      // Validate same cards (permutation check)
+      const currentTop = deck.slice(-n); // bottom-to-top order
+      const sortedCurrent = [...currentTop].sort();
+      const sortedNew = [...newOrder].sort();
+      if (!sortedCurrent.every((c, i) => c === sortedNew[i])) {
+        throw new BadRequestError("newOrder must be a permutation of the current top cards");
+      }
+
+      // newOrder is topmost-first; deck stores bottom-to-top → reverse before splice
+      const newTopSection = [...newOrder].reverse();
+      const newDeck = [...deck.slice(0, deck.length - n), ...newTopSection];
+
+      await tx.deckState.update({
+        where: { session_id: session.session_id },
+        data: { deck_order: newDeck },
+      });
+
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAY_CARD,
+          action_details: { card: CardCode.ALTER_THE_FUTURE, altered: true },
+          turn_number: session.turn_number,
+        },
+      });
+
+      return { success: true, action: "ALTER_THE_FUTURE_COMMITTED" };
     });
   },
 
@@ -1090,6 +1186,116 @@ export const gameService = {
     return null;
   },
 
+  // ── Helper: Draw from Bottom (DB) ───────────────────────────
+  // Draws deck[0] instead of deck[last]. Handles EK/IK same as drawCard.
+
+  async resolveDrawFromBottom(
+    tx: Prisma.TransactionClient,
+    session: GameSession,
+    player: Player,
+    roomId: string,
+  ) {
+    const deckState = await tx.deckState.findUnique({
+      where: { session_id: session.session_id },
+    });
+    if (!deckState) throw new NotFoundError("Deck state");
+
+    const deck = deckState.deck_order as string[];
+    if (deck.length === 0) throw new BadRequestError("Deck is empty");
+
+    // Draw from bottom (index 0) instead of top (index -1)
+    const drawnCard = deck[0]!;
+    const newDeck = deck.slice(1);
+
+    await tx.deckState.update({
+      where: { session_id: session.session_id },
+      data: { deck_order: newDeck, cards_remaining: newDeck.length },
+    });
+
+    await tx.gameLog.create({
+      data: {
+        session_id: session.session_id,
+        player_id: player.player_id,
+        player_display_name: player.display_name,
+        action_type: ActionType.DREW_CARD,
+        action_details: { card: drawnCard, source: "bottom" },
+        turn_number: session.turn_number,
+      },
+    });
+
+    const isEK = drawnCard === CardCode.EXPLODING_KITTEN || drawnCard === CardCode.GVE_EXPLODING_KITTEN;
+    const isIK = drawnCard === CardCode.IMPLODING_KITTEN;
+
+    if (isEK || isIK) {
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.DREW_EXPLODING_KITTEN,
+          action_details: { card: drawnCard, source: "bottom" },
+          turn_number: session.turn_number,
+        },
+      });
+
+      if (isIK) {
+        const res = await gameService.handleImplodingKitten(tx, session, player, roomId, drawnCard);
+        return { ...res, drawnCard, source: "bottom", deck_count: newDeck.length };
+      }
+
+      const room = await tx.room.findUnique({ where: { room_id: roomId }, include: { deck_config: true } });
+      if (!room) throw new NotFoundError("Room");
+      const res = await gameService.handleExplodingKitten(tx, session, player, room, drawnCard);
+      return { ...res, drawnCard, source: "bottom", deck_count: newDeck.length };
+    }
+
+    // Normal card — add to hand and advance turn
+    const hand = await tx.cardHand.findUnique({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+    });
+    const currentCards = (hand?.cards ?? []) as string[];
+    const newCards = [...currentCards, drawnCard];
+
+    await tx.cardHand.update({
+      where: { player_id_session_id: { player_id: player.player_id, session_id: session.session_id } },
+      data: { cards: newCards, card_count: newCards.length },
+    });
+
+    const pendingAttacks = session.pending_attacks ?? 0;
+    let turnResult: TurnAdvancedResult;
+
+    if (pendingAttacks > 1) {
+      const nextPending = pendingAttacks - 1;
+      await tx.gameSession.update({
+        where: { session_id: session.session_id },
+        data: { turn_number: session.turn_number + 1, pending_attacks: nextPending },
+      });
+      turnResult = {
+        success: true,
+        action: ActionType.TURN_ADVANCED,
+        nextTurn: {
+          player_id: player.player_id,
+          display_name: player.display_name,
+          turn_number: session.turn_number + 1,
+          pending_attacks: nextPending,
+        },
+      };
+    } else {
+      const sessionForAdvance = pendingAttacks === 1
+        ? { ...session, pending_attacks: 0 }
+        : session;
+      turnResult = await gameService.advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
+    }
+
+    return {
+      ...turnResult,
+      drawnCard,
+      source: "bottom",
+      hand: { cards: newCards },
+      deck_count: newDeck.length,
+    };
+  },
+
   // ── Helper: Handle Imploding Kitten ──────────────────────────
 
   async handleImplodingKitten(
@@ -1098,28 +1304,42 @@ export const gameService = {
     player: Player,
     roomId: string,
     drawnCard: string,
-  ): Promise<TurnAdvancedResult | GameOverResult> {
-    await tx.player.update({
-      where: { player_id: player.player_id },
-      data: { is_alive: false },
-    });
-    await tx.gameLog.create({
-      data: {
-        session_id: session.session_id,
-        player_id: player.player_id,
-        player_display_name: player.display_name,
-        action_type: ActionType.PLAYER_ELIMINATED,
-        action_details: { card: drawnCard, reason: "imploding_kitten" },
-        turn_number: session.turn_number,
-      },
-    });
-    return await gameService.checkWinner(
-      tx,
-      session,
-      roomId,
-      player.player_id,
+  ): Promise<TurnAdvancedResult | GameOverResult | ExplodingKittenDrawnResult> {
+    const ikResult = await handleDrawIK(session.session_id);
+
+    if (ikResult.playerEliminated) {
+      // FR-07-IK4: face-up → ตายทันที
+      await tx.player.update({
+        where: { player_id: player.player_id },
+        data: { is_alive: false },
+      });
+      await tx.gameLog.create({
+        data: {
+          session_id: session.session_id,
+          player_id: player.player_id,
+          player_display_name: player.display_name,
+          action_type: ActionType.PLAYER_ELIMINATED,
+          action_details: { card: drawnCard, reason: "imploding_kitten_face_up" },
+          turn_number: session.turn_number,
+        },
+      });
+      return await gameService.checkWinner(
+        tx,
+        session,
+        roomId,
+        player.player_id,
+        drawnCard,
+      );
+    }
+
+    // FR-07-IK2: face-down → ผู้เล่นต้องเลือกตำแหน่งใส่ IK กลับ
+    // ยังไม่ eliminate — รอ placeIKBack() จาก frontend
+    return {
+      success: true,
+      action: ActionType.DREW_EXPLODING_KITTEN,
       drawnCard,
-    );
+      hasDefuse: true, // true = ยังไม่ตาย, frontend แสดง placement modal
+    };
   },
 
   // ── Helper: Handle Exploding Kitten ──────────────────────────
@@ -1485,6 +1705,14 @@ export const gameService = {
         throw new BadRequestError("No pending action to Nope");
       }
 
+      // IK cannot be Noped — it is not an action card (FR-07)
+      if (
+        typeof session.pending_action === "object" &&
+        (session.pending_action as Record<string, unknown>)["card"] === CardCode.IMPLODING_KITTEN
+      ) {
+        throw new BadRequestError("Imploding Kitten cannot be Noped");
+      }
+
       const player = await tx.player.findFirst({
         where: { room_id: roomId, player_token: playerToken, is_alive: true },
       });
@@ -1605,6 +1833,13 @@ export const gameService = {
         const cardCode = pendingActionData.cardCode;
         const normalizedCode = cardCode.replace(/^GVE_/, "");
 
+        // DB (Draw from Bottom) — special: involves a full draw with EK/IK handling
+        if (normalizedCode === CardCode.DRAW_FROM_BOTTOM) {
+          return await gameService.resolveDrawFromBottom(
+            tx, session, originalPlayer, roomId
+          );
+        }
+
         const effectData = await applyCardEffect(normalizedCode, {
           tx,
           session,
@@ -1650,7 +1885,7 @@ export const gameService = {
         });
 
         if (!target) {
-           return { success: false, reason: "Target not found" }; 
+          return { success: false, reason: "Target not found" };
         }
 
         const targetHand = await tx.cardHand.findUnique({
@@ -1659,7 +1894,7 @@ export const gameService = {
         const targetCards = [...((targetHand?.cards ?? []) as string[])];
 
         const thiefHand = await tx.cardHand.findUnique({
-          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id }},
+          where: { player_id_session_id: { player_id: originalPlayer.player_id, session_id: session.session_id } },
         });
         const remaining = [...((thiefHand?.cards ?? []) as string[])];
 

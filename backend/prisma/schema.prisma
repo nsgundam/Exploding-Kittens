@@ -146,6 +146,7 @@ model DeckState {
   deck_order      Json
   discard_pile    Json
   cards_remaining Int
+  ik_face_up      Boolean  @default(false)
   last_updated    DateTime @default(now())
 
   session GameSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)

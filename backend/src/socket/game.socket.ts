@@ -77,11 +77,16 @@ export const registerGameSocket = (io: Server): void => {
     });
 
     const handleBroadcastPlayedCard = async (roomId: string, payloadPlayerToken: string, result: any) => {
-      if (result.effect?.type === "SEE_THE_FUTURE") {
+      if (result.effect?.type === "SEE_THE_FUTURE" || result.effect?.type === "ALTER_THE_FUTURE") {
+        // Private: only the player who played sees the top cards
         const sockets = await io.in(roomId).fetchSockets();
         const s = sockets.find(so => so.data.playerToken === payloadPlayerToken);
         if (s) s.emit("cardPlayed", result);
-        io.to(roomId).except(s?.id || "").emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
+        // Broadcast to others without card info
+        io.to(roomId).except(s?.id || "").emit("cardPlayed", {
+          ...result,
+          effect: { type: result.effect.type }, // strip topCards
+        });
 
       } else if (result.effect?.type === "FAVOR") {
         const effect = result.effect as {
@@ -178,13 +183,27 @@ export const registerGameSocket = (io: Server): void => {
               await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
             } else if (res.action === "COMBO_PLAYED") {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+            } else if (res.action === "TURN_ADVANCED") {
+              // DB card resolved and drew a normal card → broadcast like a draw
+              io.to(roomId).emit("cardDrawn", res);
+            } else if (res.action === "DREW_EXPLODING_KITTEN") {
+              // DB card drew EK or IK → same flow as normal draw EK
+              io.to(roomId).emit("cardDrawn", res);
+            } else if (res.action === "GAME_OVER") {
+              // DB card drew EK/IK and caused elimination → game over
+              io.to(roomId).emit("playerEliminated", res);
+              const updatedRoom = await roomService.getRoomById(roomId);
+              io.to(roomId).emit("roomUpdated", updatedRoom);
+              io.emit("roomListUpdated");
             }
           }
         } catch (err) {
           console.error("Resolve error:", err);
+          io.to(roomId).emit("errorMessage", getErrorMessage(err));
         }
       }, 3000); // 3 seconds Nope window
     };
+
 
     // ── Play Card (S2-18) ──────────────────────────────────────
     socket.on("playCard", async (payload: PlayCardPayload) => {
@@ -297,6 +316,19 @@ export const registerGameSocket = (io: Server): void => {
         const { roomId, playerToken, position } = payload;
         const result = await gameService.insertEK(roomId, playerToken, position);
         io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Alter the Future — Step 2: commit new order ────────────
+    socket.on("alterTheFuture", async (payload: { roomId: string; playerToken: string; newOrder: string[] }) => {
+      try {
+        const { roomId, playerToken, newOrder } = payload;
+        const result = await gameService.commitAlterTheFuture(roomId, playerToken, newOrder);
+        // Only the player knows the actual new order; others just get notified it was committed
+        socket.emit("alterTheFutureCommitted", result);
+        socket.to(roomId).emit("alterTheFutureCommitted", { success: true, action: "ALTER_THE_FUTURE_COMMITTED" });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
