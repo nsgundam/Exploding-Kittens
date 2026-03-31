@@ -7,6 +7,7 @@ import {
   insertEK,
   commitAlterTheFuture,
   placeIKBack,
+  getReconnectionState,
 } from "./game.core";
 import {
   playCard,
@@ -26,6 +27,7 @@ export const gameService = {
   insertEK,
   commitAlterTheFuture,
   placeIKBack,
+  getReconnectionState,
 
   // Actions
   playCard,

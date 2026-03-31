@@ -700,3 +700,20 @@ export async function eliminatePlayer(
     return await checkWinnerOrAdvance(tx, session, roomId, player.player_id, ekCard);
   });
 }
+
+export async function getReconnectionState(roomId: string, playerToken: string) {
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+  });
+  if (!session) return null;
+
+  const cardHands = await prisma.cardHand.findMany({
+    where: { session_id: session.session_id },
+  });
+
+  const deckState = await prisma.deckState.findUnique({
+    where: { session_id: session.session_id },
+  });
+
+  return { session, cardHands, deckState };
+}

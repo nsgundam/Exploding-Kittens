@@ -13,7 +13,8 @@ import {
   UpdateDeckConfigPayload,
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
-import { prisma } from "../config/prisma";
+import { gameService } from "../services/game.service";
+import { sanitizeCardHands } from "../utils/sanitizers";
 
 const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
 
@@ -41,31 +42,17 @@ export const registerRoomSocket = (io: Server): void => {
         io.to(roomId).emit("roomUpdated", updatedRoom);
 
         if (updatedRoom?.status === "PLAYING") {
-          const session = await prisma.gameSession.findFirst({
-            where: { room_id: roomId, status: "IN_PROGRESS" }
-          });
-          if (session) {
-            const cardHands = await prisma.cardHand.findMany({
-              where: { session_id: session.session_id }
-            });
-            const deckState = await prisma.deckState.findUnique({
-              where: { session_id: session.session_id }
-            });
-            const player = updatedRoom.players.find(p => p.player_token === playerToken);
-            
-            const sanitizedHands = cardHands.map((hand: any) => {
-              if (player && hand.player_id === player.player_id) {
-                return { ...hand, cards: (hand.cards ?? []) as string[] };
-              }
-              return { ...hand, cards: [] };
-            });
+          const state = await gameService.getReconnectionState(roomId, playerToken);
+          if (state) {
+            const player = updatedRoom.players.find((p: any) => p.player_token === playerToken);
+            const sanitizedHands = sanitizeCardHands(state.cardHands, player?.player_id);
 
             socket.emit("gameStarted", {
               room: updatedRoom,
-              session_id: session.session_id,
-              first_turn_player_id: session.current_turn_player_id,
+              session_id: state.session.session_id,
+              first_turn_player_id: state.session.current_turn_player_id,
               cardHands: sanitizedHands,
-              deck_count: deckState?.cards_remaining,
+              deck_count: state.deckState?.cards_remaining,
             });
           }
         }

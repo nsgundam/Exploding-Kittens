@@ -18,28 +18,7 @@ import {
   PlayComboPayload,
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
-
-/**
- * Sanitize card hands for anti-cheat (NFR-03, AI Rule 2.3).
- * Each player only sees their own cards; others see empty array + card_count.
- */
-function sanitizeCardHands(
-  cardHands: CardHand[],
-  viewerPlayerId: string | undefined
-): SanitizedCardHand[] {
-  return cardHands.map((hand) => {
-    if (viewerPlayerId && hand.player_id === viewerPlayerId) {
-      return {
-        ...hand,
-        cards: (hand.cards ?? []) as string[],
-      };
-    }
-    return {
-      ...hand,
-      cards: [],
-    };
-  });
-}
+import { sanitizeCardHands, getPublicComboResult } from "../utils/sanitizers";
 
 export const registerGameSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
@@ -139,13 +118,7 @@ export const registerGameSocket = (io: Server): void => {
     };
 
     const handleBroadcastComboPlayed = async (roomId: string, socketIdOrNull: string | null, payloadPlayerToken: string, targetPlayerToken: string, result: any) => {
-      const publicResult = {
-        ...result,
-        stolenCard: undefined,
-        thiefHand: undefined,
-        targetHand: undefined,
-        robbedFromToken: undefined,
-      };
+      const publicResult = getPublicComboResult(result);
 
       const sockets = await io.in(roomId).fetchSockets();
       const thiefSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
