@@ -40,6 +40,13 @@ export enum ActionType {
 
 }
 
+export enum EliminationReason {
+  TIMEOUT_NO_DEFUSE = "no_defuse_or_timeout",
+  IMPLODING_KITTEN = "imploding_kitten_face_up",
+  AFK_KICK = "afk_timeout",
+  LEFT_ROOM = "left_room"
+}
+
 export const GAME_CONFIG = {
   AFK_KICK_THRESHOLD: 2,
   TURN_TIMER_SECONDS: 30,

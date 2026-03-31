@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import { CreateRoomInput, UpdateDeckConfigInput, RoomWithRelations, CurrentRoomResponse } from "../types/types";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../utils/errors";
 import type { Player, Room } from "@prisma/client";
-import { GAME_CONFIG } from "../constants/game";
+import { GAME_CONFIG, EliminationReason } from "../constants/game";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -303,7 +303,7 @@ export const roomService = {
             session,
             roomId,
             player.player_id,
-            "LEFT_ROOM",
+            EliminationReason.LEFT_ROOM,
           );
 
           if (winResult.action === "GAME_OVER") {
