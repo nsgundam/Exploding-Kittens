@@ -155,7 +155,7 @@ export function useGameSocketEvents(
         setters.setGamePhase("EK_DRAWN");
         setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
       } else if (data?.success) {
-        const isFromBottom = (data as any).source === "bottom";
+        const isFromBottom = data.source === "bottom";
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
           : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
