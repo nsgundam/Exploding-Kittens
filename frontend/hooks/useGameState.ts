@@ -16,6 +16,7 @@ export type GamePhase =
   | "COMBO_DEMAND_CARD"
   | "NOPE_WINDOW"
   | "TA_SELECT_TARGET"
+  | "ALTER_FUTURE"
   | "GAME_OVER";
 
 export interface EKBombState {

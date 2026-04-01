@@ -69,10 +69,12 @@ export const useRoomSocket = (roomId: string) => {
     playNope: actions.playNope,
     selectTATarget: actions.selectTATarget,
     cancelTA: actions.cancelTA,
+    commitAlterTheFuture: actions.commitAlterTheFuture,
     timeLeft,
     currentTurnPlayerId: gameState.currentTurnPlayerId,
     pendingAttacks: gameState.pendingAttacks,
     lastPlayedCard: gameState.lastPlayedCard,
     deckCount: gameState.deckCount,
+    direction: gameState.direction,
   };
 };

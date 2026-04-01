@@ -313,6 +313,18 @@ export const useGameActions = (
     });
   }, [socket, roomId, setMyCards]);
 
+  // ── Alter the Future: commit new card order ──
+  const commitAlterTheFuture = useCallback(
+    (newOrder: string[]) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("alterTheFuture", { roomId, playerToken, newOrder });
+      setSeeTheFutureCards([]);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setSeeTheFutureCards, setGamePhase]
+  );
+
   return {
     selectSeat,
     startGame,
@@ -335,5 +347,6 @@ export const useGameActions = (
     playNope,
     selectTATarget,
     cancelTA,
+    commitAlterTheFuture,
   };
 };

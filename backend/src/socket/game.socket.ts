@@ -158,7 +158,15 @@ export const registerGameSocket = (io: Server): void => {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
             } else if (res.action === "TURN_ADVANCED") {
               // DB card resolved and drew a normal card → broadcast like a draw
-              io.to(roomId).emit("cardDrawn", res);
+              // Send hand.cards privately to the drawer; others get count only
+              const sockets = await io.in(roomId).fetchSockets();
+              const drawerSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+              if (drawerSocket) {
+                drawerSocket.emit("cardDrawn", res);
+                io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              } else {
+                io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              }
             } else if (res.action === "DREW_EXPLODING_KITTEN") {
               // DB card drew EK or IK → same flow as normal draw EK
               io.to(roomId).emit("cardDrawn", res);

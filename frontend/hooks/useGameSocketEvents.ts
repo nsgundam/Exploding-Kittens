@@ -128,7 +128,7 @@ export function useGameSocketEvents(
     };
 
     // ── cardDrawn ──
-    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number; nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number } }) => {
+    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number; player_id?: string; drawnByDisplayName?: string; drawnCard?: string; hand?: { cards: string[] }; source?: string; nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number } }) => {
       console.log("🃏 Card Drawn:", data);
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
       
@@ -155,9 +155,12 @@ export function useGameSocketEvents(
         setters.setGamePhase("EK_DRAWN");
         setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
       } else if (data?.success) {
+        const isFromBottom = (data as any).source === "bottom";
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
-          : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)` : `🃏 ${displayName} จั่วไพ่`;
+          : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
+          : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
+          : `🃏 ${displayName} จั่วไพ่`;
         setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
       }
 
@@ -210,6 +213,11 @@ export function useGameSocketEvents(
         if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
           setters.setSeeTheFutureCards(data.effect.topCards);
           setters.setGamePhase("SEE_FUTURE");
+        }
+
+        if (data.effect?.type === "ALTER_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
+          setters.setSeeTheFutureCards(data.effect.topCards);
+          setters.setGamePhase("ALTER_FUTURE");
         }
 
         if (data.effect?.type === "REVERSE") {
@@ -457,6 +465,14 @@ export function useGameSocketEvents(
       setters.setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
     };
 
+    // ── alterTheFutureCommitted ──
+    const handleAlterTheFutureCommitted = (data: { success: boolean; action: string }) => {
+      console.log("✨ Alter the Future Committed:", data);
+      setters.setSeeTheFutureCards([]);
+      setters.setGamePhase("PLAYING");
+      setters.setGameLogs((prev) => [...prev.slice(-19), `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
+    };
+
     socket.on("roomUpdated", handleRoomUpdated);
     socket.on("gameStarted", handleGameStarted);
     socket.on("cardDrawn", handleCardDrawn);
@@ -473,6 +489,7 @@ export function useGameSocketEvents(
     socket.on("actionPending", handleActionPending);
     socket.on("nopePlayed", handleNopePlayed);
     socket.on("actionCancelled", handleActionCancelled);
+    socket.on("alterTheFutureCommitted", handleAlterTheFutureCommitted);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -491,6 +508,7 @@ export function useGameSocketEvents(
       socket.off("actionPending", handleActionPending);
       socket.off("nopePlayed", handleNopePlayed);
       socket.off("actionCancelled", handleActionCancelled);
+      socket.off("alterTheFutureCommitted", handleAlterTheFutureCommitted);
     };
   }, [socket, roomId, setters]);
 }

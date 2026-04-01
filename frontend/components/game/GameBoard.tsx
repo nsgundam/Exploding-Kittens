@@ -7,6 +7,7 @@ import { EKBombSequence } from "./EKBombSequence";
 import { CatComboModal } from "./CatComboModal";
 import { InsertEKModal } from "./InsertEKModal";
 import { SeeTheFutureModal } from "./SeeTheFutureModal";
+import { AlterTheFutureModal } from "./AlterTheFutureModal";
 import { FavorPickModal } from "./FavorPickModal";
 import { NopeToast } from "./NopeWindow";
 import { GamePhase, EKBombState } from "@/hooks/useRoomSocket";
@@ -57,6 +58,7 @@ export interface GameBoardProps {
   direction?: number;
   cancelTA?: () => void;
   selectTATarget?: (targetPlayerToken: string) => void;
+  commitAlterTheFuture?: (newOrder: string[]) => void;
 }
 
 export function GameBoard({
@@ -96,6 +98,7 @@ export function GameBoard({
   direction = 1,
   cancelTA,
   selectTATarget,
+  commitAlterTheFuture,
 }: GameBoardProps) {
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
@@ -105,14 +108,16 @@ export function GameBoard({
   const handleInsertEK = (position: number) => insertEK(position);
 
   const [pendingComboTarget, setPendingComboTarget] = React.useState<string | null>(null);
-  const [isSpinning, setIsSpinning] = React.useState(false);
+  // spinDir: 0 = idle, 1 = spinning CW (direction became 1), -1 = spinning CCW (direction became -1)
+  const [spinDir, setSpinDir] = React.useState<0 | 1 | -1>(0);
   const prevDirectionRef = React.useRef(direction);
 
   React.useEffect(() => {
     if (prevDirectionRef.current !== direction) {
       prevDirectionRef.current = direction;
-      setIsSpinning(true);
-      const t = setTimeout(() => setIsSpinning(false), 700);
+      // direction 1 = clockwise (⟲), direction -1 = counter-clockwise (⟳)
+      setSpinDir(direction === 1 ? 1 : -1);
+      const t = setTimeout(() => setSpinDir(0), 700);
       return () => clearTimeout(t);
     }
   }, [direction]);
@@ -195,6 +200,12 @@ export function GameBoard({
         isOpen={gamePhase === "SEE_FUTURE"}
         cards={seeTheFutureCards}
         onClose={onCloseSeeTheFuture}
+      />
+
+      <AlterTheFutureModal
+        isOpen={gamePhase === "ALTER_FUTURE"}
+        cards={seeTheFutureCards}
+        onConfirm={(newOrder) => commitAlterTheFuture?.(newOrder)}
       />
 
       <FavorPickModal
@@ -357,7 +368,9 @@ export function GameBoard({
                   filter: direction === -1 ? "drop-shadow(0 0 8px rgba(251,146,60,0.7))" : "none",
                   transition: "color 0.4s, filter 0.4s",
                   display: "inline-block",
-                  animation: isSpinning ? "spin360 0.6s ease-in-out" : "none",
+                  animation: spinDir !== 0
+                    ? `${spinDir === 1 ? "spinCW" : "spinCCW"} 0.6s ease-in-out`
+                    : "none",
                 }}
               >
                 {direction === 1 ? "⟲" : "⟳"}
@@ -377,9 +390,13 @@ export function GameBoard({
                 </span>
               )}
               <style>{`
-                @keyframes spin360 {
+                @keyframes spinCW {
                   0%   { transform: rotate(0deg); }
                   100% { transform: rotate(360deg); }
+                }
+                @keyframes spinCCW {
+                  0%   { transform: rotate(0deg); }
+                  100% { transform: rotate(-360deg); }
                 }
               `}</style>
             </div>

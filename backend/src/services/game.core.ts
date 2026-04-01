@@ -439,6 +439,8 @@ export async function resolveDrawFromBottom(
     ...turnResult,
     drawnCard,
     source: "bottom",
+    player_id: player.player_id,
+    drawnByDisplayName: player.display_name,
     hand: { cards: newCards },
     deck_count: newDeck.length,
   };

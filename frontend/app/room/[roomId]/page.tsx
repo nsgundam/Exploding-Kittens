@@ -53,6 +53,8 @@ export default function RoomPage() {
     playNope,
     selectTATarget,
     cancelTA,
+    direction,
+    commitAlterTheFuture,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -352,6 +354,8 @@ export default function RoomPage() {
             playNope={playNope}
             selectTATarget={selectTATarget}
             cancelTA={cancelTA}
+            direction={direction}
+            commitAlterTheFuture={commitAlterTheFuture}
           />
         </div>
 
