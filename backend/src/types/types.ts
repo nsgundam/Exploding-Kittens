@@ -87,6 +87,7 @@ export interface CardEffectResult {
   topCards?: string[]; // See the Future
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
+  direction?: number; // Reverse: 1 = clockwise, -1 = counter-clockwise
 }
 
 export interface TurnInfo {

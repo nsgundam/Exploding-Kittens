@@ -1,4 +1,4 @@
-import { useCallback, RefObject } from "react";
+import { useCallback, RefObject, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { GamePhase } from "./useGameState";
 
@@ -40,6 +40,9 @@ export const useGameActions = (
     setFavorState,
     setComboState,
   } = setters;
+
+  // เก็บ card code ของ TA ที่เลือกไว้ (TA หรือ GVE_TA)
+  const taCardCodeRef = useRef<string>("TA");
 
   const selectSeat = useCallback(
     (seatNumber: number) => {
@@ -83,6 +86,18 @@ export const useGameActions = (
           cardCode,
         });
         setGamePhase("FAVOR_SELECT_TARGET");
+        return;
+      }
+
+      // TA intercept — เลือก target ก่อนเหมือน FV
+      if (normalizedCode === "TA" && !targetPlayerToken) {
+        taCardCodeRef.current = cardCode; // เก็บ "TA" หรือ "GVE_TA"
+        setGamePhase("TA_SELECT_TARGET");
+        setFavorState({
+          requesterPlayerId: playerToken ?? "",
+          requesterName: localStorage.getItem("display_name") ?? "คุณ",
+          cardCode,
+        });
         return;
       }
 
@@ -251,6 +266,32 @@ export const useGameActions = (
     [socket, roomId, setMyCards, setFavorState, setGamePhase]
   );
 
+  // ── Targeted Attack: เลือก target → emit playCard ──
+  const selectTATarget = useCallback(
+    (targetPlayerToken: string) => {
+      if (!targetPlayerToken) return;
+      const playerToken = localStorage.getItem("player_token");
+      const taCode = taCardCodeRef.current; // "TA" หรือ "GVE_TA"
+
+      socket?.emit("playCard", { roomId, playerToken, cardCode: taCode, targetPlayerToken });
+
+      setMyCards((prev) => {
+        const idx = prev.indexOf(taCode);
+        if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
+        return prev;
+      });
+
+      setFavorState(null);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setMyCards, setFavorState, setGamePhase]
+  );
+
+  const cancelTA = useCallback(() => {
+    setFavorState(null);
+    setGamePhase("PLAYING");
+  }, [setFavorState, setGamePhase]);
+
   // ── Play Nope ──
   const playNope = useCallback(() => {
     if (!socket) return;
@@ -292,5 +333,7 @@ export const useGameActions = (
     selectFavorTarget,
     pickFavorCard,
     playNope,
+    selectTATarget,
+    cancelTA,
   };
 };

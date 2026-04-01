@@ -51,6 +51,8 @@ export default function RoomPage() {
     pendingAction,
     nopeState,
     playNope,
+    selectTATarget,
+    cancelTA,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -348,6 +350,8 @@ export default function RoomPage() {
             pendingAction={pendingAction}
             nopeState={nopeState}
             playNope={playNope}
+            selectTATarget={selectTATarget}
+            cancelTA={cancelTA}
           />
         </div>
 

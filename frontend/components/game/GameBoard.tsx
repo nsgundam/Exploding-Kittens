@@ -54,6 +54,9 @@ export interface GameBoardProps {
   pendingAction?: { playedByDisplayName: string; cardCode?: string; comboCards?: string[]; target?: string | null } | null;
   nopeState?: { nopeCount: number; isCancel: boolean; lastPlayedByDisplayName: string } | null;
   playNope?: () => void;
+  direction?: number;
+  cancelTA?: () => void;
+  selectTATarget?: (targetPlayerToken: string) => void;
 }
 
 export function GameBoard({
@@ -90,6 +93,9 @@ export function GameBoard({
   cancelFavor,
   pendingAction,
   nopeState,
+  direction = 1,
+  cancelTA,
+  selectTATarget,
 }: GameBoardProps) {
   const getPlayerAtSeat = (seat: number) =>
     roomData.players?.find((p: Player) => p.seat_number === seat);
@@ -99,6 +105,17 @@ export function GameBoard({
   const handleInsertEK = (position: number) => insertEK(position);
 
   const [pendingComboTarget, setPendingComboTarget] = React.useState<string | null>(null);
+  const [isSpinning, setIsSpinning] = React.useState(false);
+  const prevDirectionRef = React.useRef(direction);
+
+  React.useEffect(() => {
+    if (prevDirectionRef.current !== direction) {
+      prevDirectionRef.current = direction;
+      setIsSpinning(true);
+      const t = setTimeout(() => setIsSpinning(false), 700);
+      return () => clearTimeout(t);
+    }
+  }, [direction]);
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
@@ -123,6 +140,7 @@ export function GameBoard({
         isMySeat={isMySeat}
         cancelCombo={cancelCombo}
         cancelFavor={cancelFavor}
+        cancelTA={cancelTA}
       />
 
       {/* ── NOPE TOAST ── */}
@@ -238,6 +256,7 @@ export function GameBoard({
                 isCurrentTurn={currentTurnSeat === seatNum}
                 timeLeft={timeLeft}
                 isFavorTargetMode={gamePhase === "FAVOR_SELECT_TARGET"}
+                isTATargetMode={gamePhase === "TA_SELECT_TARGET"}
                 isComboTargetMode={gamePhase === "COMBO_SELECT_TARGET"}
                 onComboSelect={() => {
                   const p = getPlayerAtSeat(seatNum);
@@ -252,6 +271,11 @@ export function GameBoard({
                 onFavorSelect={
                   player && !isMyAvatar
                     ? () => selectFavorTarget(player.player_token)
+                    : undefined
+                }
+                onTASelect={
+                  player && !isMyAvatar && selectTATarget
+                    ? () => selectTATarget(player.player_token)
                     : undefined
                 }
               />
@@ -325,11 +349,39 @@ export function GameBoard({
             </div>
 
             {/* ARROW */}
-            <div
-              className="text-4xl"
-              style={{ color: "rgba(255,240,200,0.7)" }}
-            >
-              ⟲
+            <div className="flex flex-col items-center gap-1">
+              <div
+                style={{
+                  fontSize: "2.5rem",
+                  color: direction === -1 ? "rgba(251,146,60,0.9)" : "rgba(255,240,200,0.7)",
+                  filter: direction === -1 ? "drop-shadow(0 0 8px rgba(251,146,60,0.7))" : "none",
+                  transition: "color 0.4s, filter 0.4s",
+                  display: "inline-block",
+                  animation: isSpinning ? "spin360 0.6s ease-in-out" : "none",
+                }}
+              >
+                {direction === 1 ? "⟲" : "⟳"}
+              </div>
+              {direction === -1 && (
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontFamily: "'Fredoka One',cursive",
+                    color: "rgba(251,146,60,0.9)",
+                    fontWeight: "bold",
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  REVERSED
+                </span>
+              )}
+              <style>{`
+                @keyframes spin360 {
+                  0%   { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
             </div>
 
             {/* PLAY CARD ZONE */}

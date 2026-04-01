@@ -15,6 +15,7 @@ export type GamePhase =
   | "COMBO_SELECT_TARGET"
   | "COMBO_DEMAND_CARD"
   | "NOPE_WINDOW"
+  | "TA_SELECT_TARGET"
   | "GAME_OVER";
 
 export interface EKBombState {
@@ -56,6 +57,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [deckCount, setDeckCount] = useState<number | null>(null);
   const [turnNumber, setTurnNumber] = useState<number>(0);
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
+  const [direction, setDirection] = useState<number>(1);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
@@ -72,8 +74,9 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
     setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
-    setPendingAttacks, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
+    setPendingAttacks, setDirection, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef
+    
   }), []);
 
   useGameSocketEvents(socket, roomId, setters);
@@ -111,6 +114,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     pendingAttacks,
+    direction, setDirection,
     deckCount, setDeckCount,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,

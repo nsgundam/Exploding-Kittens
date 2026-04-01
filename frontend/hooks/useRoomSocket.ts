@@ -67,6 +67,8 @@ export const useRoomSocket = (roomId: string) => {
     cancelFavor: actions.cancelFavor,
     pickFavorCard: actions.pickFavorCard,
     playNope: actions.playNope,
+    selectTATarget: actions.selectTATarget,
+    cancelTA: actions.cancelTA,
     timeLeft,
     currentTurnPlayerId: gameState.currentTurnPlayerId,
     pendingAttacks: gameState.pendingAttacks,

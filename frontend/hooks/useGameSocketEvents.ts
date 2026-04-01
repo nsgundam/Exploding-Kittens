@@ -64,6 +64,7 @@ export interface GameStateSetters {
   setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
   setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
   setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
+  setDirection: React.Dispatch<React.SetStateAction<number>>;
   roomDataRef: React.MutableRefObject<RoomData | null>;
   currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
   pendingNextTurnRef: React.MutableRefObject<string | null>;
@@ -104,6 +105,7 @@ export function useGameSocketEvents(
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
       setters.setGamePhase("PLAYING");
       setters.setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
+      setters.setDirection(1); // reset direction on new game
 
       if (data?.cardHands && Array.isArray(data.cardHands)) {
         setters.setCardHands(data.cardHands);
@@ -200,6 +202,13 @@ export function useGameSocketEvents(
         if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
           setters.setSeeTheFutureCards(data.effect.topCards);
           setters.setGamePhase("SEE_FUTURE");
+        }
+
+        if (data.effect?.type === "REVERSE") {
+          const newDir = (data.effect as any).direction as number ?? -1;
+          setters.setDirection(newDir);
+          const dirLabel = newDir === 1 ? "ตามเข็มนาฬิกา 🔃" : "ทวนเข็มนาฬิกา 🔄";
+          showToast(`🔄 ${data.playedByDisplayName || "ผู้เล่น"} Reverse! ลำดับเปลี่ยนเป็น ${dirLabel}`, 3500);
         }
 
         if (data.effect?.type === "FAVOR") {
