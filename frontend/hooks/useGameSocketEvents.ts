@@ -12,6 +12,14 @@ import type {
   PlayerEliminatedPayload,
   EKInsertedPayload,
 } from "@/types";
+
+interface CardEffectResult {
+  type: string;
+  topCards?: string[];
+  shuffled?: boolean;
+  extraTurns?: number;
+  direction?: number;
+}
 import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
 import { FavorState, ComboState } from "./useGameActions";
 
@@ -205,7 +213,7 @@ export function useGameSocketEvents(
         }
 
         if (data.effect?.type === "REVERSE") {
-          const newDir = (data.effect as any).direction as number ?? -1;
+          const newDir = (data.effect as CardEffectResult).direction ?? -1;
           setters.setDirection(newDir);
           const dirLabel = newDir === 1 ? "ตามเข็มนาฬิกา 🔃" : "ทวนเข็มนาฬิกา 🔄";
           showToast(`🔄 ${data.playedByDisplayName || "ผู้เล่น"} Reverse! ลำดับเปลี่ยนเป็น ${dirLabel}`, 3500);
