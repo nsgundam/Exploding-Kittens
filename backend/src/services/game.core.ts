@@ -1,7 +1,7 @@
 import { Prisma, RoomStatus, GameSessionStatus, PlayerRole, GameSession, Player } from "@prisma/client";
 import { ActionType, CardCode, EliminationReason } from "../constants/game";
 import { prisma } from "../config/prisma";
-import { handleDrawIK, insertIKBack, isIKOnTop } from "./imploding.service";
+import { handleDrawIK, insertIKBack } from "./imploding.service";
 import { buildBaseDeck, dealCards, finalizeDeck } from "./game.deck";
 import { advanceTurn, checkWinnerOrAdvance, handleAFK } from "./game.turn";
 import {
@@ -162,28 +162,34 @@ export async function handleImplodingKitten(
   const ikResult = await handleDrawIK(session.session_id);
 
   if (ikResult.playerEliminated) {
-    await tx.player.update({
-      where: { player_id: player.player_id },
-      data: { is_alive: false },
-    });
+    // IK face-up: log the draw, then let frontend show popup before eliminating
+    // (eliminatePlayer socket will handle actual elimination + checkWinnerOrAdvance)
     await tx.gameLog.create({
       data: {
         session_id: session.session_id,
         player_id: player.player_id,
         player_display_name: player.display_name,
-        action_type: ActionType.PLAYER_ELIMINATED,
+        action_type: ActionType.DREW_EXPLODING_KITTEN,
         action_details: { card: drawnCard, reason: EliminationReason.IMPLODING_KITTEN },
         turn_number: session.turn_number,
       },
     });
-    return await checkWinnerOrAdvance(tx, session, roomId, player.player_id, drawnCard);
+    return {
+      success: true,
+      action: ActionType.DREW_EXPLODING_KITTEN,
+      drawnCard,
+      hasDefuse: false,
+      isIKFaceUp: true,
+    };
   }
 
+  // IK face-down: player must choose where to place it back
   return {
     success: true,
     action: ActionType.DREW_EXPLODING_KITTEN,
     drawnCard,
-    hasDefuse: true, 
+    hasDefuse: true,
+    isIKFaceUp: false,
   };
 }
 
@@ -329,6 +335,16 @@ export async function drawCard(
       turnResult = await advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
     }
 
+    // คำนวณ ikOnTop: query ik_face_up นอก tx เพื่อให้เห็นค่าล่าสุดจาก insertIKBack
+    // newDeck คือ deck หลังจั่วออกแล้ว (ถูกต้องแล้ว)
+    const ikFaceUpState = await prisma.deckState.findUnique({
+      where: { session_id: session.session_id },
+      select: { ik_face_up: true },
+    });
+    const ikOnTop = (ikFaceUpState?.ik_face_up === true)
+      && newDeck.length > 0
+      && newDeck[newDeck.length - 1] === "IK";
+
     return {
       ...turnResult,
       drawnCard,
@@ -337,6 +353,7 @@ export async function drawCard(
       hand: { cards: newCards },
       deck_count: newDeck.length,
       isAutoDraw: isAutoDrawn,
+      ikOnTop,
     };
   });
 }
@@ -581,19 +598,77 @@ export async function insertEK(
   });
 }
 
+// ── Place IK Back (FR-07-IK2) ──────────────────────────────────────────────
+// หลังจากผู้เล่นจั่วได้ IK face-down → เลือกตำแหน่งใส่กลับ + advance turn
 export async function placeIKBack(
   roomId: string,
   playerToken: string,
   position: number,
-): Promise<{ success: boolean; ikOnTop: boolean }> {
-  const session = await prisma.gameSession.findFirst({
-    where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
-  });
-  if (!session) throw new NotFoundError("No active session");
+): Promise<TurnAdvancedResult & { ikOnTop: boolean; deck_count: number }> {
+  return await prisma.$transaction(async (tx) => {
+    const room = await tx.room.findUnique({
+      where: { room_id: roomId },
+      include: { deck_config: true },
+    });
+    if (!room) throw new NotFoundError("Room");
+    if (room.status !== RoomStatus.PLAYING) throw new BadRequestError("Game is not active");
 
-  await insertIKBack(session.session_id, position);
-  const ikOnTop = await isIKOnTop(session.session_id);
-  return { success: true, ikOnTop };
+    const session = await tx.gameSession.findFirst({
+      where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
+    });
+    if (!session) throw new NotFoundError("No active session");
+
+    const player = await tx.player.findFirst({
+      where: { room_id: roomId, player_token: playerToken },
+    });
+    if (!player) throw new NotFoundError("Player");
+    if (session.current_turn_player_id !== player.player_id) {
+      throw new BadRequestError("It's not your turn");
+    }
+
+    // Validate: last action must be DREW_EXPLODING_KITTEN with IK card
+    const lastLog = await tx.gameLog.findFirst({
+      where: { session_id: session.session_id, player_id: player.player_id },
+      orderBy: { timestamp: "desc" },
+    });
+    if (lastLog?.action_type !== ActionType.DREW_EXPLODING_KITTEN) {
+      throw new BadRequestError("No pending Imploding Kitten placement");
+    }
+    const drawnCard = (lastLog.action_details as { card?: string }).card;
+    if (drawnCard !== CardCode.IMPLODING_KITTEN) {
+      throw new BadRequestError("Last drawn card was not an Imploding Kitten");
+    }
+
+    // Insert IK back into deck at chosen position + flip to face-up
+    await insertIKBack(session.session_id, position);
+
+    // Log the placement
+    await tx.gameLog.create({
+      data: {
+        session_id: session.session_id,
+        player_id: player.player_id,
+        player_display_name: player.display_name,
+        action_type: ActionType.IK_INSERTED,
+        action_details: { ik_card: CardCode.IMPLODING_KITTEN, insert_position: position },
+        turn_number: session.turn_number,
+      },
+    });
+
+    // อ่าน deckState ใหม่หลัง insertIKBack เสร็จ (insertIKBack ใช้ prisma โดยตรง ต้อง re-query)
+    const deckState = await prisma.deckState.findUnique({
+      where: { session_id: session.session_id },
+    });
+    const deck = (deckState?.deck_order as string[]) ?? [];
+    const deck_count = deck.length;
+
+    // คำนวณ ikOnTop โดยตรงจาก deck ที่ได้มา (top card = deck[deck.length - 1])
+    const ikOnTop = (deckState?.ik_face_up === true) && deck[deck.length - 1] === "IK";
+
+    // Advance turn
+    const turnResult = await advanceTurn(tx, session, roomId, player.player_id);
+
+    return { ...turnResult, ikOnTop, deck_count };
+  });
 }
 
 export async function commitAlterTheFuture(

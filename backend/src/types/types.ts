@@ -129,6 +129,7 @@ export interface ExplodingKittenDrawnResult {
   drawnCard: string;
   hasDefuse: boolean;
   deck_count?: number;
+  isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
 }
 
 export type DefuseResult = TurnAdvancedResult | GameOverResult;
