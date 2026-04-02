@@ -640,7 +640,7 @@ export async function placeIKBack(
     }
 
     // Insert IK back into deck at chosen position + flip to face-up
-    await insertIKBack(session.session_id, position);
+    await insertIKBack(tx, session.session_id, position);
 
     // Log the placement
     await tx.gameLog.create({
@@ -654,8 +654,8 @@ export async function placeIKBack(
       },
     });
 
-    // อ่าน deckState ใหม่หลัง insertIKBack เสร็จ (insertIKBack ใช้ prisma โดยตรง ต้อง re-query)
-    const deckState = await prisma.deckState.findUnique({
+    // Read updated deckState after insertIKBack completes (within the same transaction)
+    const deckState = await tx.deckState.findUnique({
       where: { session_id: session.session_id },
     });
     const deck = (deckState?.deck_order as string[]) ?? [];
