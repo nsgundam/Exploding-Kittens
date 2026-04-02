@@ -12,6 +12,14 @@ import type {
   PlayerEliminatedPayload,
   EKInsertedPayload,
 } from "@/types";
+
+interface CardEffectResult {
+  type: string;
+  topCards?: string[];
+  shuffled?: boolean;
+  extraTurns?: number;
+  direction?: number;
+}
 import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
 import { FavorState, ComboState } from "./useGameActions";
 
@@ -64,6 +72,8 @@ export interface GameStateSetters {
   setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
   setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
   setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
+  setDirection: React.Dispatch<React.SetStateAction<number>>;
+  setIkOnTop: React.Dispatch<React.SetStateAction<boolean>>;
   roomDataRef: React.MutableRefObject<RoomData | null>;
   currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
   pendingNextTurnRef: React.MutableRefObject<string | null>;
@@ -104,6 +114,7 @@ export function useGameSocketEvents(
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
       setters.setGamePhase("PLAYING");
       setters.setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
+      setters.setDirection(1); // reset direction on new game
 
       if (data?.cardHands && Array.isArray(data.cardHands)) {
         setters.setCardHands(data.cardHands);
@@ -118,10 +129,21 @@ export function useGameSocketEvents(
     };
 
     // ── cardDrawn ──
-    const handleCardDrawn = (data: CardDrawnPayload & { deck_count?: number; nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number } }) => {
+    const handleCardDrawn = (data: CardDrawnPayload & {
+      deck_count?: number;
+      player_id?: string;
+      drawnByDisplayName?: string;
+      drawnCard?: string;
+      hand?: { cards: string[] };
+      source?: string;
+      ikOnTop?: boolean;
+      nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number };
+    }) => {
       console.log("🃏 Card Drawn:", data);
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
-      
+      // อัพเดท ikOnTop ทุกครั้งที่จั่วไพ่ปกติ (IK อาจขึ้นมาบนสุดหลังจั่วไพ่ข้างบนออกไป)
+      if (data?.ikOnTop !== undefined) setters.setIkOnTop(data.ikOnTop);
+
       if (data?.player_id) {
         setters.setCardHands((prev) =>
           prev.map((hand) => {
@@ -139,15 +161,34 @@ export function useGameSocketEvents(
 
       const drawnPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.player_id);
       const displayName = data.drawnByDisplayName || drawnPlayer?.display_name || "ผู้เล่น";
-      
+
       if (data?.action === "DREW_EXPLODING_KITTEN") {
-        setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
-        setters.setGamePhase("EK_DRAWN");
-        setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+        const isIK = data.drawnCard === "IK";
+        const isIKFaceUp = !!data.isIKFaceUp;
+
+        if (isIK) {
+          // IK ทุก case → set IK_REVEAL ก่อนให้ทุกคนเห็น
+          // หลัง reveal จบ GameBoard จะ transition ไป IK_INSERT หรือ EK_DRAWN ต่อ
+          setters.setIkOnTop(false); // IK ถูกจั่วออกจากกองแล้ว → ไม่อยู่บนสุดอีกต่อไป
+          setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
+          setters.setGamePhase("IK_REVEAL");
+          const logMsg = isIKFaceUp
+            ? `💥 ${displayName} จั่วได้ Imploding Kitten (หงายหน้า) — ตายทันที!`
+            : `🐱 ${displayName} จั่วได้ Imploding Kitten! (คว่ำหน้า)`;
+          setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+        } else {
+          // Normal EK
+          setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
+          setters.setGamePhase("EK_DRAWN");
+          setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+        }
       } else if (data?.success) {
+        const isFromBottom = data.source === "bottom";
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
-          : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)` : `🃏 ${displayName} จั่วไพ่`;
+          : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
+          : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
+          : `🃏 ${displayName} จั่วไพ่`;
         setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
       }
 
@@ -157,6 +198,35 @@ export function useGameSocketEvents(
         setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
         if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
         setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+      }
+    };
+
+    // ── ikPlacedBack ──
+    // Emitted after placeIKBack succeeds: IK is now face-up in deck, turn advances
+    const handleIkPlacedBack = (data: {
+      success: boolean;
+      ikOnTop: boolean;
+      deck_count: number;
+      action: string;
+      nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number };
+    }) => {
+      console.log("🐱 IK Placed Back:", data);
+      if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      setters.setGamePhase("PLAYING");
+      setters.setEkBombState(null);
+      // IK หงายหน้าเสมอหลังใส่กลับกอง แต่ deck แสดง IK เฉพาะเมื่ออยู่บนสุดเท่านั้น
+      setters.setIkOnTop(data.ikOnTop);
+      if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+      if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+      setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+
+      const logMsg = data.ikOnTop
+        ? `🐱 Imploding Kitten ถูกใส่กลับกอง ⚠️ อยู่บนสุด! Deck แสดง IK — ระวัง!`
+        : `🐱 Imploding Kitten ถูกใส่กลับกอง (หงายหน้าขึ้น แต่ไม่ได้อยู่บนสุด)`;
+      setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+
+      if (data.ikOnTop) {
+        showToast("⚠️ Imploding Kitten อยู่บนสุดกอง! ระวัง!", 4000);
       }
     };
 
@@ -181,7 +251,7 @@ export function useGameSocketEvents(
         const playedPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.playedBy);
         const displayName = data.playedByDisplayName || playedPlayer?.display_name || "ผู้เล่น";
         const logMsg = data.message || `${displayName} เล่นไพ่ ${data.cardCode}`;
-        
+
         setters.setGameLogs((prev) => [...prev.slice(-19), `🎴 ${logMsg}`]);
         setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
 
@@ -190,7 +260,7 @@ export function useGameSocketEvents(
         if (!skipTurnCards.includes(normalizedPlayed ?? "")) {
           setters.onCardPlayedRef.current?.();
         }
-        
+
         if (data?.nextTurn?.player_id) {
           setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
           if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
@@ -202,6 +272,18 @@ export function useGameSocketEvents(
           setters.setGamePhase("SEE_FUTURE");
         }
 
+        if (data.effect?.type === "ALTER_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
+          setters.setSeeTheFutureCards(data.effect.topCards);
+          setters.setGamePhase("ALTER_FUTURE");
+        }
+
+        if (data.effect?.type === "REVERSE") {
+          const newDir = (data.effect as CardEffectResult).direction ?? -1;
+          setters.setDirection(newDir);
+          const dirLabel = newDir === 1 ? "ตามเข็มนาฬิกา 🔃" : "ทวนเข็มนาฬิกา 🔄";
+          showToast(`🔄 ${data.playedByDisplayName || "ผู้เล่น"} Reverse! ลำดับเปลี่ยนเป็น ${dirLabel}`, 3500);
+        }
+
         if (data.effect?.type === "FAVOR") {
           const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
           if (me?.player_id === data.playedBy) {
@@ -211,7 +293,7 @@ export function useGameSocketEvents(
       }
     };
 
-    // ── favorRequested ── 
+    // ── favorRequested ──
     const handleFavorRequested = (data: { requesterPlayerId: string; requesterName: string; availableCards?: string[] }) => {
       console.log("🤝 Favor Requested:", data);
       setters.setFavorState({
@@ -251,7 +333,7 @@ export function useGameSocketEvents(
     const handleCardDefused = (data: CardDefusedPayload) => {
       console.log("🛡️ Card Defused:", data);
       setters.setEkBombState(null);
-      
+
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
       const defuserPlayerId = setters.currentTurnPlayerIdRef.current;
       const isMe = me && me.player_id === defuserPlayerId;
@@ -320,7 +402,7 @@ export function useGameSocketEvents(
         setters.setWinner(data.winner);
         setters.setGameLogs((prev) => [...prev.slice(-19), `🏆 ${data.winner!.display_name} ชนะการแข่งขัน!`]);
       }
-      
+
       if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
       if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
       setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
@@ -335,7 +417,7 @@ export function useGameSocketEvents(
       }
     };
 
-    // ── comboPlayed ── 
+    // ── comboPlayed ──
     const handleComboPlayed = (data: { action: string; success: boolean; comboType: "TWO_CARD" | "THREE_CARD"; stolenCard?: string; wasVoid: boolean; robbedFromDisplayName: string; robbedFromPlayerId: string; thiefHand?: string[]; targetHand?: string[]; nextTurn?: { player_id: string; display_name: string; turn_number: number }; }) => {
       console.log("🐱 Combo Played:", data);
 
@@ -374,11 +456,11 @@ export function useGameSocketEvents(
       setters.setNopeState(null);
     };
 
-    // ── actionPending ── 
+    // ── actionPending ──
     const handleActionPending = (data: { action: "ACTION_PENDING"; playedBy: string; playedByDisplayName: string; target?: string | null; cardCode?: string; comboCards?: string[]; comboType?: string; demandedCard?: string; }) => {
       console.log("⏳ Action Pending (Nope Window):", data);
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
-      
+
       if (me?.player_id !== data.playedBy) {
         setters.setCardHands((prev) =>
           prev.map((hand) => {
@@ -440,6 +522,14 @@ export function useGameSocketEvents(
       setters.setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
     };
 
+    // ── alterTheFutureCommitted ──
+    const handleAlterTheFutureCommitted = (data: { success: boolean; action: string }) => {
+      console.log("✨ Alter the Future Committed:", data);
+      setters.setSeeTheFutureCards([]);
+      setters.setGamePhase("PLAYING");
+      setters.setGameLogs((prev) => [...prev.slice(-19), `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
+    };
+
     socket.on("roomUpdated", handleRoomUpdated);
     socket.on("gameStarted", handleGameStarted);
     socket.on("cardDrawn", handleCardDrawn);
@@ -451,11 +541,13 @@ export function useGameSocketEvents(
     socket.on("favorCompleted", handleFavorCompleted);
     socket.on("cardDefused", handleCardDefused);
     socket.on("ekInserted", handleEkInserted);
+    socket.on("ikPlacedBack", handleIkPlacedBack);
     socket.on("playerEliminated", handlePlayerEliminated);
     socket.on("comboPlayed", handleComboPlayed);
     socket.on("actionPending", handleActionPending);
     socket.on("nopePlayed", handleNopePlayed);
     socket.on("actionCancelled", handleActionCancelled);
+    socket.on("alterTheFutureCommitted", handleAlterTheFutureCommitted);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -469,11 +561,13 @@ export function useGameSocketEvents(
       socket.off("favorCompleted", handleFavorCompleted);
       socket.off("cardDefused", handleCardDefused);
       socket.off("ekInserted", handleEkInserted);
+      socket.off("ikPlacedBack", handleIkPlacedBack);
       socket.off("playerEliminated", handlePlayerEliminated);
       socket.off("comboPlayed", handleComboPlayed);
       socket.off("actionPending", handleActionPending);
       socket.off("nopePlayed", handleNopePlayed);
       socket.off("actionCancelled", handleActionCancelled);
+      socket.off("alterTheFutureCommitted", handleAlterTheFutureCommitted);
     };
   }, [socket, roomId, setters]);
 }

@@ -158,7 +158,15 @@ export const registerGameSocket = (io: Server): void => {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
             } else if (res.action === "TURN_ADVANCED") {
               // DB card resolved and drew a normal card → broadcast like a draw
-              io.to(roomId).emit("cardDrawn", res);
+              // Send hand.cards privately to the drawer; others get count only
+              const sockets = await io.in(roomId).fetchSockets();
+              const drawerSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+              if (drawerSocket) {
+                drawerSocket.emit("cardDrawn", res);
+                io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              } else {
+                io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              }
             } else if (res.action === "DREW_EXPLODING_KITTEN") {
               // DB card drew EK or IK → same flow as normal draw EK
               io.to(roomId).emit("cardDrawn", res);
@@ -283,12 +291,24 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
-    // ── Insert EK ──────────────────────────────────────────────
+    // ── Insert EK (after Defuse) ───────────────────────────────
     socket.on("insertEK", async (payload: { roomId: string; playerToken: string; position: number }) => {
       try {
         const { roomId, playerToken, position } = payload;
         const result = await gameService.insertEK(roomId, playerToken, position);
         io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Place IK Back (after drawing Imploding Kitten face-down) ──
+    // FR-07-IK2: ผู้เล่นเลือกตำแหน่งใส่ IK กลับ → IK เปลี่ยนเป็น face-up → advance turn
+    socket.on("placeIKBack", async (payload: { roomId: string; playerToken: string; position: number }) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.placeIKBack(roomId, playerToken, position);
+        io.to(roomId).emit("ikPlacedBack", result);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

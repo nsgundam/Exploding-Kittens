@@ -1,4 +1,4 @@
-import { useCallback, RefObject } from "react";
+import { useCallback, RefObject, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { GamePhase } from "./useGameState";
 
@@ -40,6 +40,9 @@ export const useGameActions = (
     setFavorState,
     setComboState,
   } = setters;
+
+  // เก็บ card code ของ TA ที่เลือกไว้ (TA หรือ GVE_TA)
+  const taCardCodeRef = useRef<string>("TA");
 
   const selectSeat = useCallback(
     (seatNumber: number) => {
@@ -83,6 +86,18 @@ export const useGameActions = (
           cardCode,
         });
         setGamePhase("FAVOR_SELECT_TARGET");
+        return;
+      }
+
+      // TA intercept — เลือก target ก่อนเหมือน FV
+      if (normalizedCode === "TA" && !targetPlayerToken) {
+        taCardCodeRef.current = cardCode; // เก็บ "TA" หรือ "GVE_TA"
+        setGamePhase("TA_SELECT_TARGET");
+        setFavorState({
+          requesterPlayerId: playerToken ?? "",
+          requesterName: localStorage.getItem("display_name") ?? "คุณ",
+          cardCode,
+        });
         return;
       }
 
@@ -161,6 +176,18 @@ export const useGameActions = (
       }
     },
     [socket, roomId, setGamePhase, setCurrentTurnPlayerId, pendingNextTurnRef]
+  );
+
+  // ── Place IK Back — FR-07-IK2 ──
+  // เรียกเมื่อผู้เล่นจั่วได้ IK face-down และเลือกตำแหน่งใส่กลับกอง
+  const placeIKBack = useCallback(
+    (position: number) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("placeIKBack", { roomId, playerToken, position });
+      // phase จะถูกเปลี่ยนเป็น PLAYING โดย handleIkPlacedBack ใน useGameSocketEvents
+    },
+    [socket, roomId]
   );
 
   const closeInsertEK = useCallback(() => {
@@ -251,6 +278,32 @@ export const useGameActions = (
     [socket, roomId, setMyCards, setFavorState, setGamePhase]
   );
 
+  // ── Targeted Attack: เลือก target → emit playCard ──
+  const selectTATarget = useCallback(
+    (targetPlayerToken: string) => {
+      if (!targetPlayerToken) return;
+      const playerToken = localStorage.getItem("player_token");
+      const taCode = taCardCodeRef.current; // "TA" หรือ "GVE_TA"
+
+      socket?.emit("playCard", { roomId, playerToken, cardCode: taCode, targetPlayerToken });
+
+      setMyCards((prev) => {
+        const idx = prev.indexOf(taCode);
+        if (idx !== -1) { const next = [...prev]; next.splice(idx, 1); return next; }
+        return prev;
+      });
+
+      setFavorState(null);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setMyCards, setFavorState, setGamePhase]
+  );
+
+  const cancelTA = useCallback(() => {
+    setFavorState(null);
+    setGamePhase("PLAYING");
+  }, [setFavorState, setGamePhase]);
+
   // ── Play Nope ──
   const playNope = useCallback(() => {
     if (!socket) return;
@@ -272,6 +325,18 @@ export const useGameActions = (
     });
   }, [socket, roomId, setMyCards]);
 
+  // ── Alter the Future: commit new card order ──
+  const commitAlterTheFuture = useCallback(
+    (newOrder: string[]) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("alterTheFuture", { roomId, playerToken, newOrder });
+      setSeeTheFutureCards([]);
+      setGamePhase("PLAYING");
+    },
+    [socket, roomId, setSeeTheFutureCards, setGamePhase]
+  );
+
   return {
     selectSeat,
     startGame,
@@ -282,6 +347,7 @@ export const useGameActions = (
     cancelCombo,
     cancelFavor,
     insertEK,
+    placeIKBack,
     closeInsertEK,
     closeSeeTheFuture,
     dismissEliminated,
@@ -292,5 +358,8 @@ export const useGameActions = (
     selectFavorTarget,
     pickFavorCard,
     playNope,
+    selectTATarget,
+    cancelTA,
+    commitAlterTheFuture,
   };
 };

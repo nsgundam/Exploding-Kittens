@@ -9,12 +9,16 @@ export type GamePhase =
   | "PLAYING"
   | "EK_DRAWN"
   | "DEFUSE_INSERT"
+  | "IK_REVEAL"
+  | "IK_INSERT"
   | "SEE_FUTURE"
   | "FAVOR_SELECT_TARGET"
   | "FAVOR_PICK_CARD"
   | "COMBO_SELECT_TARGET"
   | "COMBO_DEMAND_CARD"
   | "NOPE_WINDOW"
+  | "TA_SELECT_TARGET"
+  | "ALTER_FUTURE"
   | "GAME_OVER";
 
 export interface EKBombState {
@@ -56,6 +60,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [deckCount, setDeckCount] = useState<number | null>(null);
   const [turnNumber, setTurnNumber] = useState<number>(0);
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
+  const [direction, setDirection] = useState<number>(1);
+  const [ikOnTop, setIkOnTop] = useState<boolean>(false);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
@@ -72,8 +78,9 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
     setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
-    setPendingAttacks, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
+    setPendingAttacks, setDirection, setIkOnTop, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef
+    
   }), []);
 
   useGameSocketEvents(socket, roomId, setters);
@@ -111,6 +118,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     pendingAttacks,
+    direction, setDirection,
+    ikOnTop, setIkOnTop,
     deckCount, setDeckCount,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,

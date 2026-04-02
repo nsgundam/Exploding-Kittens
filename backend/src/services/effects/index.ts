@@ -102,19 +102,49 @@ const handleReverseEffect: EffectHandler = async ({ tx, session, roomId, current
   if (!nextPlayer) throw new NotFoundError("Cannot determine next player");
 
   const pendingAttacks = session.pending_attacks ?? 0;
+  const remainingAttacks = pendingAttacks > 0 ? pendingAttacks - 1 : 0;
 
+  if (remainingAttacks > 0) {
+    // B ยังมี pending เหลือ → B เล่นต่อ (direction flip แล้ว), คนถัดไปคือทิศใหม่ (A)
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: {
+        direction: newDirection,
+        current_turn_player_id: currentPlayerId, // B ยังเล่นอยู่
+        pending_attacks: remainingAttacks,
+        turn_number: session.turn_number + 1,
+      },
+    });
+
+    const currentPlayer = alivePlayers.find((p) => p.player_id === currentPlayerId);
+    return {
+      effect: { type: "REVERSE", direction: newDirection },
+      turnResult: {
+        success: true,
+        action: "TURN_ADVANCED" as const,
+        nextTurn: {
+          player_id: currentPlayerId,
+          display_name: currentPlayer?.display_name ?? "",
+          turn_number: session.turn_number + 1,
+          pending_attacks: remainingAttacks,
+        },
+      },
+    };
+  }
+
+  // ไม่มี pending → advance ตามทิศใหม่ปกติ (ไป A)
   await tx.gameSession.update({
     where: { session_id: session.session_id },
     data: {
       direction: newDirection,
       current_turn_player_id: nextPlayer.player_id,
-      pending_attacks: pendingAttacks, // transfer stack to next player (attacker)
+      pending_attacks: 0,
       turn_number: session.turn_number + 1,
     },
   });
 
   return {
-    effect: { type: "REVERSE" },
+    effect: { type: "REVERSE", direction: newDirection },
     turnResult: {
       success: true,
       action: "TURN_ADVANCED" as const,
@@ -122,7 +152,7 @@ const handleReverseEffect: EffectHandler = async ({ tx, session, roomId, current
         player_id: nextPlayer.player_id,
         display_name: nextPlayer.display_name,
         turn_number: session.turn_number + 1,
-        pending_attacks: pendingAttacks,
+        pending_attacks: 0,
       },
     },
   };

@@ -8,6 +8,7 @@ export interface ActionBannersProps {
   isMySeat: (seat: number) => boolean;
   cancelCombo?: () => void;
   cancelFavor?: () => void;
+  cancelTA?: () => void;
 }
 
 export function ActionBanners({
@@ -17,6 +18,7 @@ export function ActionBanners({
   isMySeat,
   cancelCombo,
   cancelFavor,
+  cancelTA,
 }: ActionBannersProps) {
   return (
     <>
@@ -41,6 +43,31 @@ export function ActionBanners({
             </div>
           </div>
           <span className="text-2xl">⚡</span>
+        </div>
+      )}
+
+      {/* ── TARGETED ATTACK SELECT TARGET banner ── */}
+      {gamePhase === "TA_SELECT_TARGET" && (
+        <div
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          style={{
+            background: "rgba(30,5,5,0.97)",
+            border: "2px solid #ef4444",
+            boxShadow: "0 0 28px #ef444488",
+            fontFamily: "'Fredoka One', cursive",
+          }}
+        >
+          <span className="text-xl">🎯</span>
+          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะโจมตี (2 เทิร์น)</span>
+          {cancelTA && (
+            <button
+              onClick={cancelTA}
+              className="ml-2 px-3 py-1 rounded-xl text-xs font-black text-white/60 hover:text-white transition-all"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}
+            >
+              ยกเลิก
+            </button>
+          )}
         </div>
       )}
 

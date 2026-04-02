@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import type { Prisma } from "@prisma/client";
 
 // ─────────────────────────────────────────────
 // FR-07-IK1: IK ใส่กองตอนเริ่มเกมในสถานะ face-down
@@ -43,10 +44,11 @@ export async function handleDrawIK(
 // position: 0 = บนสุด, cards_remaining = ล่างสุด
 // ─────────────────────────────────────────────
 export async function insertIKBack(
+    tx: Prisma.TransactionClient,
     sessionId: string,
     position: number,
 ): Promise<void> {
-    const deckState = await prisma.deckState.findUnique({
+    const deckState = await tx.deckState.findUnique({
         where: { session_id: sessionId },
     });
 
@@ -67,7 +69,7 @@ export async function insertIKBack(
     const newDeck = [...deck];
     newDeck.splice(insertIndex, 0, "IK");
 
-    await prisma.deckState.update({
+    await tx.deckState.update({
         where: { session_id: sessionId },
         data: {
             deck_order: newDeck,

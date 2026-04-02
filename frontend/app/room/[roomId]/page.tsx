@@ -37,6 +37,7 @@ export default function RoomPage() {
     seeTheFutureCards,
     closeSeeTheFuture,
     insertEK,
+    placeIKBack,
     error,
     timeLeft,
     lastPlayedCard,
@@ -51,6 +52,12 @@ export default function RoomPage() {
     pendingAction,
     nopeState,
     playNope,
+    selectTATarget,
+    cancelTA,
+    direction,
+    commitAlterTheFuture,
+    setGamePhase,
+    ikOnTop,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -121,6 +128,10 @@ export default function RoomPage() {
       ?.seat_number ?? null;
   const isMyTurn = currentTurnSeat !== null && isMySeat(currentTurnSeat);
 
+  // ชื่อผู้เล่นที่เป็น current turn (ใช้ใน IKRevealModal)
+  const ikDrawerName =
+    roomData.players?.find((p) => p.player_id === currentTurnPlayerId)?.display_name ?? "ผู้เล่น";
+
   const handleLeaveRoom = () => {
     leaveRoom();
     router.push("/Lobby");
@@ -128,6 +139,18 @@ export default function RoomPage() {
 
   const handlePlayCombo = (cardCodes: string[]) => {
     playCombo(cardCodes);
+  };
+
+  // หลัง IKRevealModal reveal จบ → transition ไป phase ถัดไปตาม ekBombState
+  // hasDefuse = true → IK face-down (คว่ำหน้า) → current player ไป IK_INSERT
+  // hasDefuse = false → IK face-up (หงายหน้า) → ทุกคนไป EK_DRAWN
+  const handleIKRevealDone = () => {
+    if (!ekBombState || ekBombState.drawnCard !== "IK") return;
+    if (ekBombState.hasDefuse) {
+      setGamePhase(isMyTurn ? "IK_INSERT" : "PLAYING");
+    } else {
+      setGamePhase("EK_DRAWN");
+    }
   };
 
   const canStartGame =
@@ -327,6 +350,7 @@ export default function RoomPage() {
             defuseCard={defuseCard}
             eliminatePlayer={eliminatePlayer}
             insertEK={insertEK}
+            placeIKBack={placeIKBack}
             eliminatedPlayerId={eliminatedPlayerId}
             dismissEliminated={dismissEliminated}
             winner={winner}
@@ -348,6 +372,13 @@ export default function RoomPage() {
             pendingAction={pendingAction}
             nopeState={nopeState}
             playNope={playNope}
+            selectTATarget={selectTATarget}
+            cancelTA={cancelTA}
+            direction={direction}
+            commitAlterTheFuture={commitAlterTheFuture}
+            ikDrawerName={ikDrawerName}
+            onIKRevealDone={handleIKRevealDone}
+            ikOnTop={ikOnTop}
           />
         </div>
 

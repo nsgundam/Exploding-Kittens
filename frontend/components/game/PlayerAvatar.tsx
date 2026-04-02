@@ -24,6 +24,9 @@ export interface PlayerAvatarProps {
   isFavorTargetMode?: boolean; // gamePhase === "FAVOR_SELECT_TARGET"
   isMe?: boolean;              // ตัวเอง → ห้ามเลือก
   onFavorSelect?: () => void;  // กดเลือกเป็น target
+  // Targeted Attack
+  isTATargetMode?: boolean;    // gamePhase === "TA_SELECT_TARGET"
+  onTASelect?: () => void;     // กดเลือกเป็น TA target
   // Combo
   isComboTargetMode?: boolean; // gamePhase === "COMBO_SELECT_TARGET"
   onComboSelect?: () => void;  // กดเลือกเป็น combo target
@@ -42,6 +45,8 @@ export function PlayerAvatar({
   isFavorTargetMode,
   isMe,
   onFavorSelect,
+  isTATargetMode,
+  onTASelect,
   isComboTargetMode,
   onComboSelect,
 }: PlayerAvatarProps) {
@@ -54,12 +59,18 @@ export function PlayerAvatar({
 
   // Favor target mode — เฉพาะ player ที่ alive และไม่ใช่ตัวเอง
   const isValidFavorTarget = isFavorTargetMode && occupied && !isDead && !isMe;
+  // Targeted Attack target mode
+  const isValidTATarget = isTATargetMode && occupied && !isDead && !isMe;
   // Combo target mode
   const isValidComboTarget = isComboTargetMode && occupied && !isDead && !isMe;
 
   const handleClick = () => {
     if (isValidFavorTarget && onFavorSelect) {
       onFavorSelect();
+      return;
+    }
+    if (isValidTATarget && onTASelect) {
+      onTASelect();
       return;
     }
     if (isValidComboTarget && onComboSelect) {
@@ -103,6 +114,30 @@ export function PlayerAvatar({
             <div className="absolute pointer-events-none" style={{ top: "-6px", right: "-6px", width: "10px", height: "10px", borderTop: "2.5px solid #facc15", borderRight: "2.5px solid #facc15", borderRadius: "0 2px 0 0" }} />
             <div className="absolute pointer-events-none" style={{ bottom: "-6px", left: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #facc15", borderLeft: "2.5px solid #facc15", borderRadius: "0 0 0 2px" }} />
             <div className="absolute pointer-events-none" style={{ bottom: "-6px", right: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #facc15", borderRight: "2.5px solid #facc15", borderRadius: "0 0 2px 0" }} />
+          </>
+        )}
+
+        {/* Targeted Attack target frame — สีแดงเหมือน FV */}
+        {isValidTATarget && (
+          <>
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                inset: "-8px",
+                border: "2.5px solid #ef4444",
+                borderRadius: "9999px",
+                boxShadow: "0 0 16px #ef444499, inset 0 0 8px #ef444422",
+                animation: "pulse 1s ease-in-out infinite",
+              }}
+            />
+            <div className="absolute pointer-events-none" style={{ top: "-14px", left: "50%", transform: "translateX(-50%)", width: "2px", height: "10px", background: "#ef4444", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-14px", left: "50%", transform: "translateX(-50%)", width: "2px", height: "10px", background: "#ef4444", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ left: "-14px", top: "50%", transform: "translateY(-50%)", width: "10px", height: "2px", background: "#ef4444", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ right: "-14px", top: "50%", transform: "translateY(-50%)", width: "10px", height: "2px", background: "#ef4444", borderRadius: "1px" }} />
+            <div className="absolute pointer-events-none" style={{ top: "-6px", left: "-6px", width: "10px", height: "10px", borderTop: "2.5px solid #ef4444", borderLeft: "2.5px solid #ef4444", borderRadius: "2px 0 0 0" }} />
+            <div className="absolute pointer-events-none" style={{ top: "-6px", right: "-6px", width: "10px", height: "10px", borderTop: "2.5px solid #ef4444", borderRight: "2.5px solid #ef4444", borderRadius: "0 2px 0 0" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-6px", left: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #ef4444", borderLeft: "2.5px solid #ef4444", borderRadius: "0 0 0 2px" }} />
+            <div className="absolute pointer-events-none" style={{ bottom: "-6px", right: "-6px", width: "10px", height: "10px", borderBottom: "2.5px solid #ef4444", borderRight: "2.5px solid #ef4444", borderRadius: "0 0 2px 0" }} />
           </>
         )}
 
@@ -171,11 +206,11 @@ export function PlayerAvatar({
         <button
           onClick={handleClick}
           className="relative w-16 h-16 rounded-full flex items-center justify-center border-4 transition-all duration-200 group focus:outline-none hover:scale-110"
-          disabled={occupied && !isMe && !isValidFavorTarget && !isValidComboTarget}
+          disabled={occupied && !isMe && !isValidFavorTarget && !isValidTATarget && !isValidComboTarget}
           style={{
             borderColor: isValidComboTarget
               ? "#facc15"
-              : isValidFavorTarget
+              : isValidTATarget || isValidFavorTarget
               ? "#ef4444"
               : isDead
                 ? "#6b7280"
@@ -186,7 +221,7 @@ export function PlayerAvatar({
                     : "rgba(255,255,255,0.2)",
             background: isValidComboTarget
               ? "rgba(250,204,21,0.15)"
-              : isValidFavorTarget
+              : isValidTATarget || isValidFavorTarget
               ? "rgba(239,68,68,0.15)"
               : isDead
                 ? "rgba(0,0,0,0.5)"
@@ -195,7 +230,7 @@ export function PlayerAvatar({
                   : "rgba(0,0,0,0.3)",
             boxShadow: isValidComboTarget
               ? "0 0 24px #facc1566"
-              : isValidFavorTarget
+              : isValidTATarget || isValidFavorTarget
               ? "0 0 24px #ef444466"
               : isDead
                 ? "none"

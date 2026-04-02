@@ -87,6 +87,7 @@ export interface CardEffectResult {
   topCards?: string[]; // See the Future
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
+  direction?: number; // Reverse: 1 = clockwise, -1 = counter-clockwise
 }
 
 export interface TurnInfo {
@@ -128,6 +129,7 @@ export interface ExplodingKittenDrawnResult {
   drawnCard: string;
   hasDefuse: boolean;
   deck_count?: number;
+  isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
 }
 
 export type DefuseResult = TurnAdvancedResult | GameOverResult;

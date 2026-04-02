@@ -94,6 +94,7 @@ export interface CardDrawnPayload {
   hand?: { cards: string[] };
   drawnByDisplayName?: string;
   isExplodingKitten?: boolean;
+  isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
   eliminated?: boolean;
   player_id?: string;
   isAutoDraw?: boolean;
