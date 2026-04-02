@@ -24,9 +24,9 @@ export const registerRoomSocket = (io: Server): void => {
     // ── Join Room ──────────────────────────────────────────────
     socket.on("joinRoom", async (payload: JoinRoomPayload) => {
       try {
-        const { roomId, playerToken, displayName } = payload;
+        const { roomId, playerToken, displayName, profilePicture } = payload;
 
-        await roomService.joinRoom(roomId, playerToken, displayName);
+        await roomService.joinRoom(roomId, playerToken, displayName, profilePicture);
 
         socket.data.playerToken = playerToken;
         socket.data.roomId = roomId;

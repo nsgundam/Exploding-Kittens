@@ -84,6 +84,7 @@ export default function LobbyPage() {
     if (selectedRoom) {
       const playerToken = localStorage.getItem("player_token");
       const displayName = localStorage.getItem("display_name");
+      const profilePicture = localStorage.getItem("profile_picture");
       if (!playerToken || !displayName) {
         alert("ไม่พบ Token หรือชื่อของผู้เล่น กรุณาเข้าสู่ระบบใหม่");
         router.push("/");
@@ -96,7 +97,7 @@ export default function LobbyPage() {
             "Content-Type": "application/json",
             "x-player-token": playerToken,
           },
-          body: JSON.stringify({ displayName }),
+          body: JSON.stringify({ displayName, profilePicture }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -124,6 +125,7 @@ export default function LobbyPage() {
       const hostName =
         localStorage.getItem("display_name") ||
         "Player_" + Math.floor(Math.random() * 1000);
+      const profilePicture = localStorage.getItem("profile_picture");
       const res = await fetch("/api/rooms", {
         method: "POST",
         headers: {
@@ -133,6 +135,7 @@ export default function LobbyPage() {
         body: JSON.stringify({
           roomName: name,
           hostName,
+          profilePicture,
           maxPlayers,
           cardVersion,
           expansions: expansions.includes("imploding")

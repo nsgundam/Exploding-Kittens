@@ -1,6 +1,7 @@
 "use client";
 
 import { Player } from "@/types";
+import { resolveAvatarSrc } from "@/lib/avatar";
 
 const avatarColors: Record<number, string> = {
   1: "#e07b39",
@@ -63,6 +64,11 @@ export function PlayerAvatar({
   const isValidTATarget = isTATargetMode && occupied && !isDead && !isMe;
   // Combo target mode
   const isValidComboTarget = isComboTargetMode && occupied && !isDead && !isMe;
+  const playerAvatarSrc = resolveAvatarSrc(player?.avatar_url || player?.profile_picture);
+  const fallbackAvatarSrc = resolveAvatarSrc(
+    myPicture && (isMe || player?.display_name === myDisplayName) ? myPicture : null
+  );
+  const avatarSrc = playerAvatarSrc || fallbackAvatarSrc;
 
   const handleClick = () => {
     if (isValidFavorTarget && onFavorSelect) {
@@ -260,10 +266,10 @@ export function PlayerAvatar({
 
           {/* Avatar image */}
           {occupied ? (
-            player!.avatar_url || player!.profile_picture || (myPicture && (isMe || player!.display_name === myDisplayName)) ? (
+            avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={player!.avatar_url || player!.profile_picture || myPicture!}
+                src={avatarSrc}
                 alt={player!.display_name}
                 className="w-full h-full rounded-full object-cover"
               />
