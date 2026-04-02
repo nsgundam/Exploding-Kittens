@@ -178,6 +178,18 @@ export const useGameActions = (
     [socket, roomId, setGamePhase, setCurrentTurnPlayerId, pendingNextTurnRef]
   );
 
+  // ── Place IK Back — FR-07-IK2 ──
+  // เรียกเมื่อผู้เล่นจั่วได้ IK face-down และเลือกตำแหน่งใส่กลับกอง
+  const placeIKBack = useCallback(
+    (position: number) => {
+      if (!socket) return;
+      const playerToken = localStorage.getItem("player_token");
+      socket.emit("placeIKBack", { roomId, playerToken, position });
+      // phase จะถูกเปลี่ยนเป็น PLAYING โดย handleIkPlacedBack ใน useGameSocketEvents
+    },
+    [socket, roomId]
+  );
+
   const closeInsertEK = useCallback(() => {
     setGamePhase("PLAYING");
     if (pendingNextTurnRef.current) {
@@ -335,6 +347,7 @@ export const useGameActions = (
     cancelCombo,
     cancelFavor,
     insertEK,
+    placeIKBack,
     closeInsertEK,
     closeSeeTheFuture,
     dismissEliminated,

@@ -39,11 +39,11 @@ export const useRoomSocket = (roomId: string) => {
     gameLogs: gameState.gameLogs,
     sessionId: gameState.sessionId,
     gamePhase: gameState.gamePhase,
-    ekBombState: gameState.ekBombState,
     seeTheFutureCards: gameState.seeTheFutureCards,
     setSeeTheFutureCards: gameState.setSeeTheFutureCards,
     closeSeeTheFuture: actions.closeSeeTheFuture,
     insertEK: actions.insertEK,
+    placeIKBack: actions.placeIKBack,
     closeInsertEK: actions.closeInsertEK,
     selectSeat: actions.selectSeat,
     startGame: actions.startGame,
@@ -76,5 +76,8 @@ export const useRoomSocket = (roomId: string) => {
     lastPlayedCard: gameState.lastPlayedCard,
     deckCount: gameState.deckCount,
     direction: gameState.direction,
+    ekBombState: gameState.ekBombState,
+    setGamePhase: gameState.setGamePhase,
+    ikOnTop: gameState.ikOnTop,
   };
 };

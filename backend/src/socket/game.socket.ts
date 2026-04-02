@@ -291,12 +291,24 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
-    // ── Insert EK ──────────────────────────────────────────────
+    // ── Insert EK (after Defuse) ───────────────────────────────
     socket.on("insertEK", async (payload: { roomId: string; playerToken: string; position: number }) => {
       try {
         const { roomId, playerToken, position } = payload;
         const result = await gameService.insertEK(roomId, playerToken, position);
         io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Place IK Back (after drawing Imploding Kitten face-down) ──
+    // FR-07-IK2: ผู้เล่นเลือกตำแหน่งใส่ IK กลับ → IK เปลี่ยนเป็น face-up → advance turn
+    socket.on("placeIKBack", async (payload: { roomId: string; playerToken: string; position: number }) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.placeIKBack(roomId, playerToken, position);
+        io.to(roomId).emit("ikPlacedBack", result);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
