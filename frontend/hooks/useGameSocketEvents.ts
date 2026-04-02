@@ -137,6 +137,7 @@ export function useGameSocketEvents(
       hand?: { cards: string[] };
       source?: string;
       ikOnTop?: boolean;
+      isIKFaceUp?: boolean;
       nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number };
     }) => {
       console.log("🃏 Card Drawn:", data);
@@ -282,6 +283,12 @@ export function useGameSocketEvents(
           setters.setDirection(newDir);
           const dirLabel = newDir === 1 ? "ตามเข็มนาฬิกา 🔃" : "ทวนเข็มนาฬิกา 🔄";
           showToast(`🔄 ${data.playedByDisplayName || "ผู้เล่น"} Reverse! ลำดับเปลี่ยนเป็น ${dirLabel}`, 3500);
+        }
+
+        // FR-07-IK: Shuffle → reset ikOnTop เพราะตำแหน่ง IK ในกองเปลี่ยนแล้ว
+        if (data.cardCode?.replace(/^GVE_/, "") === "SH") {
+          setters.setIkOnTop(false);
+          showToast("🔀 Shuffle! ตำแหน่ง Imploding Kitten ถูกสับใหม่", 3000);
         }
 
         if (data.effect?.type === "FAVOR") {

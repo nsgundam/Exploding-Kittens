@@ -157,6 +157,15 @@ export async function resolvePendingAction(roomId: string) {
         advanceTurn: advanceTurn,
       });
 
+      // FR-07-IK: เมื่อ Shuffle ถูกเล่น → reset ik_face_up = false
+      // เพราะตำแหน่ง IK ในกองถูกสับใหม่ ไม่ควรโชว์ IK บน deck อีกต่อไป
+      if (normalizedCode === CardCode.SHUFFLE) {
+        await tx.deckState.update({
+          where: { session_id: session.session_id },
+          data: { ik_face_up: false },
+        });
+      }
+
       await tx.gameLog.create({
         data: {
           session_id: session.session_id,
