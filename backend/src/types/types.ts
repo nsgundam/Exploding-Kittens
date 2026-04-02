@@ -21,6 +21,7 @@ export interface CreateRoomInput {
   playerToken: string;
   roomName: string;
   hostName: string;
+  profilePicture?: string | null;
   maxPlayers: number;
   cardVersion: string;
   expansions: string[];
@@ -140,6 +141,7 @@ export interface JoinRoomPayload {
   roomId: string;
   playerToken: string;
   displayName: string;
+  profilePicture?: string | null;
 }
 
 export interface SelectSeatPayload {

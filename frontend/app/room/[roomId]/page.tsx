@@ -8,6 +8,7 @@ import { PlayerHand } from "@/components/game/PlayerHand";
 import DeckConfigModal from "@/components/game/DeckConfigModal";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
+import { resolveAvatarSrc } from "@/lib/avatar";
 
 export default function RoomPage() {
   const params = useParams();
@@ -110,6 +111,7 @@ export default function RoomPage() {
   const myPlayerToken = localStorage.getItem("player_token");
   const myProfilePicture = localStorage.getItem("profile_picture");
   const myDisplayName = localStorage.getItem("display_name");
+  const myAvatarSrc = resolveAvatarSrc(myProfilePicture || myPlayer?.avatar_url || myPlayer?.profile_picture);
 
   // Check if seat is mine
   const isMySeat = (seat: number): boolean => {
@@ -445,9 +447,9 @@ export default function RoomPage() {
                 boxShadow: "0 0 16px #f5a62366",
               }}
             >
-              {myProfilePicture || myPlayer?.avatar_url ? (
+              {myAvatarSrc ? (
                 <Image
-                  src={myProfilePicture || myPlayer?.avatar_url || ""}
+                  src={myAvatarSrc}
                   alt={myDisplayName || myPlayer?.display_name || "Avatar"}
                   width={80}
                   height={80}

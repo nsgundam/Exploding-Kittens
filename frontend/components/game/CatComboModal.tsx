@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Player } from "@/types";
 import { getCardConfig, CARD_CONFIG } from "@/types/cards";
+import { resolveAvatarSrc } from "@/lib/avatar";
 
 
 // ── Types ────────────────────────────────────────────────────────
@@ -220,6 +221,7 @@ export function CatComboModal({
             <div className="flex flex-wrap justify-center gap-3 w-full">
               {targets.map((player) => {
                 const color = avatarColors[player.seat_number ?? 1] ?? "#a78bfa";
+                const avatarSrc = resolveAvatarSrc(player.avatar_url || player.profile_picture);
                 return (
                   <button
                     key={player.player_id}
@@ -246,10 +248,10 @@ export function CatComboModal({
                       className="w-14 h-14 rounded-full flex items-center justify-center border-4 text-2xl font-black"
                       style={{ borderColor: color, background: `${color}22`, color }}
                     >
-                      {player.avatar_url || player.profile_picture ? (
+                      {avatarSrc ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={player.avatar_url || player.profile_picture || ""}
+                          src={avatarSrc}
                           alt={player.display_name}
                           className="w-full h-full rounded-full object-cover"
                         />

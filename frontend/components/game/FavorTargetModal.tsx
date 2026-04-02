@@ -1,6 +1,7 @@
 "use client";
 
 import { Player } from "@/types";
+import { resolveAvatarSrc } from "@/lib/avatar";
 
 interface FavorTargetModalProps {
   isOpen: boolean;
@@ -63,6 +64,7 @@ export function FavorTargetModal({
         <div className="flex flex-wrap justify-center gap-4 w-full">
           {targets.map((player) => {
             const color = avatarColors[player.seat_number ?? 1] ?? "#f5a623";
+            const avatarSrc = resolveAvatarSrc(player.avatar_url || player.profile_picture);
             return (
               <button
                 key={player.player_id}
@@ -94,10 +96,10 @@ export function FavorTargetModal({
                     color,
                   }}
                 >
-                  {player.avatar_url || player.profile_picture ? (
+                  {avatarSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={player.avatar_url || player.profile_picture || ""}
+                      src={avatarSrc}
                       alt={player.display_name}
                       className="w-full h-full rounded-full object-cover"
                     />

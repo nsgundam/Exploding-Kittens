@@ -26,7 +26,9 @@ export const roomService = {
    * FR-02-3, FR-03-1/2, S1-10
    */
   async createRoom(payload: CreateRoomInput): Promise<RoomWithRelations | null> {
-    const { playerToken, roomName, hostName, maxPlayers, cardVersion, expansions } = payload;
+    const { playerToken, roomName, hostName, profilePicture, maxPlayers, cardVersion, expansions } = payload;
+    const profilePictureData =
+      profilePicture === undefined ? {} : { profile_picture: profilePicture };
 
     // Generate unique room code
     let newRoomCode = "";
@@ -51,8 +53,16 @@ export const roomService = {
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
         where: { token: playerToken },
-        update: { display_name: hostName, last_seen: new Date() },
-        create: { token: playerToken, display_name: hostName },
+        update: {
+          display_name: hostName,
+          ...profilePictureData,
+          last_seen: new Date(),
+        },
+        create: {
+          token: playerToken,
+          display_name: hostName,
+          ...profilePictureData,
+        },
       });
 
       const room = await tx.room.create({
@@ -77,6 +87,7 @@ export const roomService = {
         data: {
           player_token: playerToken,
           display_name: hostName,
+          ...profilePictureData,
           room_id: room.room_id,
           seat_number: 1,
           role: PlayerRole.PLAYER,
@@ -140,10 +151,18 @@ export const roomService = {
    * Join a room as SPECTATOR.
    * FR-03-6, S1-15
    */
-  async joinRoom(roomId: string, playerToken: string, displayName: string): Promise<Player> {
+  async joinRoom(
+    roomId: string,
+    playerToken: string,
+    displayName: string,
+    profilePicture?: string | null,
+  ): Promise<Player> {
     if (!displayName || displayName.trim().length === 0) {
       throw new BadRequestError("Display name is required");
     }
+    const normalizedDisplayName = displayName.trim();
+    const profilePictureData =
+      profilePicture === undefined ? {} : { profile_picture: profilePicture };
 
     const room = await prisma.room.findUnique({
       where: { room_id: roomId },
@@ -153,8 +172,16 @@ export const roomService = {
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
         where: { token: playerToken },
-        update: { display_name: displayName.trim(), last_seen: new Date() },
-        create: { token: playerToken, display_name: displayName.trim() },
+        update: {
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
+          last_seen: new Date(),
+        },
+        create: {
+          token: playerToken,
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
+        },
       });
 
       const existing = await tx.player.findUnique({
@@ -166,12 +193,21 @@ export const roomService = {
         },
       });
 
-      if (existing) return existing;
+      if (existing) {
+        return await tx.player.update({
+          where: { player_id: existing.player_id },
+          data: {
+            display_name: normalizedDisplayName,
+            ...profilePictureData,
+          },
+        });
+      }
 
       return await tx.player.create({
         data: {
           player_token: playerToken,
-          display_name: displayName.trim(),
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
           room_id: roomId,
           role: PlayerRole.SPECTATOR,
         },
