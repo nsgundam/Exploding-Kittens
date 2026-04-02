@@ -21,7 +21,7 @@ export default function Home() {
   const router = useRouter();
   
   const [name, setName] = useState("");
-  const [avatarStyle, setAvatarStyle] = useState(AVATAR_STYLES[0]);
+  const [avatarStyle, setAvatarStyle] = useState<typeof AVATAR_STYLES[number]>(AVATAR_STYLES[0]);
   const [seed, setSeed] = useState("default-seed"); 
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false); 
@@ -49,7 +49,7 @@ export default function Home() {
         const parsedAvatar = parseAvatarProfileValue(existingAvatar);
         if (parsedAvatar) {
           if (AVATAR_STYLES.includes(parsedAvatar.style as typeof AVATAR_STYLES[number])) {
-            setAvatarStyle(parsedAvatar.style);
+            setAvatarStyle(parsedAvatar.style as typeof AVATAR_STYLES[number]);
           }
           setSeed(parsedAvatar.seed);
           if (parsedAvatar.value !== existingAvatar) {
