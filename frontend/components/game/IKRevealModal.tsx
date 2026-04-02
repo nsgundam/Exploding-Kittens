@@ -21,7 +21,6 @@ export function IKRevealModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setProgress(0);
       return;
     }
 
@@ -36,7 +35,10 @@ export function IKRevealModal({
       }
     }, 50);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setProgress(0);
+    };
   }, [isOpen, onRevealDone]);
 
   if (!isOpen) return null;

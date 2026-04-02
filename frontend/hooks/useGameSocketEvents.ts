@@ -164,7 +164,7 @@ export function useGameSocketEvents(
 
       if (data?.action === "DREW_EXPLODING_KITTEN") {
         const isIK = data.drawnCard === "IK";
-        const isIKFaceUp = !!(data as any).isIKFaceUp;
+        const isIKFaceUp = !!data.isIKFaceUp;
 
         if (isIK) {
           // IK ทุก case → set IK_REVEAL ก่อนให้ทุกคนเห็น
