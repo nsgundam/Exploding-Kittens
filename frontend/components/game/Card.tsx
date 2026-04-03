@@ -6,6 +6,7 @@ interface CardProps {
   cardCode: string;
   selected?: boolean;
   disabled?: boolean;
+  noHoverTranslate?: boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -14,6 +15,7 @@ export function Card({
   cardCode,
   selected = false,
   disabled = false,
+  noHoverTranslate = false,
   onClick,
   className = "",
 }: CardProps) {
@@ -32,7 +34,7 @@ export function Card({
       className={`
         group relative w-22 h-32 rounded-xl border-[3px] flex flex-col items-center justify-center p-2
         transition-all duration-300 shadow-md bg-white select-none
-        ${disabled ? "opacity-50 cursor-not-allowed grayscale-50" : "cursor-pointer hover:-translate-y-4 hover:shadow-xl hover:z-10"}
+        ${disabled ? "opacity-50 cursor-not-allowed grayscale-50" : `cursor-pointer ${noHoverTranslate ? "" : "hover:-translate-y-4"} hover:shadow-xl hover:z-10`}
         ${selected ? "border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.6)] -translate-y-2" : "border-gray-800"}
         ${className}
       `}

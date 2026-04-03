@@ -45,7 +45,7 @@ function canPairWith(a: string, b: string): boolean {
 }
 
 export function PlayerHand({
-  myCards,
+  myCards: myCardsProp,
   status,
   isMyTurn,
   onPlayCard,
@@ -53,8 +53,27 @@ export function PlayerHand({
   nopeWindowActive = false,
   onPlayNope,
 }: PlayerHandProps) {
+
+  // Auto-sort hand so identical cards (and combo cards) sit next to each other
+  const myCards = React.useMemo(() => {
+    return [...myCardsProp].sort((a, b) => {
+      const isCatA = isCatCard(a);
+      const isCatB = isCatCard(b);
+      // Group Cat Cards on the right
+      if (isCatA && !isCatB) return 1;
+      if (!isCatA && isCatB) return -1;
+      // Within the same group (Cats or non-Cats), group identical cards together
+      return a.localeCompare(b);
+    });
+  }, [myCardsProp]);
+
   // selectedIndices: indices of cat cards selected for combo
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+
+  // Clear selections if the hand size changes (e.g., someone stole your card or you drew one)
+  React.useEffect(() => {
+    setSelectedIndices([]);
+  }, [myCardsProp.length]);
 
   const mid = Math.floor(myCards.length / 2);
 
@@ -122,9 +141,26 @@ export function PlayerHand({
   // ── Render ────────────────────────────────────────────────
   if (status !== "PLAYING" && status !== "playing") return null;
 
+  // ── Calculation for overlapping cards ──
+  const cardWidth = 88; // Matches w-22 in Card.tsx
+  const maxHandWidth = 800; // Desired maximum width for the hand frame
+  const n = myCards.length;
+  let dynamicOverlap = 16; // Default overlap
+
+  if (n > 1) {
+    const naturalWidth = cardWidth + (n - 1) * (cardWidth - 16);
+    if (naturalWidth > maxHandWidth) {
+      // Calculate overlap needed to fit within maxHandWidth
+      // cardWidth + (n-1)*(cardWidth - overlap) = maxHandWidth
+      dynamicOverlap = cardWidth - (maxHandWidth - cardWidth) / (n - 1);
+      // Cap to ensure cards are still visible (at least 20px of each card)
+      dynamicOverlap = Math.min(dynamicOverlap, cardWidth - 20);
+    }
+  }
+
   return (
     <>
-      <div className="flex flex-col items-center gap-2 flex-1 justify-end z-50 pb-2">
+      <div className="flex flex-col items-center gap-2 flex-1 justify-end z-50 pb-4">
 
         {/* ── COMBO BAR ── shows when 1+ cat selected */}
         {isMyTurn && selectedIndices.length >= 1 && (
@@ -193,14 +229,23 @@ export function PlayerHand({
           </div>
         )}
 
-        {/* ── CARD FAN ── */}
-        <style>{`
-          @keyframes nopeCardGlow {
-            0%, 100% { box-shadow: 0 0 14px rgba(239,68,68,0.7), 0 0 40px rgba(239,68,68,0.3); }
-            50%      { box-shadow: 0 0 24px rgba(239,68,68,1),   0 0 60px rgba(239,68,68,0.5); }
-          }
-        `}</style>
-        <div className="flex items-end justify-center">
+        {/* ── CARD HAND CONTAINER ("FRAME") ── */}
+        <div
+          className="relative flex items-end justify-center px-8 py-6 rounded-3xl"
+          style={{
+            maxWidth: `${maxHandWidth + 64}px`,
+            minWidth: "300px",
+            border: "1px solid rgba(255,255,255,0.15)", // Subtle visible border
+            background: "transparent",
+          }}
+        >
+          <style>{`
+            @keyframes nopeCardGlow {
+              0%, 100% { box-shadow: 0 0 14px rgba(239,68,68,0.7), 0 0 40px rgba(239,68,68,0.3); }
+              50%      { box-shadow: 0 0 24px rgba(239,68,68,1),   0 0 60px rgba(239,68,68,0.5); }
+            }
+          `}</style>
+
           {myCards.map((cardCode, i) => {
             const isCat = isCatCard(cardCode);
             const isNope = isNopeCard(cardCode);
@@ -214,9 +259,9 @@ export function PlayerHand({
             const isActive = nopeWindowActive
               ? isNopeActive
               : isMyTurn &&
-                cardCode !== "DF" &&
-                cardCode !== "EK" &&
-                cardCode !== "GVE_EK";
+              cardCode !== "DF" &&
+              cardCode !== "EK" &&
+              cardCode !== "GVE_EK";
 
             // In combo mode: non-compatible cards are dimmed
             const isCompatible = !isComboMode || canAddToCombo(i);
@@ -227,39 +272,36 @@ export function PlayerHand({
             return (
               <div
                 key={`${i}-${cardCode}`}
-                className="relative"
+                className="relative shrink-0"
                 style={{
                   transform: isSelected
-                    ? "rotate(0deg) translateY(-32px) scale(1.08)"
+                    ? "translateY(-32px) scale(1.08)"
                     : isNopeActive
-                      ? "rotate(0deg) translateY(-20px) scale(1.1)"
-                      : `rotate(${(i - mid) * 5}deg) translateY(${Math.abs(i - mid) * 4}px)`,
-                  marginLeft: i === 0 ? 0 : "-16px",
-                  zIndex: isSelected ? 30 : isNopeActive ? 25 : i === mid ? 5 : i,
-                  transition: "transform 0.25s ease, opacity 0.25s, filter 0.25s",
+                      ? "translateY(-20px) scale(1.1)"
+                      : "none",
+                  marginLeft: i === 0 ? 0 : `-${dynamicOverlap}px`,
+                  zIndex: isSelected ? 30 : isNopeActive ? 25 : i,
+                  transition: "transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s, filter 0.2s",
                   opacity: isDimmed ? 0.3 : 1,
                   filter: isDimmed ? "grayscale(0.7) brightness(0.6)" : "none",
                   cursor: isNopeActive ? "pointer" : undefined,
                 }}
                 onMouseEnter={(e) => {
                   if (isNopeActive) {
-                    (e.currentTarget as HTMLElement).style.transform =
-                      "rotate(0deg) translateY(-32px) scale(1.15)";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(-32px) scale(1.15)";
                     (e.currentTarget as HTMLElement).style.zIndex = "30";
                   } else if (isActive && !isSelected && !nopeWindowActive) {
-                    (e.currentTarget as HTMLElement).style.transform =
-                      "rotate(0deg) translateY(-24px) scale(1.08)";
-                    (e.currentTarget as HTMLElement).style.zIndex = "20";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(-28px) scale(1.1)";
+                    (e.currentTarget as HTMLElement).style.zIndex = "40";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (isNopeActive) {
-                    (e.currentTarget as HTMLElement).style.transform =
-                      "rotate(0deg) translateY(-20px) scale(1.1)";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(-20px) scale(1.1)";
                     (e.currentTarget as HTMLElement).style.zIndex = "25";
                   } else if (!isSelected) {
-                    (e.currentTarget as HTMLElement).style.transform = `rotate(${(i - mid) * 5}deg) translateY(${Math.abs(i - mid) * 4}px)`;
-                    (e.currentTarget as HTMLElement).style.zIndex = String(i === mid ? 5 : i);
+                    (e.currentTarget as HTMLElement).style.transform = "none";
+                    (e.currentTarget as HTMLElement).style.zIndex = String(i);
                   }
                 }}
               >
@@ -292,6 +334,7 @@ export function PlayerHand({
                   cardCode={cardCode}
                   selected={isSelected}
                   disabled={!isActive}
+                  noHoverTranslate={true}
                   onClick={() => isActive && handleCardClick(i)}
                 />
 
@@ -330,6 +373,6 @@ export function PlayerHand({
           })}
         </div>
       </div>
-</>
+    </>
   );
 }
