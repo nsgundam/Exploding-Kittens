@@ -1,6 +1,33 @@
 import React, { useState, useRef } from "react";
 import { Card } from "./Card";
 
+/** Special card slot for IK — แสดงแตกต่างจาก EK อย่างชัดเจน */
+function IKCardSlot({ selected }: { selected?: boolean }) {
+  return (
+    <div
+      className={`relative w-22 h-32 rounded-xl border-[3px] flex flex-col items-center justify-center p-2 select-none ${selected ? "shadow-[0_0_24px_rgba(168,85,247,0.9)]" : "shadow-[0_0_16px_rgba(168,85,247,0.5)]"}`}
+      style={{
+        background: "linear-gradient(135deg, #3b0764 0%, #1a0030 60%, #0a0015 100%)",
+        borderColor: selected ? "#e879f9" : "#a855f7",
+      }}
+    >
+      <div className="absolute top-1 left-1.5 text-[10px] font-bold text-purple-300">IK</div>
+      <div className="text-3xl mb-0.5 drop-shadow-md">💀</div>
+      <div className="text-[9px] text-center font-bungee uppercase leading-tight" style={{ color: "#d8b4fe" }}>
+        Imploding{"\n"}Kitten
+      </div>
+      <div
+        className="absolute -top-2.5 -right-2.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+        style={{ background: "#7c3aed", color: "#faf5ff", border: "1px solid #a855f7" }}
+      >
+        FACE UP
+      </div>
+      <div className="absolute inset-x-0 bottom-0 h-1/3 rounded-b-lg pointer-events-none"
+        style={{ background: "linear-gradient(to top, rgba(168,85,247,0.15), transparent)" }} />
+    </div>
+  );
+}
+
 interface AlterTheFutureModalProps {
   cards: string[];       // top 3 cards [index0 = top of deck]
   isOpen: boolean;
@@ -115,10 +142,14 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
                     : ""
                 }`}
               >
-                <Card
-                  cardCode={cardCode}
-                  className="scale-125 mx-4 shadow-xl shadow-purple-500/20 pointer-events-none"
-                />
+                {cardCode === "IK" ? (
+                  <IKCardSlot selected={selectedIdx === index} />
+                ) : (
+                  <Card
+                    cardCode={cardCode}
+                    className="scale-125 mx-4 shadow-xl shadow-purple-500/20 pointer-events-none"
+                  />
+                )}
               </div>
 
               {/* Drag hint icon */}
