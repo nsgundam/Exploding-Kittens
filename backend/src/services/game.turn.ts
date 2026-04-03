@@ -48,8 +48,40 @@ export async function advanceTurn(
       display_name: nextPlayer.display_name,
       turn_number: nextTurnNumber,
       pending_attacks: pendingAttacks,
+      reset_timer: true,
     },
   };
+}
+
+export async function resolveDrawCompletion(
+  tx: Prisma.TransactionClient,
+  session: GameSession,
+  roomId: string,
+  player: Player,
+): Promise<TurnAdvancedResult> {
+  const pendingAttacks = session.pending_attacks ?? 0;
+  if (pendingAttacks > 1) {
+    const nextPending = pendingAttacks - 1;
+    const nextTurnNumber = session.turn_number + 1;
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: { turn_number: nextTurnNumber, pending_attacks: nextPending },
+    });
+    return {
+      success: true,
+      action: ActionType.TURN_ADVANCED,
+      nextTurn: {
+        player_id: player.player_id,
+        display_name: player.display_name,
+        turn_number: nextTurnNumber,
+        pending_attacks: nextPending,
+        reset_timer: true,
+      },
+    };
+  } else {
+    const sessionForAdvance = pendingAttacks === 1 ? { ...session, pending_attacks: 0 } : session;
+    return await advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
+  }
 }
 
 export async function getWinnerIfAny(
@@ -175,7 +207,7 @@ export async function handleAFK(
         turn_number: session.turn_number,
       },
     });
-    
+
     const kickResult = await checkWinnerOrAdvance(
       tx,
       session,

@@ -204,11 +204,23 @@ const handleAlterTheFutureEffect: EffectHandler = async ({ tx, session }) => {
 };
 
 const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
-  const deckState = await tx.deckState.findUnique({ where: { session_id: session.session_id } });
+  const deckState = await tx.deckState.findUnique({
+    where: { session_id: session.session_id }
+  });
   if (!deckState) throw new NotFoundError("Deck state");
   const shuffled = shuffleArray(deckState.deck_order as string[]);
-  await tx.deckState.update({ where: { session_id: session.session_id }, data: { deck_order: shuffled } });
-  return { effect: { type: "SHUFFLE", shuffled: true } };
+
+  const ikStillOnTop = deckState.ik_face_up === true &&
+    shuffled[shuffled.length - 1] === "IK";
+
+  await tx.deckState.update({
+    where: { session_id: session.session_id },
+    data: {
+      deck_order: shuffled,
+      ik_face_up: ikStillOnTop,
+    }
+  });
+  return { effect: { type: "SHUFFLE", shuffled: true, ikOnTop: ikStillOnTop } };
 };
 
 /**
@@ -235,7 +247,7 @@ const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPl
   });
   const targetCards = ((targetHand?.cards ?? []) as string[]).filter(
     (c) => c !== CardCode.EXPLODING_KITTEN && c !== CardCode.GVE_EXPLODING_KITTEN &&
-           c !== CardCode.DEFUSE && c !== CardCode.GVE_DEFUSE
+      c !== CardCode.DEFUSE && c !== CardCode.GVE_DEFUSE
   );
 
   if (targetCards.length === 0) {

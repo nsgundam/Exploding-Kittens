@@ -112,7 +112,7 @@ export const roomService = {
   async getAllRooms(status?: RoomStatus, card_version?: string): Promise<RoomWithRelations[]> {
     return await prisma.room.findMany({
       where: {
-        status : status,
+        status: status,
         deck_config: card_version ? { card_version } : undefined,
       },
       include: { players: true, deck_config: true },

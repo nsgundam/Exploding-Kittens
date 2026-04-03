@@ -3,7 +3,7 @@ import { ActionType, CardCode, EliminationReason } from "../constants/game";
 import { prisma } from "../config/prisma";
 import { handleDrawIK, insertIKBack } from "./imploding.service";
 import { buildBaseDeck, dealCards, finalizeDeck } from "./game.deck";
-import { advanceTurn, checkWinnerOrAdvance, handleAFK } from "./game.turn";
+import { advanceTurn, checkWinnerOrAdvance, handleAFK, resolveDrawCompletion } from "./game.turn";
 import {
   StartGameResult,
   TurnAdvancedResult,
@@ -311,29 +311,7 @@ export async function drawCard(
       },
     });
 
-    const pendingAttacks = session.pending_attacks ?? 0;
-    let turnResult: TurnAdvancedResult;
-
-    if (pendingAttacks > 1) {
-      const nextPending = pendingAttacks - 1;
-      await tx.gameSession.update({
-        where: { session_id: session.session_id },
-        data: { turn_number: session.turn_number + 1, pending_attacks: nextPending },
-      });
-      turnResult = {
-        success: true,
-        action: ActionType.TURN_ADVANCED,
-        nextTurn: {
-          player_id: player.player_id,
-          display_name: player.display_name,
-          turn_number: session.turn_number + 1,
-          pending_attacks: nextPending,
-        },
-      };
-    } else {
-      const sessionForAdvance = pendingAttacks === 1 ? { ...session, pending_attacks: 0 } : session;
-      turnResult = await advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
-    }
+    const turnResult = await resolveDrawCompletion(tx, session, roomId, player);
 
     // คำนวณ ikOnTop: query ik_face_up นอก tx เพื่อให้เห็นค่าล่าสุดจาก insertIKBack
     // newDeck คือ deck หลังจั่วออกแล้ว (ถูกต้องแล้ว)
@@ -428,29 +406,7 @@ export async function resolveDrawFromBottom(
     data: { cards: newCards, card_count: newCards.length },
   });
 
-  const pendingAttacks = session.pending_attacks ?? 0;
-  let turnResult: TurnAdvancedResult;
-
-  if (pendingAttacks > 1) {
-    const nextPending = pendingAttacks - 1;
-    await tx.gameSession.update({
-      where: { session_id: session.session_id },
-      data: { turn_number: session.turn_number + 1, pending_attacks: nextPending },
-    });
-    turnResult = {
-      success: true,
-      action: ActionType.TURN_ADVANCED,
-      nextTurn: {
-        player_id: player.player_id,
-        display_name: player.display_name,
-        turn_number: session.turn_number + 1,
-        pending_attacks: nextPending,
-      },
-    };
-  } else {
-    const sessionForAdvance = pendingAttacks === 1 ? { ...session, pending_attacks: 0 } : session;
-    turnResult = await advanceTurn(tx, sessionForAdvance, roomId, player.player_id);
-  }
+  const turnResult = await resolveDrawCompletion(tx, session, roomId, player);
 
   return {
     ...turnResult,
@@ -593,7 +549,7 @@ export async function insertEK(
       },
     });
 
-    const turnResult = await advanceTurn(tx, session, roomId, player.player_id);
+    const turnResult = await resolveDrawCompletion(tx, session, roomId, player);
     return { ...turnResult, deck_count: deckWithEK.length };
   });
 }
@@ -665,7 +621,7 @@ export async function placeIKBack(
     const ikOnTop = (deckState?.ik_face_up === true) && deck[deck.length - 1] === "IK";
 
     // Advance turn
-    const turnResult = await advanceTurn(tx, session, roomId, player.player_id);
+    const turnResult = await resolveDrawCompletion(tx, session, roomId, player);
 
     return { ...turnResult, ikOnTop, deck_count };
   });

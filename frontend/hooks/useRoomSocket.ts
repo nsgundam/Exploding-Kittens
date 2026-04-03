@@ -14,6 +14,7 @@ export const useRoomSocket = (roomId: string) => {
     gameState.gamePhase,
     gameState.currentTurnPlayerId,
     gameState.roomDataRef,
+    gameState.turnNumber,
   );
 
   // ส่ง onCardPlayed ให้ gameState ใช้ reset timer เมื่อมีการ์ดถูกเล่น
