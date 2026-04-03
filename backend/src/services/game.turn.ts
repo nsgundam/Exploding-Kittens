@@ -48,6 +48,7 @@ export async function advanceTurn(
       display_name: nextPlayer.display_name,
       turn_number: nextTurnNumber,
       pending_attacks: pendingAttacks,
+      reset_timer: true,
     },
   };
 }
@@ -175,7 +176,7 @@ export async function handleAFK(
         turn_number: session.turn_number,
       },
     });
-    
+
     const kickResult = await checkWinnerOrAdvance(
       tx,
       session,

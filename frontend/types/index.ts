@@ -118,6 +118,7 @@ export interface CardPlayedPayload {
     type: string;
     topCards?: string[];
     extraTurns?: number;
+    ikOnTop?: boolean;
   };
   nextTurn?: {
     player_id: string;

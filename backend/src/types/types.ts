@@ -89,6 +89,7 @@ export interface CardEffectResult {
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
   direction?: number; // Reverse: 1 = clockwise, -1 = counter-clockwise
+  ikOnTop?: boolean; // Shuffle
 }
 
 export interface TurnInfo {
@@ -96,6 +97,7 @@ export interface TurnInfo {
   display_name: string;
   turn_number: number;
   pending_attacks?: number;
+  reset_timer?: boolean;
 }
 
 export interface WinnerInfo {

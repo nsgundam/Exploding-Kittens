@@ -187,8 +187,8 @@ export function useGameSocketEvents(
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
           : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
-          : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
-          : `🃏 ${displayName} จั่วไพ่`;
+            : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
+              : `🃏 ${displayName} จั่วไพ่`;
         setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
       }
 
@@ -270,6 +270,10 @@ export function useGameSocketEvents(
         if (data.effect?.type === "SEE_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
           setters.setSeeTheFutureCards(data.effect.topCards);
           setters.setGamePhase("SEE_FUTURE");
+        }
+
+        if (data.effect?.type === "SHUFFLE" && data.effect.ikOnTop !== undefined) {
+          setters.setIkOnTop(data.effect.ikOnTop);
         }
 
         if (data.effect?.type === "ALTER_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {

@@ -328,6 +328,7 @@ export async function drawCard(
           display_name: player.display_name,
           turn_number: session.turn_number + 1,
           pending_attacks: nextPending,
+          reset_timer: true,
         },
       };
     } else {
