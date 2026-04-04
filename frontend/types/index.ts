@@ -147,6 +147,10 @@ export interface CardDefusedPayload {
 
 export interface PlayerEliminatedPayload {
   action: string;
+  eliminatedPlayer?: {
+    player_id: string;
+    display_name: string;
+  };
   winner?: {
     player_id: string;
     display_name: string;

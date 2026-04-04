@@ -111,14 +111,11 @@ export const registerRoomSocket = (io: Server): void => {
       try {
         const { roomId, playerToken } = payload;
 
-        io.to(roomId).emit("playerDisconnected", { playerToken });
+        const { room: updatedRoom, gameEvents } = await roomService.leaveRoom(roomId, playerToken);
 
-        const { room: updatedRoom, gameOver } = await roomService.leaveRoom(roomId, playerToken);
-
-        if (gameOver) {
-          io.to(roomId).emit("playerEliminated", {
-            action: "GAME_OVER",
-            winner: gameOver.winner,
+        if (gameEvents && gameEvents.length > 0) {
+          gameEvents.forEach((evt) => {
+            io.to(roomId).emit(evt.eventName, evt.payload);
           });
         }
 
@@ -155,12 +152,11 @@ export const registerRoomSocket = (io: Server): void => {
           // FR-09-2: Delay removal by 60 seconds
           const timeoutId = setTimeout(async () => {
             try {
-              const { room: updatedRoom, gameOver } = await roomService.leaveRoom(roomId, playerToken);
+              const { room: updatedRoom, gameEvents } = await roomService.leaveRoom(roomId, playerToken);
 
-              if (gameOver) {
-                io.to(roomId).emit("playerEliminated", {
-                  action: "GAME_OVER",
-                  winner: gameOver.winner,
+              if (gameEvents && gameEvents.length > 0) {
+                gameEvents.forEach((evt) => {
+                  io.to(roomId).emit(evt.eventName, evt.payload);
                 });
               }
 

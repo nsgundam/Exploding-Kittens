@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.ts",
   "scripts": {
-    "dev": "ts-node src/server.ts",
+    "dev": "nodemon -e ts,js -w src -x ts-node src/server.ts",
     "build": "tsc",
     "start": "ts-node src/server.ts",
     "db:migrate": "npx prisma migrate dev",

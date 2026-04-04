@@ -9,18 +9,31 @@ export async function advanceTurn(
   roomId: string,
   currentPlayerId: string,
 ): Promise<TurnAdvancedResult> {
-  const alivePlayers = await tx.player.findMany({
-    where: { room_id: roomId, role: PlayerRole.PLAYER, is_alive: true },
+  const allPlayers = await tx.player.findMany({
+    where: { room_id: roomId, role: PlayerRole.PLAYER, seat_number: { not: null } },
     orderBy: { seat_number: "asc" },
   });
 
-  const currentIndex = alivePlayers.findIndex(
+  const currentIndex = allPlayers.findIndex(
     (p) => p.player_id === currentPlayerId,
   );
+
+  if (currentIndex === -1) {
+    throw new BadRequestError("Current player not found in seated players");
+  }
+
   const direction = session.direction ?? 1;
-  const nextIndex =
-    (currentIndex + direction + alivePlayers.length) % alivePlayers.length;
-  const nextPlayer = alivePlayers[nextIndex];
+
+  let nextPlayer = null;
+  let offset = 1;
+  while (offset <= allPlayers.length) {
+    const checkIndex = (currentIndex + (offset * direction) + allPlayers.length) % allPlayers.length;
+    if (allPlayers[checkIndex]?.is_alive) {
+      nextPlayer = allPlayers[checkIndex];
+      break;
+    }
+    offset++;
+  }
 
   if (!nextPlayer) {
     throw new BadRequestError(
