@@ -21,6 +21,7 @@ export interface CreateRoomInput {
   playerToken: string;
   roomName: string;
   hostName: string;
+  profilePicture?: string | null;
   maxPlayers: number;
   cardVersion: string;
   expansions: string[];
@@ -87,6 +88,8 @@ export interface CardEffectResult {
   topCards?: string[]; // See the Future
   shuffled?: boolean; // Shuffle
   extraTurns?: number; // Attack
+  direction?: number; // Reverse: 1 = clockwise, -1 = counter-clockwise
+  ikOnTop?: boolean; // Shuffle
 }
 
 export interface TurnInfo {
@@ -94,6 +97,7 @@ export interface TurnInfo {
   display_name: string;
   turn_number: number;
   pending_attacks?: number;
+  reset_timer?: boolean;
 }
 
 export interface WinnerInfo {
@@ -128,6 +132,7 @@ export interface ExplodingKittenDrawnResult {
   drawnCard: string;
   hasDefuse: boolean;
   deck_count?: number;
+  isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
 }
 
 export type DefuseResult = TurnAdvancedResult | GameOverResult;
@@ -138,6 +143,7 @@ export interface JoinRoomPayload {
   roomId: string;
   playerToken: string;
   displayName: string;
+  profilePicture?: string | null;
 }
 
 export interface SelectSeatPayload {

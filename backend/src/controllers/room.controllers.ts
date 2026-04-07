@@ -35,7 +35,7 @@ export const getCurrentRoom = asyncHandler(async (req: Request, res: Response) =
 
 export const joinRoom = asyncHandler(async (req: Request, res: Response) => {
   const roomId = req.params.roomId as string;
-  const { displayName } = req.body || {};
+  const { displayName, profilePicture } = req.body || {};
   const playerToken = req.playerToken!;
 
   if (!displayName) {
@@ -43,7 +43,7 @@ export const joinRoom = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const player = await roomService.joinRoom(roomId, playerToken, displayName);
+  const player = await roomService.joinRoom(roomId, playerToken, displayName, profilePicture);
   res.status(201).json(player);
 });
 

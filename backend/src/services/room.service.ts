@@ -1,10 +1,11 @@
 import { RoomStatus, PlayerRole, GameSessionStatus } from "@prisma/client";
 import { gameService } from "./game.service";
+import { getWinnerIfAny, processGameOver } from "./game.turn";
 import { prisma } from "../config/prisma";
 import { CreateRoomInput, UpdateDeckConfigInput, RoomWithRelations, CurrentRoomResponse } from "../types/types";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../utils/errors";
 import type { Player, Room } from "@prisma/client";
-import { GAME_CONFIG } from "../constants/game";
+import { GAME_CONFIG, EliminationReason } from "../constants/game";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -26,7 +27,9 @@ export const roomService = {
    * FR-02-3, FR-03-1/2, S1-10
    */
   async createRoom(payload: CreateRoomInput): Promise<RoomWithRelations | null> {
-    const { playerToken, roomName, hostName, maxPlayers, cardVersion, expansions } = payload;
+    const { playerToken, roomName, hostName, profilePicture, maxPlayers, cardVersion, expansions } = payload;
+    const profilePictureData =
+      profilePicture === undefined ? {} : { profile_picture: profilePicture };
 
     // Generate unique room code
     let newRoomCode = "";
@@ -51,8 +54,16 @@ export const roomService = {
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
         where: { token: playerToken },
-        update: { display_name: hostName, last_seen: new Date() },
-        create: { token: playerToken, display_name: hostName },
+        update: {
+          display_name: hostName,
+          ...profilePictureData,
+          last_seen: new Date(),
+        },
+        create: {
+          token: playerToken,
+          display_name: hostName,
+          ...profilePictureData,
+        },
       });
 
       const room = await tx.room.create({
@@ -77,6 +88,7 @@ export const roomService = {
         data: {
           player_token: playerToken,
           display_name: hostName,
+          ...profilePictureData,
           room_id: room.room_id,
           seat_number: 1,
           role: PlayerRole.PLAYER,
@@ -101,7 +113,7 @@ export const roomService = {
   async getAllRooms(status?: RoomStatus, card_version?: string): Promise<RoomWithRelations[]> {
     return await prisma.room.findMany({
       where: {
-        status : status,
+        status: status,
         deck_config: card_version ? { card_version } : undefined,
       },
       include: { players: true, deck_config: true },
@@ -140,10 +152,18 @@ export const roomService = {
    * Join a room as SPECTATOR.
    * FR-03-6, S1-15
    */
-  async joinRoom(roomId: string, playerToken: string, displayName: string): Promise<Player> {
+  async joinRoom(
+    roomId: string,
+    playerToken: string,
+    displayName: string,
+    profilePicture?: string | null,
+  ): Promise<Player> {
     if (!displayName || displayName.trim().length === 0) {
       throw new BadRequestError("Display name is required");
     }
+    const normalizedDisplayName = displayName.trim();
+    const profilePictureData =
+      profilePicture === undefined ? {} : { profile_picture: profilePicture };
 
     const room = await prisma.room.findUnique({
       where: { room_id: roomId },
@@ -153,8 +173,16 @@ export const roomService = {
     return await prisma.$transaction(async (tx) => {
       await tx.playerIdentity.upsert({
         where: { token: playerToken },
-        update: { display_name: displayName.trim(), last_seen: new Date() },
-        create: { token: playerToken, display_name: displayName.trim() },
+        update: {
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
+          last_seen: new Date(),
+        },
+        create: {
+          token: playerToken,
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
+        },
       });
 
       const existing = await tx.player.findUnique({
@@ -166,12 +194,21 @@ export const roomService = {
         },
       });
 
-      if (existing) return existing;
+      if (existing) {
+        return await tx.player.update({
+          where: { player_id: existing.player_id },
+          data: {
+            display_name: normalizedDisplayName,
+            ...profilePictureData,
+          },
+        });
+      }
 
       return await tx.player.create({
         data: {
           player_token: playerToken,
-          display_name: displayName.trim(),
+          display_name: normalizedDisplayName,
+          ...profilePictureData,
           room_id: roomId,
           role: PlayerRole.SPECTATOR,
         },
@@ -264,7 +301,7 @@ export const roomService = {
   async leaveRoom(
     roomId: string,
     playerToken: string,
-  ): Promise<{ room: RoomWithRelations | null; gameOver?: { winner: { player_id: string; display_name: string } } }> {
+  ): Promise<{ room: RoomWithRelations | null; gameEvents?: { eventName: string; payload: any }[] }> {
     return await prisma.$transaction(async (tx) => {
       const player = await tx.player.findUnique({
         where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
@@ -274,8 +311,10 @@ export const roomService = {
 
       const room = await tx.room.findUnique({ where: { room_id: roomId } });
 
-      // ── เช็คว่าห้องกำลัง PLAYING และผู้เล่นที่ออกยังมีชีวิตอยู่ ──
-      if (room?.status === RoomStatus.PLAYING && player.is_alive) {
+      let gameEvents: { eventName: string; payload: any }[] = [];
+
+      // ── เช็คว่าห้องกำลัง PLAYING และผู้เล่นที่ออกยังมีชีวิตและเป็นผู้เล่น ──
+      if (room?.status === RoomStatus.PLAYING && player.is_alive && player.role === PlayerRole.PLAYER) {
         const session = await tx.gameSession.findFirst({
           where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
         });
@@ -298,15 +337,13 @@ export const roomService = {
             },
           });
 
-          const winResult = await gameService.checkWinner(
-            tx,
-            session,
-            roomId,
-            player.player_id,
-            "LEFT_ROOM",
-          );
+          const isCurrentTurnPlayer = session.current_turn_player_id === player.player_id;
 
-          if (winResult.action === "GAME_OVER") {
+          const winner = await getWinnerIfAny(tx, roomId);
+
+          if (winner) {
+            const overRes = await processGameOver(tx, session, roomId, winner, player.player_id, "left_room");
+
             // ลบผู้เล่นออกหลัง game over
             await tx.player.delete({
               where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
@@ -317,10 +354,44 @@ export const roomService = {
               include: { players: true, deck_config: true },
             });
 
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "GAME_OVER",
+                winner: overRes.winner,
+              },
+            });
+
             return {
               room: updatedRoom as RoomWithRelations,
-              gameOver: { winner: (winResult as any).winner },
+              gameEvents,
             };
+          } else if (isCurrentTurnPlayer) {
+            const advRes = await gameService.advanceTurn(tx, session, roomId, player.player_id);
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "PLAYER_ELIMINATED",
+                isLeftRoom: true,
+                eliminatedPlayer: {
+                  player_id: player.player_id,
+                  display_name: player.display_name,
+                },
+                nextTurn: advRes.nextTurn,
+              },
+            });
+          } else {
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "PLAYER_ELIMINATED",
+                isLeftRoom: true,
+                eliminatedPlayer: {
+                  player_id: player.player_id,
+                  display_name: player.display_name,
+                },
+              },
+            });
           }
           // ไม่ game over — ไหลต่อลบผู้เล่นปกติ
         }
@@ -358,7 +429,7 @@ export const roomService = {
         include: { players: true, deck_config: true },
       });
 
-      return { room: updatedRoom as RoomWithRelations };
+      return { room: updatedRoom as RoomWithRelations, gameEvents };
     });
   },
 

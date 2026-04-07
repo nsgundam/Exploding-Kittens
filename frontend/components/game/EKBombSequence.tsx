@@ -8,6 +8,7 @@ interface EKBombSequenceProps {
   onExplode: () => void;
   active: boolean;
   isMyBomb: boolean;
+  isIKFaceUp?: boolean; // true = Imploding Kitten หงายหน้า → UI สีม่วง
 }
 
 export function EKBombSequence({
@@ -17,6 +18,7 @@ export function EKBombSequence({
   onExplode,
   active,
   isMyBomb,
+  isIKFaceUp = false,
 }: EKBombSequenceProps) {
   const [timeLeft, setTimeLeft] = useState(10);
 
@@ -42,6 +44,125 @@ export function EKBombSequence({
 
   if (!active || !isMyBomb) return null;
 
+  // ── IK face-up UI (สีม่วง) ──────────────────────────────────
+  if (isIKFaceUp) {
+    return (
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center z-[3000] animate-fade-in backdrop-blur-md"
+        style={{ background: "rgba(20,0,35,0.93)" }}
+      >
+        {/* BG glow */}
+        <div
+          className="absolute inset-0 pointer-events-none animate-pulse"
+          style={{
+            background: "radial-gradient(circle at center, rgba(139,92,246,0.25) 0%, transparent 70%)",
+          }}
+        />
+
+        <div
+          className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
+          style={{
+            width: "460px",
+            background: "linear-gradient(160deg, #1a0530 0%, #0a001a 60%, #0d0005 100%)",
+            border: "2px solid rgba(139,92,246,0.7)",
+            boxShadow: "0 0 80px rgba(139,92,246,0.3), 0 24px 60px rgba(0,0,0,0.95)",
+            fontFamily: "'Fredoka One', cursive",
+          }}
+        >
+          {/* Header */}
+          <div className="text-center flex flex-col items-center gap-1">
+            <span className="text-6xl" style={{ filter: "drop-shadow(0 0 20px rgba(139,92,246,0.9))" }}>🐱</span>
+            <h1
+              className="text-3xl font-black text-white uppercase tracking-wider mt-1"
+              style={{ textShadow: "0 0 24px rgba(139,92,246,0.9)", fontFamily: "'Fredoka One', cursive" }}
+            >
+              IMPLODING KITTEN!
+            </h1>
+            <div
+              className="px-3 py-1 rounded-full text-xs font-black tracking-widest mt-1"
+              style={{
+                background: "rgba(139,92,246,0.25)",
+                border: "1px solid rgba(167,139,250,0.6)",
+                color: "rgba(196,181,253,0.9)",
+              }}
+            >
+              ☠ FACE UP — ไม่สามารถ DEFUSE ได้
+            </div>
+          </div>
+
+          {/* Card face-up visual */}
+          <div
+            className="w-28 h-40 rounded-xl flex flex-col items-center justify-center gap-2"
+            style={{
+              background: "linear-gradient(160deg, #4c1d95 0%, #1e0a3c 100%)",
+              border: "2px solid rgba(167,139,250,0.8)",
+              boxShadow: "0 0 40px rgba(139,92,246,0.6)",
+            }}
+          >
+            <span style={{ fontSize: "3rem" }}>🐱</span>
+            <div
+              className="text-[10px] font-black tracking-wider text-center leading-tight px-2"
+              style={{ color: "rgba(196,181,253,0.9)" }}
+            >
+              IMPLODING
+              <br />
+              KITTEN
+            </div>
+          </div>
+
+          {/* Description */}
+          <div
+            className="w-full px-4 py-3 rounded-2xl text-sm text-center"
+            style={{
+              background: "rgba(220,38,38,0.1)",
+              border: "1px solid rgba(220,38,38,0.3)",
+              color: "rgba(255,160,160,0.85)",
+              lineHeight: "1.6",
+            }}
+          >
+            
+            <br />
+            <span style={{ color: "rgba(196,181,253,0.7)", fontSize: "1.5rem" }}>
+              ไม่สามารถ Defuse ได้ — คุณระเบิดทันที
+            </span>
+          </div>
+
+          {/* Timer */}
+          <div className="text-center">
+            <p className="text-xs mb-1" style={{ color: "rgba(196,181,253,0.5)" }}>ระเบิดโดยอัตโนมัติใน</p>
+            <div
+              className="text-5xl font-black"
+              style={{
+                color: timeLeft <= 3 ? "#ef4444" : "#a78bfa",
+                textShadow: timeLeft <= 3
+                  ? "0 0 20px rgba(239,68,68,0.8)"
+                  : "0 0 20px rgba(167,139,250,0.8)",
+                fontFamily: "'Fredoka One', cursive",
+              }}
+            >
+              {timeLeft}
+            </div>
+          </div>
+
+          {/* Explode button */}
+          <button
+            onClick={onExplode}
+            className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95"
+            style={{
+              background: "linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)",
+              border: "2px solid rgba(167,139,250,0.6)",
+              boxShadow: "0 5px 0 #2e1065, 0 8px 20px rgba(139,92,246,0.35)",
+              fontFamily: "'Fredoka One', cursive",
+            }}
+          >
+            💀 ยอมรับชะตากรรม
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── EK ปกติ UI (สีแดง) ─────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md">
 

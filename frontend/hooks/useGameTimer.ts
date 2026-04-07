@@ -9,6 +9,7 @@ export const useGameTimer = (
   gamePhase: GamePhase,
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
+  turnNumber: number,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
@@ -71,7 +72,7 @@ export const useGameTimer = (
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, turnNumber]);
 
   // cardPlayed — เรียกจากภายนอกเพื่อ reset timer เมื่อมีการเล่นการ์ด
   const onCardPlayed = () => {

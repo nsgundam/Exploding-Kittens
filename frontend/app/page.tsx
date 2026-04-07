@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AnimatedBackground } from "@/components/lobby/AnimatedBackground";
 import { Loader2 } from "lucide-react";
-
-const AVATAR_STYLES = [
-  "adventurer", "avataaars", "bottts", "fun-emoji", "lorelei", "notionists", "personas", "pixel-art"
-];
+import {
+  AVATAR_STYLES,
+  buildAvatarProfileValue,
+  buildAvatarUrl,
+  parseAvatarProfileValue,
+} from "@/lib/avatar";
 
 // Token duration: 12 hours = 43200000 ms
 const TOKEN_EXPIRY_MS = 12 * 60 * 60 * 1000;
@@ -19,7 +21,7 @@ export default function Home() {
   const router = useRouter();
   
   const [name, setName] = useState("");
-  const [avatarStyle, setAvatarStyle] = useState(AVATAR_STYLES[0]);
+  const [avatarStyle, setAvatarStyle] = useState<typeof AVATAR_STYLES[number]>(AVATAR_STYLES[0]);
   const [seed, setSeed] = useState("default-seed"); 
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false); 
@@ -44,16 +46,17 @@ export default function Home() {
 
       const existingAvatar = localStorage.getItem("profile_picture");
       if (existingAvatar) {
-        try {
-          const url = new URL(existingAvatar);
-          const parts = url.pathname.split("/");
-          const style = parts[parts.length - 2];
-          const seedValue = parts[parts.length - 1];
-          
-          if (AVATAR_STYLES.includes(style)) setAvatarStyle(style);
-          if (seedValue) setSeed(seedValue.replace(".svg", ""));
-        } catch {
-           setSeed(Math.random().toString(36).substring(7));
+        const parsedAvatar = parseAvatarProfileValue(existingAvatar);
+        if (parsedAvatar) {
+          if (AVATAR_STYLES.includes(parsedAvatar.style as typeof AVATAR_STYLES[number])) {
+            setAvatarStyle(parsedAvatar.style as typeof AVATAR_STYLES[number]);
+          }
+          setSeed(parsedAvatar.seed);
+          if (parsedAvatar.value !== existingAvatar) {
+            localStorage.setItem("profile_picture", parsedAvatar.value);
+          }
+        } else {
+          setSeed(Math.random().toString(36).substring(7));
         }
       } else {
         setSeed(Math.random().toString(36).substring(7));
@@ -79,7 +82,8 @@ export default function Home() {
     }
   }, [router]);
 
-  const currentAvatarUrl = `https://api.dicebear.com/9.x/${avatarStyle}/svg?seed=${seed}&backgroundColor=transparent`;
+  const currentAvatarValue = buildAvatarProfileValue(avatarStyle, seed);
+  const currentAvatarUrl = buildAvatarUrl(avatarStyle, seed);
 
   const handleRandomizeAvatar = () => {
     setSeed(Math.random().toString(36).substring(7));
@@ -102,7 +106,7 @@ export default function Home() {
       }
       
       localStorage.setItem("display_name", name.trim());
-      localStorage.setItem("profile_picture", currentAvatarUrl);
+      localStorage.setItem("profile_picture", currentAvatarValue);
       
       await new Promise(resolve => setTimeout(resolve, 800));
       

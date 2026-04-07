@@ -30,10 +30,12 @@ export const useGameConnection = (roomId: string) => {
       const displayName =
         localStorage.getItem("display_name") ||
         "Player_" + Math.floor(Math.random() * 1000);
+      const profilePicture = localStorage.getItem("profile_picture");
       newSocket.emit("joinRoom", {
         roomId,
         playerToken,
         displayName,
+        profilePicture,
       });
     });
 

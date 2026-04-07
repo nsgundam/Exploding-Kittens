@@ -14,6 +14,7 @@ export const useRoomSocket = (roomId: string) => {
     gameState.gamePhase,
     gameState.currentTurnPlayerId,
     gameState.roomDataRef,
+    gameState.turnNumber,
   );
 
   // ส่ง onCardPlayed ให้ gameState ใช้ reset timer เมื่อมีการ์ดถูกเล่น
@@ -39,11 +40,11 @@ export const useRoomSocket = (roomId: string) => {
     gameLogs: gameState.gameLogs,
     sessionId: gameState.sessionId,
     gamePhase: gameState.gamePhase,
-    ekBombState: gameState.ekBombState,
     seeTheFutureCards: gameState.seeTheFutureCards,
     setSeeTheFutureCards: gameState.setSeeTheFutureCards,
     closeSeeTheFuture: actions.closeSeeTheFuture,
     insertEK: actions.insertEK,
+    placeIKBack: actions.placeIKBack,
     closeInsertEK: actions.closeInsertEK,
     selectSeat: actions.selectSeat,
     startGame: actions.startGame,
@@ -67,10 +68,17 @@ export const useRoomSocket = (roomId: string) => {
     cancelFavor: actions.cancelFavor,
     pickFavorCard: actions.pickFavorCard,
     playNope: actions.playNope,
+    selectTATarget: actions.selectTATarget,
+    cancelTA: actions.cancelTA,
+    commitAlterTheFuture: actions.commitAlterTheFuture,
     timeLeft,
     currentTurnPlayerId: gameState.currentTurnPlayerId,
     pendingAttacks: gameState.pendingAttacks,
     lastPlayedCard: gameState.lastPlayedCard,
     deckCount: gameState.deckCount,
+    direction: gameState.direction,
+    ekBombState: gameState.ekBombState,
+    setGamePhase: gameState.setGamePhase,
+    ikOnTop: gameState.ikOnTop,
   };
 };

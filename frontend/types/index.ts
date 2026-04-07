@@ -94,6 +94,7 @@ export interface CardDrawnPayload {
   hand?: { cards: string[] };
   drawnByDisplayName?: string;
   isExplodingKitten?: boolean;
+  isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
   eliminated?: boolean;
   player_id?: string;
   isAutoDraw?: boolean;
@@ -117,6 +118,7 @@ export interface CardPlayedPayload {
     type: string;
     topCards?: string[];
     extraTurns?: number;
+    ikOnTop?: boolean;
   };
   nextTurn?: {
     player_id: string;
@@ -145,6 +147,10 @@ export interface CardDefusedPayload {
 
 export interface PlayerEliminatedPayload {
   action: string;
+  eliminatedPlayer?: {
+    player_id: string;
+    display_name: string;
+  };
   winner?: {
     player_id: string;
     display_name: string;

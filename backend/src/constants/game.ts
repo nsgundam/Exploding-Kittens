@@ -25,6 +25,7 @@ export enum ActionType {
   PLAY_CARD = "PLAY_CARD",
   DEFUSED = "DEFUSED",
   EK_INSERTED = "EK_INSERTED",
+  IK_INSERTED = "IK_INSERTED",
   PLAYER_ELIMINATED = "PLAYER_ELIMINATED",
   PLAYER_AFK_KICKED = "PLAYER_AFK_KICKED",
   GAME_FINISHED = "GAME_FINISHED",
@@ -38,6 +39,13 @@ export enum ActionType {
   // Nope-related actions
   NOPE_PLAYED = "NOPE_PLAYED",
 
+}
+
+export enum EliminationReason {
+  TIMEOUT_NO_DEFUSE = "no_defuse_or_timeout",
+  IMPLODING_KITTEN = "imploding_kitten_face_up",
+  AFK_KICK = "afk_timeout",
+  LEFT_ROOM = "left_room"
 }
 
 export const GAME_CONFIG = {

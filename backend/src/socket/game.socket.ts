@@ -18,28 +18,7 @@ import {
   PlayComboPayload,
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
-
-/**
- * Sanitize card hands for anti-cheat (NFR-03, AI Rule 2.3).
- * Each player only sees their own cards; others see empty array + card_count.
- */
-function sanitizeCardHands(
-  cardHands: CardHand[],
-  viewerPlayerId: string | undefined
-): SanitizedCardHand[] {
-  return cardHands.map((hand) => {
-    if (viewerPlayerId && hand.player_id === viewerPlayerId) {
-      return {
-        ...hand,
-        cards: (hand.cards ?? []) as string[],
-      };
-    }
-    return {
-      ...hand,
-      cards: [],
-    };
-  });
-}
+import { sanitizeCardHands, getPublicComboResult } from "../utils/sanitizers";
 
 export const registerGameSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
@@ -77,11 +56,16 @@ export const registerGameSocket = (io: Server): void => {
     });
 
     const handleBroadcastPlayedCard = async (roomId: string, payloadPlayerToken: string, result: any) => {
-      if (result.effect?.type === "SEE_THE_FUTURE") {
+      if (result.effect?.type === "SEE_THE_FUTURE" || result.effect?.type === "ALTER_THE_FUTURE") {
+        // Private: only the player who played sees the top cards
         const sockets = await io.in(roomId).fetchSockets();
         const s = sockets.find(so => so.data.playerToken === payloadPlayerToken);
         if (s) s.emit("cardPlayed", result);
-        io.to(roomId).except(s?.id || "").emit("cardPlayed", { ...result, effect: { type: "SEE_THE_FUTURE" } });
+        // Broadcast to others without card info
+        io.to(roomId).except(s?.id || "").emit("cardPlayed", {
+          ...result,
+          effect: { type: result.effect.type }, // strip topCards
+        });
 
       } else if (result.effect?.type === "FAVOR") {
         const effect = result.effect as {
@@ -134,13 +118,7 @@ export const registerGameSocket = (io: Server): void => {
     };
 
     const handleBroadcastComboPlayed = async (roomId: string, socketIdOrNull: string | null, payloadPlayerToken: string, targetPlayerToken: string, result: any) => {
-      const publicResult = {
-        ...result,
-        stolenCard: undefined,
-        thiefHand: undefined,
-        targetHand: undefined,
-        robbedFromToken: undefined,
-      };
+      const publicResult = getPublicComboResult(result);
 
       const sockets = await io.in(roomId).fetchSockets();
       const thiefSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
@@ -178,13 +156,35 @@ export const registerGameSocket = (io: Server): void => {
               await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
             } else if (res.action === "COMBO_PLAYED") {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+            } else if (res.action === "TURN_ADVANCED") {
+              // DB card resolved and drew a normal card → broadcast like a draw
+              // Send hand.cards privately to the drawer; others get count only
+              const sockets = await io.in(roomId).fetchSockets();
+              const drawerSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+              if (drawerSocket) {
+                drawerSocket.emit("cardDrawn", res);
+                io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              } else {
+                io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
+              }
+            } else if (res.action === "DREW_EXPLODING_KITTEN") {
+              // DB card drew EK or IK → same flow as normal draw EK
+              io.to(roomId).emit("cardDrawn", res);
+            } else if (res.action === "GAME_OVER") {
+              // DB card drew EK/IK and caused elimination → game over
+              io.to(roomId).emit("playerEliminated", res);
+              const updatedRoom = await roomService.getRoomById(roomId);
+              io.to(roomId).emit("roomUpdated", updatedRoom);
+              io.emit("roomListUpdated");
             }
           }
         } catch (err) {
           console.error("Resolve error:", err);
+          io.to(roomId).emit("errorMessage", getErrorMessage(err));
         }
       }, 3000); // 3 seconds Nope window
     };
+
 
     // ── Play Card (S2-18) ──────────────────────────────────────
     socket.on("playCard", async (payload: PlayCardPayload) => {
@@ -291,12 +291,37 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
-    // ── Insert EK ──────────────────────────────────────────────
+    // ── Insert EK (after Defuse) ───────────────────────────────
     socket.on("insertEK", async (payload: { roomId: string; playerToken: string; position: number }) => {
       try {
         const { roomId, playerToken, position } = payload;
         const result = await gameService.insertEK(roomId, playerToken, position);
         io.to(roomId).emit("ekInserted", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Place IK Back (after drawing Imploding Kitten face-down) ──
+    // FR-07-IK2: ผู้เล่นเลือกตำแหน่งใส่ IK กลับ → IK เปลี่ยนเป็น face-up → advance turn
+    socket.on("placeIKBack", async (payload: { roomId: string; playerToken: string; position: number }) => {
+      try {
+        const { roomId, playerToken, position } = payload;
+        const result = await gameService.placeIKBack(roomId, playerToken, position);
+        io.to(roomId).emit("ikPlacedBack", result);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
+
+    // ── Alter the Future — Step 2: commit new order ────────────
+    socket.on("alterTheFuture", async (payload: { roomId: string; playerToken: string; newOrder: string[] }) => {
+      try {
+        const { roomId, playerToken, newOrder } = payload;
+        const result = await gameService.commitAlterTheFuture(roomId, playerToken, newOrder);
+        // Only the player knows the actual new order; others just get notified it was committed
+        socket.emit("alterTheFutureCommitted", result);
+        socket.to(roomId).emit("alterTheFutureCommitted", { success: true, action: "ALTER_THE_FUTURE_COMMITTED" });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
