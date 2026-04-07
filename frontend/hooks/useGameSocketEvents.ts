@@ -378,17 +378,17 @@ export function useGameSocketEvents(
     };
 
     // ── playerEliminated ──
-    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("💀 Player Eliminated:", data);
       setters.setEkBombState(null);
       setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
 
-      const eliminatedId = data.isAfkKick
-        ? (data.afkPlayerId ?? setters.currentTurnPlayerIdRef.current)
-        : setters.currentTurnPlayerIdRef.current;
+      const eliminatedId = data?.eliminatedPlayer?.player_id
+        ?? (data.isAfkKick ? data.afkPlayerId : null)
+        ?? setters.currentTurnPlayerIdRef.current;
 
       if (eliminatedId) {
-        if (!data.isAfkKick) {
+        if (!data.isAfkKick && !data.isLeftRoom) {
           setters.setEliminatedPlayerId(eliminatedId);
         }
         setters.setRoomData((prev) => {
@@ -414,7 +414,9 @@ export function useGameSocketEvents(
       const eliminatedPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
 
-      if (data.isAfkKick) {
+      if (data.isLeftRoom) {
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🚪 ${displayName} ตัดการเชื่อมต่อและออกจากเกม!`]);
+      } else if (data.isAfkKick) {
         setters.setGameLogs((prev) => [...prev.slice(-19), `⏱️ ${displayName} ถูกคิกเพราะ AFK!`]);
       } else {
         setters.setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
@@ -534,6 +536,16 @@ export function useGameSocketEvents(
       setters.setGameLogs((prev) => [...prev.slice(-19), `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
     };
 
+    // ── playerDisconnected ──
+    const handlePlayerDisconnected = (data: { playerToken: string }) => {
+      console.log("🔌 Player Disconnected:", data);
+      const player = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === data.playerToken);
+      if (player && player.role !== "SPECTATOR" && player.is_alive !== false) {
+         setters.setGameLogs((prev) => [...prev.slice(-19), `🔌 ${player.display_name} สัญญาณขาดหาย... กำลังรอการเชื่อมต่อใหม่ (60 วิ)`]);
+         showToast(`🔌 ${player.display_name} สัญญาณขาดหาย...`, 4000);
+      }
+    };
+
     socket.on("roomUpdated", handleRoomUpdated);
     socket.on("gameStarted", handleGameStarted);
     socket.on("cardDrawn", handleCardDrawn);
@@ -552,6 +564,7 @@ export function useGameSocketEvents(
     socket.on("nopePlayed", handleNopePlayed);
     socket.on("actionCancelled", handleActionCancelled);
     socket.on("alterTheFutureCommitted", handleAlterTheFutureCommitted);
+    socket.on("playerDisconnected", handlePlayerDisconnected);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -572,6 +585,7 @@ export function useGameSocketEvents(
       socket.off("nopePlayed", handleNopePlayed);
       socket.off("actionCancelled", handleActionCancelled);
       socket.off("alterTheFutureCommitted", handleAlterTheFutureCommitted);
+      socket.off("playerDisconnected", handlePlayerDisconnected);
     };
   }, [socket, roomId, setters]);
 }

@@ -1,5 +1,6 @@
 import { RoomStatus, PlayerRole, GameSessionStatus } from "@prisma/client";
 import { gameService } from "./game.service";
+import { getWinnerIfAny, processGameOver } from "./game.turn";
 import { prisma } from "../config/prisma";
 import { CreateRoomInput, UpdateDeckConfigInput, RoomWithRelations, CurrentRoomResponse } from "../types/types";
 import { NotFoundError, BadRequestError, ForbiddenError } from "../utils/errors";
@@ -300,7 +301,7 @@ export const roomService = {
   async leaveRoom(
     roomId: string,
     playerToken: string,
-  ): Promise<{ room: RoomWithRelations | null; gameOver?: { winner: { player_id: string; display_name: string } } }> {
+  ): Promise<{ room: RoomWithRelations | null; gameEvents?: { eventName: string; payload: any }[] }> {
     return await prisma.$transaction(async (tx) => {
       const player = await tx.player.findUnique({
         where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
@@ -310,8 +311,10 @@ export const roomService = {
 
       const room = await tx.room.findUnique({ where: { room_id: roomId } });
 
-      // ── เช็คว่าห้องกำลัง PLAYING และผู้เล่นที่ออกยังมีชีวิตอยู่ ──
-      if (room?.status === RoomStatus.PLAYING && player.is_alive) {
+      let gameEvents: { eventName: string; payload: any }[] = [];
+
+      // ── เช็คว่าห้องกำลัง PLAYING และผู้เล่นที่ออกยังมีชีวิตและเป็นผู้เล่น ──
+      if (room?.status === RoomStatus.PLAYING && player.is_alive && player.role === PlayerRole.PLAYER) {
         const session = await tx.gameSession.findFirst({
           where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
         });
@@ -334,15 +337,13 @@ export const roomService = {
             },
           });
 
-          const winResult = await gameService.checkWinner(
-            tx,
-            session,
-            roomId,
-            player.player_id,
-            EliminationReason.LEFT_ROOM,
-          );
+          const isCurrentTurnPlayer = session.current_turn_player_id === player.player_id;
 
-          if (winResult.action === "GAME_OVER") {
+          const winner = await getWinnerIfAny(tx, roomId);
+
+          if (winner) {
+            const overRes = await processGameOver(tx, session, roomId, winner, player.player_id, "left_room");
+
             // ลบผู้เล่นออกหลัง game over
             await tx.player.delete({
               where: { player_token_room_id: { player_token: playerToken, room_id: roomId } },
@@ -353,10 +354,44 @@ export const roomService = {
               include: { players: true, deck_config: true },
             });
 
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "GAME_OVER",
+                winner: overRes.winner,
+              },
+            });
+
             return {
               room: updatedRoom as RoomWithRelations,
-              gameOver: { winner: (winResult as any).winner },
+              gameEvents,
             };
+          } else if (isCurrentTurnPlayer) {
+            const advRes = await gameService.advanceTurn(tx, session, roomId, player.player_id);
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "PLAYER_ELIMINATED",
+                isLeftRoom: true,
+                eliminatedPlayer: {
+                  player_id: player.player_id,
+                  display_name: player.display_name,
+                },
+                nextTurn: advRes.nextTurn,
+              },
+            });
+          } else {
+            gameEvents.push({
+              eventName: "playerEliminated",
+              payload: {
+                action: "PLAYER_ELIMINATED",
+                isLeftRoom: true,
+                eliminatedPlayer: {
+                  player_id: player.player_id,
+                  display_name: player.display_name,
+                },
+              },
+            });
           }
           // ไม่ game over — ไหลต่อลบผู้เล่นปกติ
         }
@@ -394,7 +429,7 @@ export const roomService = {
         include: { players: true, deck_config: true },
       });
 
-      return { room: updatedRoom as RoomWithRelations };
+      return { room: updatedRoom as RoomWithRelations, gameEvents };
     });
   },
 
