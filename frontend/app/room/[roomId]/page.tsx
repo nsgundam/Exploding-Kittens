@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { GameBoard } from "@/components/game/GameBoard";
 import { PlayerHand } from "@/components/game/PlayerHand";
+import { DrawCardAnimation } from "@/components/game/DrawCardAnimation";
 import DeckConfigModal from "@/components/game/DeckConfigModal";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
@@ -59,6 +60,10 @@ export default function RoomPage() {
     commitAlterTheFuture,
     setGamePhase,
     ikOnTop,
+    drawAnimState,
+    setDrawAnimState,
+    afterDrawAnimRef,
+    afterHellfireRef,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -381,6 +386,7 @@ export default function RoomPage() {
             ikDrawerName={ikDrawerName}
             onIKRevealDone={handleIKRevealDone}
             ikOnTop={ikOnTop}
+            afterHellfireRef={afterHellfireRef}
           />
         </div>
 
@@ -502,6 +508,18 @@ export default function RoomPage() {
 
         </footer>
       </div>
+
+      {/* ── DRAW CARD ANIMATION ──────────────────────────────────────── */}
+      <DrawCardAnimation
+        state={drawAnimState ?? null}
+        onComplete={() => {
+          setDrawAnimState(null);
+          if (afterDrawAnimRef.current) {
+            afterDrawAnimRef.current();
+            afterDrawAnimRef.current = null;
+          }
+        }}
+      />
 
       {/* ── DECK CONFIG MODAL ────────────────────────────────────────── */}
       {showDeckConfig && (

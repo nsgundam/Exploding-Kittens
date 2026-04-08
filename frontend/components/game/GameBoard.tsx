@@ -35,6 +35,7 @@ export interface GameBoardProps {
   playCard: (cardCode: string, target?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
+  afterHellfireRef?: React.MutableRefObject<(() => void) | null>;
   insertEK: (position: number) => void;
   placeIKBack: (position: number) => void;
   ikDrawerName?: string; // ชื่อผู้เล่นที่จั่วได้ IK (สำหรับ IKRevealModal)
@@ -81,6 +82,7 @@ export function GameBoard({
   drawCard,
   defuseCard,
   eliminatePlayer,
+  afterHellfireRef,
   insertEK,
   placeIKBack,
   eliminatedPlayerId,
@@ -180,6 +182,7 @@ export function GameBoard({
         onExplode={handleExplode}
         isMyBomb={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
         isIKFaceUp={ekBombState?.drawnCard === "IK" && !ekBombState?.hasDefuse}
+        afterHellfireRef={afterHellfireRef}
       />
 
       {pendingComboTarget && comboState?.isThreeCard && (

@@ -80,5 +80,9 @@ export const useRoomSocket = (roomId: string) => {
     ekBombState: gameState.ekBombState,
     setGamePhase: gameState.setGamePhase,
     ikOnTop: gameState.ikOnTop,
+    drawAnimState: gameState.drawAnimState,
+    setDrawAnimState: gameState.setDrawAnimState,
+    afterDrawAnimRef: gameState.afterDrawAnimRef,
+    afterHellfireRef: gameState.afterHellfireRef,
   };
 };

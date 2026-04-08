@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Card } from "./Card";
+import { IKImplosionVoid } from "./IKImplosionVoid";
+import { EKHellfirePillar } from "./EKHellfirePillar";
 
 interface EKBombSequenceProps {
   drawnCard: string;
@@ -8,7 +10,8 @@ interface EKBombSequenceProps {
   onExplode: () => void;
   active: boolean;
   isMyBomb: boolean;
-  isIKFaceUp?: boolean; // true = Imploding Kitten หงายหน้า → UI สีม่วง
+  isIKFaceUp?: boolean;
+  afterHellfireRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function EKBombSequence({
@@ -19,8 +22,11 @@ export function EKBombSequence({
   active,
   isMyBomb,
   isIKFaceUp = false,
+  afterHellfireRef,
 }: EKBombSequenceProps) {
   const [timeLeft, setTimeLeft] = useState(10);
+  const [showImplosion, setShowImplosion] = useState(false);
+  const [showHellfirePillar, setShowHellfirePillar] = useState(false);
 
   useEffect(() => {
     if (!active || !isMyBomb) return;
@@ -29,7 +35,12 @@ export function EKBombSequence({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(fuseInterval);
-          onExplode();
+          if (isIKFaceUp) {
+            setShowImplosion(true);
+          } else {
+            // EK ทุกกรณี (มีหรือไม่มี defuse) → hellfire animation ก่อน แล้วค่อย onExplode
+            setShowHellfirePillar(true);
+          }
           return 0;
         }
         return prev - 1;
@@ -40,17 +51,68 @@ export function EKBombSequence({
       clearInterval(fuseInterval);
       setTimeLeft(10);
     };
-  }, [active, isMyBomb, onExplode]);
+  }, [active, isMyBomb, isIKFaceUp, hasDefuse, onExplode]);
 
-  if (!active || !isMyBomb) return null;
+  // bombAnimations lives outside guard so it survives active=false after socket fires
+  const bombAnimations = (
+    <>
+      <IKImplosionVoid
+        active={showImplosion}
+        onDone={() => {
+          setShowImplosion(false);
+          if (afterHellfireRef?.current) { afterHellfireRef.current(); afterHellfireRef.current = null; }
+          else onExplode();
+        }}
+      />
+      <EKHellfirePillar
+        active={showHellfirePillar}
+        onDone={() => {
+          setShowHellfirePillar(false);
+          if (afterHellfireRef?.current) {
+            afterHellfireRef.current();
+            afterHellfireRef.current = null;
+          } else {
+            // server response ยังไม่มา — poll รอสั้นๆ (network ช้า)
+            const poll = setInterval(() => {
+              if (afterHellfireRef?.current) {
+                clearInterval(poll);
+                afterHellfireRef.current();
+                afterHellfireRef.current = null;
+              }
+            }, 100);
+            setTimeout(() => clearInterval(poll), 5000);
+          }
+        }}
+      />
+    </>
+  );
+
+  if (!active || !isMyBomb) return bombAnimations;
+
+  // IK: เล่น implosion animation ก่อน แล้วค่อย onExplode
+  const handleIKExplode = () => {
+    if (showImplosion) return;
+    setShowImplosion(true);
+  };
+
+  // EK: emit eliminatePlayer ทันที แล้วเล่น hellfire animation พร้อมกัน
+  // server จะตอบ playerEliminated → afterHellfireRef.current = applyEliminated
+  // animation onDone จะ call afterHellfireRef.current เพื่อจบ phase
+  const handleEKExplode = () => {
+    if (showHellfirePillar) return;
+    onExplode(); // emit eliminatePlayer ก่อน
+    setShowHellfirePillar(true); // เริ่ม animation พร้อมกัน
+  };
 
   // ── IK face-up UI (สีม่วง) ──────────────────────────────────
   if (isIKFaceUp) {
     return (
-      <div
-        className="fixed inset-0 flex flex-col items-center justify-center z-[3000] animate-fade-in backdrop-blur-md"
-        style={{ background: "rgba(20,0,35,0.93)" }}
-      >
+      <>
+        {bombAnimations}
+        <div
+          className="fixed inset-0 flex flex-col items-center justify-center z-[3000] animate-fade-in backdrop-blur-md"
+          style={{ background: "rgba(20,0,35,0.93)", display: showImplosion ? "none" : undefined }}
+        >
         {/* BG glow */}
         <div
           className="absolute inset-0 pointer-events-none animate-pulse"
@@ -146,8 +208,9 @@ export function EKBombSequence({
 
           {/* Explode button */}
           <button
-            onClick={onExplode}
-            className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95"
+            onClick={handleIKExplode}
+            disabled={showImplosion}
+            className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
               background: "linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)",
               border: "2px solid rgba(167,139,250,0.6)",
@@ -158,74 +221,82 @@ export function EKBombSequence({
             💀 ยอมรับชะตากรรม
           </button>
         </div>
-      </div>
+        </div>
+      </>
     );
   }
 
   // ── EK ปกติ UI (สีแดง) ─────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md">
-
-      {/* Background radial gradient pulsing effect */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
-
-      {/* Modal popup */}
+    <>
+      {bombAnimations}
       <div
-        className="relative z-10 pointer-events-auto flex flex-col items-center gap-4 p-6 rounded-3xl shadow-2xl"
-        style={{
-          width: "440px",
-          background: "rgba(20,0,0,0.92)",
-          border: "2px solid rgba(239,68,68,0.6)",
-          boxShadow: "0 0 60px rgba(239,68,68,0.4), 0 24px 60px rgba(0,0,0,0.8)",
-        }}
-      >
-        {/* Header */}
-        <div className="text-center">
-          <span className="text-5xl drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]">💣</span>
-          <h1 className="text-3xl font-black text-white font-bungee mt-2 uppercase tracking-wider"
-            style={{ textShadow: "0 0 20px rgba(239,68,68,0.8)" }}>
-            EXPLODING KITTEN!
-          </h1>
-        </div>
+        className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md"
+        style={{ display: showHellfirePillar ? "none" : undefined }}>
 
-        {/* Card */}
-        <div className="transform scale-110 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)]">
-          <Card cardCode={drawnCard} />
-        </div>
 
-        {/* Timer */}
-        <div className="w-full text-center">
-          <p className="text-gray-400 text-sm mb-1 font-medium">คุณมีเวลาแก้สถานการณ์</p>
-          <div
-            className="text-4xl font-bungee mb-2"
-            style={{ color: timeLeft <= 3 ? "#ef4444" : "#f97316" }}
-          >
-            00:{timeLeft.toString().padStart(2, "0")}
+        {/* Background radial gradient pulsing effect */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
+
+        {/* Modal popup */}
+        <div
+          className="relative z-10 pointer-events-auto flex flex-col items-center gap-4 p-6 rounded-3xl shadow-2xl"
+          style={{
+            width: "440px",
+            background: "rgba(20,0,0,0.92)",
+            border: "2px solid rgba(239,68,68,0.6)",
+            boxShadow: "0 0 60px rgba(239,68,68,0.4), 0 24px 60px rgba(0,0,0,0.8)",
+          }}
+        >
+          {/* Header */}
+          <div className="text-center">
+            <span className="text-5xl drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]">💣</span>
+            <h1 className="text-3xl font-black text-white font-bungee mt-2 uppercase tracking-wider"
+              style={{ textShadow: "0 0 20px rgba(239,68,68,0.8)" }}>
+              EXPLODING KITTEN!
+            </h1>
           </div>
 
-          <div className="flex gap-4 w-full mt-4 justify-center">
-            {hasDefuse ? (
-              <button
-                onClick={onDefuse}
-                className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-              >
-                <span>🛡️</span> ใช้ DEFUSE!
-              </button>
-            ) : (
-              <div className="flex-1 max-w-62.5 bg-gray-800/80 border-2 border-gray-600 text-gray-400 font-bungee py-4 px-6 rounded-2xl text-lg flex items-center justify-center gap-2 cursor-not-allowed">
-                <span>🚫</span> ไม่มี DEFUSE
-              </div>
-            )}
+          {/* Card */}
+          <div className="transform scale-110 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+            <Card cardCode={drawnCard} />
+          </div>
 
-            <button
-              onClick={onExplode}
-              className="flex-1 max-w-62.5 bg-linear-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+          {/* Timer */}
+          <div className="w-full text-center">
+            <p className="text-gray-400 text-sm mb-1 font-medium">คุณมีเวลาแก้สถานการณ์</p>
+            <div
+              className="text-4xl font-bungee mb-2"
+              style={{ color: timeLeft <= 3 ? "#ef4444" : "#f97316" }}
             >
-              <span>💀</span> ยอมแพ้
-            </button>
+              00:{timeLeft.toString().padStart(2, "0")}
+            </div>
+
+            <div className="flex gap-4 w-full mt-4 justify-center">
+              {hasDefuse ? (
+                <button
+                  onClick={onDefuse}
+                  className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <span>🛡️</span> ใช้ DEFUSE!
+                </button>
+              ) : (
+                <div className="flex-1 max-w-62.5 bg-gray-800/80 border-2 border-gray-600 text-gray-400 font-bungee py-4 px-6 rounded-2xl text-lg flex items-center justify-center gap-2 cursor-not-allowed">
+                  <span>🚫</span> ไม่มี DEFUSE
+                </div>
+              )}
+
+              <button
+                onClick={handleEKExplode}
+                disabled={showHellfirePillar}
+                className="flex-1 max-w-62.5 bg-linear-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span>💀</span> ยอมแพ้
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

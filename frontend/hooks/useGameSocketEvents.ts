@@ -22,6 +22,7 @@ interface CardEffectResult {
 }
 import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
 import { FavorState, ComboState } from "./useGameActions";
+import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
 
 // ── Toast notification ─────────────────────────────────────
 function showToast(message: string, duration = 3500) {
@@ -74,11 +75,14 @@ export interface GameStateSetters {
   setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
   setDirection: React.Dispatch<React.SetStateAction<number>>;
   setIkOnTop: React.Dispatch<React.SetStateAction<boolean>>;
+  setDrawAnimState: React.Dispatch<React.SetStateAction<DrawAnimState | null>>;
   roomDataRef: React.MutableRefObject<RoomData | null>;
   currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
   pendingNextTurnRef: React.MutableRefObject<string | null>;
   gamePhaseRef: React.MutableRefObject<GamePhase>;
   onCardPlayedRef: React.MutableRefObject<(() => void) | null>;
+  afterDrawAnimRef: React.MutableRefObject<(() => void) | null>;
+  afterHellfireRef: React.MutableRefObject<(() => void) | null>;
 }
 
 export function useGameSocketEvents(
@@ -166,22 +170,43 @@ export function useGameSocketEvents(
         const isIK = data.drawnCard === "IK";
         const isIKFaceUp = !!data.isIKFaceUp;
 
+        // log ให้ทุกคนเห็น
         if (isIK) {
-          // IK ทุก case → set IK_REVEAL ก่อนให้ทุกคนเห็น
-          // หลัง reveal จบ GameBoard จะ transition ไป IK_INSERT หรือ EK_DRAWN ต่อ
-          setters.setIkOnTop(false); // IK ถูกจั่วออกจากกองแล้ว → ไม่อยู่บนสุดอีกต่อไป
-          setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
-          setters.setGamePhase("IK_REVEAL");
+          setters.setIkOnTop(false);
           const logMsg = isIKFaceUp
             ? `💥 ${displayName} จั่วได้ Imploding Kitten (หงายหน้า) — ตายทันที!`
             : `🐱 ${displayName} จั่วได้ Imploding Kitten! (คว่ำหน้า)`;
           setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
         } else {
-          // Normal EK
-          setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
-          setters.setGamePhase("EK_DRAWN");
           setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
         }
+
+        const myPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+        const isMe = myPlayer?.player_id === data.player_id;
+
+        // bomb phase callback (runs after animation, or immediately if not me)
+        const applyBombPhase = () => {
+          if (isIK) {
+            setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
+            setters.setGamePhase("IK_REVEAL");
+          } else {
+            setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
+            setters.setGamePhase("EK_DRAWN");
+          }
+        };
+
+        if (isMe && data.drawnCard) {
+          // เฉพาะคนจั่ว: เล่น draw animation ก่อน แล้ว defer bomb phase
+          setters.afterDrawAnimRef.current = applyBombPhase;
+          setters.setDrawAnimState({
+            drawerName: displayName,
+            drawnCard: data.drawnCard,
+            isMe: true,
+            avatarSeat: drawnPlayer?.seat_number ?? null,
+          });
+        }
+        // คนอื่น: ไม่ต้องทำอะไร — log แสดงแล้ว, popup เฉพาะคนจั่วเท่านั้น
+
       } else if (data?.success) {
         const isFromBottom = data.source === "bottom";
         const logMsg = data.isExplodingKitten
@@ -190,9 +215,25 @@ export function useGameSocketEvents(
             : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
               : `🃏 ${displayName} จั่วไพ่`;
         setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+
+        // draw animation เฉพาะคนจั่ว และไม่ใช่ auto draw
+        if (data?.drawnCard && data?.player_id && !data.isAutoDraw) {
+          const myPlayer2 = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+          const isMe2 = myPlayer2?.player_id === data.player_id;
+          if (isMe2) {
+            setters.setDrawAnimState({
+              drawerName: displayName,
+              drawnCard: data.drawnCard,
+              isMe: true,
+              avatarSeat: drawnPlayer?.seat_number ?? null,
+            });
+          }
+        }
       }
 
-      if (data?.nextTurn) {
+      // ไม่ process nextTurn ถ้าเป็น DREW_EXPLODING_KITTEN
+      // เพราะ EK/IK phase ยังค้างอยู่ — turn จะเปลี่ยนหลัง cardDefused / ekInserted / playerEliminated
+      if (data?.nextTurn && data?.action !== "DREW_EXPLODING_KITTEN") {
         setters.setGamePhase("PLAYING");
         setters.setEkBombState(null);
         setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
@@ -378,10 +419,17 @@ export function useGameSocketEvents(
     };
 
     // ── playerEliminated ──
-    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; ikOnTop?: boolean; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("💀 Player Eliminated:", data);
-      setters.setEkBombState(null);
-      setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+
+      // defer clearing bomb state so hellfire/implosion animation plays first
+      const applyEliminated = () => {
+        setters.setEkBombState(null);
+        setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+        if (data.ikOnTop !== undefined) setters.setIkOnTop(data.ikOnTop);
+        else setters.setIkOnTop(false);
+      };
+      setters.afterHellfireRef.current = applyEliminated;
 
       const eliminatedId = data?.eliminatedPlayer?.player_id
         ?? (data.isAfkKick ? data.afkPlayerId : null)
