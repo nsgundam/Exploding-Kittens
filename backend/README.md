@@ -98,6 +98,8 @@ PORT=4000
 **Example:**
 ```env
 DATABASE_URL="postgresql://patchanan@localhost:5432/exploding_kittens_db"
+FRONTEND_URL="http://localhost:3000"
+PORT=4000
 ```
 
 > ⚠️ If you did not set a PostgreSQL password, do **NOT** include `:password`
