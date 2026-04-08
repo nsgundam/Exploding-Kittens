@@ -8,9 +8,7 @@ async function fetchDescriptions(): Promise<Record<string, string>> {
   if (cachedDescriptions) return cachedDescriptions;
   if (fetchPromise) return fetchPromise;
 
-  fetchPromise = fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/cards/descriptions`
-  )
+  fetchPromise = fetch("/api/cards/descriptions")
     .then((res) => res.json())
     .then((data) => {
       cachedDescriptions = data as Record<string, string>;
