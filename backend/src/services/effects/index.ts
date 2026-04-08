@@ -217,7 +217,7 @@ const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
     where: { session_id: session.session_id },
     data: {
       deck_order: shuffled,
-      ik_face_up: ikStillOnTop,
+      ik_face_up: deckState.ik_face_up,
     }
   });
   return { effect: { type: "SHUFFLE", shuffled: true, ikOnTop: ikStillOnTop } };
