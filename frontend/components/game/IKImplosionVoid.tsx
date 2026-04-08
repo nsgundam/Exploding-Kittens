@@ -217,7 +217,7 @@ export function IKImplosionVoid({ active, onDone }: IKImplosionVoidProps) {
   const rafRef    = useRef<number>(0);
   const ptRef     = useRef<Particle[]>([]);
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
   const [active2, setActive2] = useState(false);
   const [shake, setShake] = useState({ x: 0, y: 0 });

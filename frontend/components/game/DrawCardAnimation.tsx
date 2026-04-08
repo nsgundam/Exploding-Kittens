@@ -140,7 +140,8 @@ function CardFace({ cardCode }: { cardCode: string }) {
 
 // ── Particles ─────────────────────────────────────────────────
 function Particles({ color }: { color: string }) {
-  const items = Array.from({ length: 14 }, (_, i) => {
+  // useMemo keeps values stable across re-renders (fixes react-hooks/purity lint)
+  const items = React.useMemo(() => Array.from({ length: 14 }, (_, i) => {
     const angle = (i / 14) * 360;
     const dist = 60 + Math.random() * 45;
     const px = `${Math.cos((angle * Math.PI) / 180) * dist}px`;
@@ -149,7 +150,7 @@ function Particles({ color }: { color: string }) {
     const delay = Math.random() * 0.18;
     const isRing = i % 3 === 0;
     return { px, py, size, delay, isRing };
-  });
+  }), []);
 
   return (
     <>
@@ -281,7 +282,7 @@ export function DrawCardAnimation({ state, onComplete }: DrawCardAnimationProps)
   const [fadeOut, setFadeOut] = useState(false);
   const [showRevealFlash, setShowRevealFlash] = useState(false);
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   // progress ticker
   const startTimeRef = useRef<number>(0);

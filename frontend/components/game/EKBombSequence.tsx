@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "./Card";
 import { IKImplosionVoid } from "./IKImplosionVoid";
 import { EKHellfirePillar } from "./EKHellfirePillar";
