@@ -214,12 +214,12 @@ export function EKHellfirePillar({ active, onDone }: EKHellfirePillarProps) {
   const [shake, setShake] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    if (!active) { setActive2(false); cancelAnimationFrame(rafRef.current); return; }
-    setActive2(true);
+    if (!active) { setTimeout(() => { setActive2(false); cancelAnimationFrame(rafRef.current); }, 0); return; }
+    setTimeout(() => setActive2(true), 0);
   }, [active]);
 
   useLayoutEffect(() => {
-    if (!active2) { setShake({ x: 0, y: 0 }); return; }
+    if (!active2) { setTimeout(() => setShake({ x: 0, y: 0 }), 0); return; }
 
     const canvas = canvasRef.current;
     if (!canvas) return;

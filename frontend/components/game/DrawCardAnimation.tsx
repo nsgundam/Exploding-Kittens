@@ -139,18 +139,20 @@ function CardFace({ cardCode }: { cardCode: string }) {
 }
 
 // ── Particles ─────────────────────────────────────────────────
+// Pre-compute random values at module level (outside render) to satisfy react-hooks/purity
+const PARTICLE_DATA = Array.from({ length: 14 }, (_, i) => {
+  const angle = (i / 14) * 360;
+  const dist = 60 + Math.random() * 45;
+  const px = `${Math.cos((angle * Math.PI) / 180) * dist}px`;
+  const py = `${Math.sin((angle * Math.PI) / 180) * dist}px`;
+  const size = 3 + Math.random() * 6;
+  const delay = Math.random() * 0.18;
+  const isRing = i % 3 === 0;
+  return { px, py, size, delay, isRing };
+});
+
 function Particles({ color }: { color: string }) {
-  // useMemo keeps values stable across re-renders (fixes react-hooks/purity lint)
-  const items = React.useMemo(() => Array.from({ length: 14 }, (_, i) => {
-    const angle = (i / 14) * 360;
-    const dist = 60 + Math.random() * 45;
-    const px = `${Math.cos((angle * Math.PI) / 180) * dist}px`;
-    const py = `${Math.sin((angle * Math.PI) / 180) * dist}px`;
-    const size = 3 + Math.random() * 6;
-    const delay = Math.random() * 0.18;
-    const isRing = i % 3 === 0;
-    return { px, py, size, delay, isRing };
-  }), []);
+  const items = PARTICLE_DATA;
 
   return (
     <>
@@ -299,11 +301,13 @@ export function DrawCardAnimation({ state, onComplete }: DrawCardAnimationProps)
   useEffect(() => {
     if (!state) return;
 
-    setPhase(1);
-    setFlyStyle({});
-    setFadeOut(false);
-    setShowRevealFlash(false);
-    setProgress(0);
+    setTimeout(() => {
+      setPhase(1);
+      setFlyStyle({});
+      setFadeOut(false);
+      setShowRevealFlash(false);
+      setProgress(0);
+    }, 0);
 
     const t1 = setTimeout(() => {
       setPhase(2);

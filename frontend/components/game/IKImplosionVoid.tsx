@@ -224,17 +224,19 @@ export function IKImplosionVoid({ active, onDone }: IKImplosionVoidProps) {
 
   useEffect(() => {
     if (!active) {
-      setActive2(false);
-      cancelAnimationFrame(rafRef.current);
+      setTimeout(() => {
+        setActive2(false);
+        cancelAnimationFrame(rafRef.current);
+      }, 0);
       return;
     }
-    setActive2(true);
+    setTimeout(() => setActive2(true), 0);
   }, [active]);
 
   // useLayoutEffect fires AFTER DOM paint → offsetWidth is valid
   useLayoutEffect(() => {
     if (!active2) {
-      setShake({ x: 0, y: 0 });
+      setTimeout(() => setShake({ x: 0, y: 0 }), 0);
       return;
     }
 
