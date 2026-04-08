@@ -34,7 +34,7 @@ export const CARD_CONFIG: Record<string, CardDisplayConfig> = {
   CAT_POTATO:   { emoji: "🥔",  label: "POTATO CAT",         color: "#fbbf24" },
 
   // ── Imploding Kittens Add-on (20 cards) ─────────────────────
-  IK:           { emoji: "💥",  label: "IMPLODING KITTEN",   color: "#ef4444" },
+  IK:           { emoji: "💥",  label: "IMPLODING KITTEN",   color: "#4c00ff" },
   RV:           { emoji: "🔄",  label: "REVERSE",            color: "#6366f1" },
   DB:           { emoji: "⬇️",  label: "DRAW FROM BOTTOM",   color: "#84cc16" },
   TA:           { emoji: "🎯",  label: "TARGETED ATTACK",    color: "#f97316" },

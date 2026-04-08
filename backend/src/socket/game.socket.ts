@@ -168,8 +168,20 @@ export const registerGameSocket = (io: Server): void => {
                 io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
               }
             } else if (res.action === "DREW_EXPLODING_KITTEN") {
-              // DB card drew EK or IK → same flow as normal draw EK
-              io.to(roomId).emit("cardDrawn", res);
+              // DB card drew EK or IK → send drawnCard + player_id only to drawer
+              const sockets = await io.in(roomId).fetchSockets();
+              const drawerSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+              const drawerPlayer = await gameService.getPlayerByToken(roomId, payloadPlayerToken);
+              const drawerExtras = {
+                player_id: drawerPlayer?.player_id,
+                drawnByDisplayName: drawerPlayer?.display_name,
+              };
+              if (drawerSocket) {
+                drawerSocket.emit("cardDrawn", { ...res, ...drawerExtras });
+                io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...res, ...drawerExtras, drawnCard: undefined });
+              } else {
+                io.to(roomId).emit("cardDrawn", { ...res, ...drawerExtras, drawnCard: undefined });
+              }
             } else if (res.action === "GAME_OVER") {
               // DB card drew EK/IK and caused elimination → game over
               io.to(roomId).emit("playerEliminated", res);
@@ -249,7 +261,15 @@ export const registerGameSocket = (io: Server): void => {
             io.emit("roomListUpdated");
           }
         } else if (result.action === "DREW_EXPLODING_KITTEN") {
-          io.to(roomId).emit("cardDrawn", result);
+          // Send full result (with drawnCard + player_id) only to the drawer
+          // Others get result without drawnCard so they don't see the card face
+          const drawerPlayer = await gameService.getPlayerByToken(roomId, playerToken);
+          const drawerExtras = {
+            player_id: drawerPlayer?.player_id,
+            drawnByDisplayName: drawerPlayer?.display_name,
+          };
+          socket.emit("cardDrawn", { ...result, ...drawerExtras });
+          socket.to(roomId).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
         } else if (result.action === "TURN_ADVANCED") {
           // Normal draw
           socket.emit("cardDrawn", result);

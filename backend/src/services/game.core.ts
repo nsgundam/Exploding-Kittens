@@ -730,7 +730,17 @@ export async function eliminatePlayer(
       },
     });
 
-    return await checkWinnerOrAdvance(tx, session, roomId, player.player_id, ekCard);
+    const result = await checkWinnerOrAdvance(tx, session, roomId, player.player_id, ekCard);
+
+    // query ikOnTop after eliminate: IK was drawn out, so should be false in most cases
+    const deckStateAfter = await prisma.deckState.findUnique({
+      where: { session_id: session.session_id },
+      select: { deck_order: true, ik_face_up: true },
+    });
+    const deckAfter = (deckStateAfter?.deck_order ?? []) as string[];
+    const ikOnTop = (deckStateAfter?.ik_face_up === true) && deckAfter.length > 0 && deckAfter[deckAfter.length - 1] === "IK";
+
+    return { ...result, ikOnTop };
   });
 }
 

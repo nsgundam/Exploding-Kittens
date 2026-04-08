@@ -3,6 +3,7 @@ import { Socket } from "socket.io-client";
 import type { RoomData, CardHand } from "@/types";
 import { FavorState, ComboState } from "./useGameActions";
 import { useGameSocketEvents } from "./useGameSocketEvents";
+import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
 
 export type GamePhase =
   | "WAITING"
@@ -62,12 +63,17 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
   const [direction, setDirection] = useState<number>(1);
   const [ikOnTop, setIkOnTop] = useState<boolean>(false);
+  const [drawAnimState, setDrawAnimState] = useState<DrawAnimState | null>(null);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
   const gamePhaseRef = useRef<GamePhase>("WAITING");
   const onCardPlayedRef = useRef<(() => void) | null>(null);
+  // callback to run after DrawCardAnimation completes (used for EK/IK bomb reveal)
+  const afterDrawAnimRef = useRef<(() => void) | null>(null);
+  // callback to run after hellfire/implosion animation completes (used to defer popup)
+  const afterHellfireRef = useRef<(() => void) | null>(null);
 
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
@@ -78,8 +84,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
     setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
-    setPendingAttacks, setDirection, setIkOnTop, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
-    gamePhaseRef, onCardPlayedRef
+    setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
+    gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
     
   }), []);
 
@@ -120,9 +126,12 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     pendingAttacks,
     direction, setDirection,
     ikOnTop, setIkOnTop,
+    drawAnimState, setDrawAnimState,
     deckCount, setDeckCount,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,
+    afterDrawAnimRef,
+    afterHellfireRef,
     setOnCardPlayed,
   };
 };
