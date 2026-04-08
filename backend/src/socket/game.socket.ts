@@ -8,6 +8,7 @@ import { Server, Socket } from "socket.io";
 import { gameService } from "../services/game.service";
 import { roomService } from "../services/room.service";
 import { CardHand } from "@prisma/client";
+import { prisma } from "../config/prisma";
 import {
   StartGamePayload,
   DrawCardPayload,
@@ -19,6 +20,60 @@ import {
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
 import { sanitizeCardHands, getPublicComboResult } from "../utils/sanitizers";
+
+/**
+ * Broadcast each player's card count to every socket in the room.
+ * Only the count (not the cards themselves) is sent to preserve anti-cheat.
+ */
+async function broadcastHandCounts(io: Server, roomId: string): Promise<void> {
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: "IN_PROGRESS" },
+    select: { session_id: true },
+  });
+  if (!session) return;
+  const hands = await prisma.cardHand.findMany({
+    where: { session_id: session.session_id },
+    select: { player_id: true, card_count: true },
+  });
+  // handCounts: { [player_id]: card_count }
+  const handCounts: Record<string, number> = {};
+  for (const h of hands) {
+    handCounts[h.player_id] = h.card_count;
+  }
+  io.to(roomId).emit("handCountsUpdated", { handCounts });
+}
+
+/**
+ * Broadcast each player's actual private hand (anti-cheat safe).
+ * Each socket only receives their own cards — used after Combo/Favor to ensure
+ * hand state is correct even when targeted socket delivery fails.
+ */
+async function broadcastPrivateHands(io: Server, roomId: string): Promise<void> {
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: "IN_PROGRESS" },
+    select: { session_id: true },
+  });
+  if (!session) return;
+
+  const hands = await prisma.cardHand.findMany({
+    where: { session_id: session.session_id },
+  });
+
+  const sockets = await io.in(roomId).fetchSockets();
+  for (const s of sockets) {
+    const sToken = s.data.playerToken as string | undefined;
+    if (!sToken) continue;
+    // Fetch player record to map token → player_id
+    const player = await prisma.player.findFirst({
+      where: { room_id: roomId, player_token: sToken },
+      select: { player_id: true },
+    });
+    if (!player) continue;
+    const hand = hands.find((h) => h.player_id === player.player_id);
+    if (!hand) continue;
+    s.emit("privateHandSync", { cards: (hand.cards ?? []) as string[], card_count: hand.card_count });
+  }
+}
 
 export const registerGameSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
@@ -152,10 +207,17 @@ export const registerGameSocket = (io: Server): void => {
           if (res.success) {
             if (res.action === "ACTION_CANCELLED") {
               io.to(roomId).emit("actionCancelled", res);
+              // Sync hand counts: original card + Nope card are both spent
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "CARD_PLAYED") {
               await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
+              // Sync hand counts (e.g. after Favor resolves)
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "COMBO_PLAYED") {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+              // Sync hand counts AND private hands after combo steal
+              await broadcastHandCounts(io, roomId);
+              await broadcastPrivateHands(io, roomId);
             } else if (res.action === "TURN_ADVANCED") {
               // DB card resolved and drew a normal card → broadcast like a draw
               // Send hand.cards privately to the drawer; others get count only
@@ -167,6 +229,7 @@ export const registerGameSocket = (io: Server): void => {
               } else {
                 io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
               }
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "DREW_EXPLODING_KITTEN") {
               // DB card drew EK or IK → send drawnCard + player_id only to drawer
               const sockets = await io.in(roomId).fetchSockets();
@@ -274,6 +337,8 @@ export const registerGameSocket = (io: Server): void => {
           // Normal draw
           socket.emit("cardDrawn", result);
           socket.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
+          // Sync card counts for all players
+          await broadcastHandCounts(io, roomId);
         } else {
           io.to(roomId).emit("cardDrawn", result);
         }
@@ -362,6 +427,8 @@ export const registerGameSocket = (io: Server): void => {
           cardCode,
           requesterPlayerId: payload.requesterPlayerId,
         });
+        // Sync card counts after Favor card transfer
+        await broadcastHandCounts(io, roomId);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

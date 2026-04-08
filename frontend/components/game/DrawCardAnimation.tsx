@@ -16,13 +16,12 @@ interface DrawCardAnimationProps {
   onComplete: () => void;
 }
 
-// ── Timing ────────────────────────────────────────────────────
-// Phase 1 : 0 – 1300 ms  → popup + card spinning (back)
-// Phase 2 : 1300 – 2400 ms → flip + reveal card face
-// Phase 3 : 2400 – 3200 ms → card flies to hand/avatar
-const PHASE2_MS = 1300;
-const PHASE3_MS = 2400;
-const TOTAL_MS  = 3200;
+// Phase 1 : 0 – 600 ms  → popup + card spinning (back)
+// Phase 2 : 600 – 1200 ms → flip + reveal card face
+// Phase 3 : 1200 – 1600 ms → card flies to hand/avatar
+const PHASE2_MS = 600;
+const PHASE3_MS = 1200;
+const TOTAL_MS  = 1600;
 
 // ── Card back ─────────────────────────────────────────────────
 function CardBack() {
@@ -434,7 +433,7 @@ export function DrawCardAnimation({ state, onComplete }: DrawCardAnimationProps)
           animation: "overlayIn 0.3s ease",
           opacity: fadeOut ? 0 : 1,
           transition: fadeOut ? "opacity 0.4s ease" : undefined,
-          pointerEvents: "none",
+          pointerEvents: "auto",
         }}
       />
 

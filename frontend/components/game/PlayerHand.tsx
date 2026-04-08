@@ -69,9 +69,15 @@ export function PlayerHand({
     if (selectedIndices.length === 0) return true;
     if (selectedIndices.length >= 3) return false;
 
-    // Must be compatible with the first selected card
-    const firstCode = myCards[selectedIndices[0]];
-    return canPairWith(firstCode, code);
+    // Build the potential new group and check all non-feral cards are the same type.
+    // Feral Cat (FC/GVE_FC) counts as a wildcard for exactly ONE card.
+    const potentialGroup = [...selectedIndices.map((i) => myCards[i]!), code];
+    const nonFeral = potentialGroup.filter((c) => c !== "FC" && c !== "GVE_FC");
+    if (nonFeral.length > 1) {
+      const base = nonFeral[0]!;
+      if (!nonFeral.every((c) => c === base)) return false;
+    }
+    return true;
   };
 
   const handleCardClick = (idx: number) => {
@@ -83,6 +89,11 @@ export function PlayerHand({
         onPlayNope();
       }
       return;
+    } else {
+      // If NOT in Nope Window, prevent clicking Nope (or trying to play it as a normal card)
+      if (isNopeCard(code)) {
+        return;
+      }
     }
 
     // Non-cat cards: play immediately (existing behavior)
@@ -214,9 +225,9 @@ export function PlayerHand({
             const isActive = nopeWindowActive
               ? isNopeActive
               : isMyTurn &&
-                cardCode !== "DF" &&
-                cardCode !== "EK" &&
-                cardCode !== "GVE_EK";
+              cardCode !== "DF" &&
+              cardCode !== "EK" &&
+              cardCode !== "GVE_EK";
 
             // In combo mode: non-compatible cards are dimmed
             const isCompatible = !isComboMode || canAddToCombo(i);
@@ -330,6 +341,6 @@ export function PlayerHand({
           })}
         </div>
       </div>
-</>
+    </>
   );
 }

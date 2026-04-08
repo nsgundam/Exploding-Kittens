@@ -30,7 +30,7 @@ export default function CreateRoomModal({
       return;
     }
 
-    const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
+    const cardVersion = selectedDeck === 1 ? "original" : "good_and_evil";
     const expansions = addonEnabled ? ["imploding"] : [];
 
     onCreate({
@@ -44,7 +44,7 @@ export default function CreateRoomModal({
     setAddonEnabled(false);
   };
 
-  const deckPreview = `${addonEnabled ? "Classic + Add-on" : "Classic"}`;
+  const deckPreview = `${addonEnabled ? "original + Add-on" : "original"}`;
 
   return (
     <div
@@ -94,7 +94,7 @@ export default function CreateRoomModal({
           {/* Addon Toggle */}
           <div>
             <label className="block text-base mb-3 text-[#ffaa00] font-bungee text-center">
-              ADD-ON:
+              ADD-ON
             </label>
             <div
               style={{

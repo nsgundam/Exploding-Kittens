@@ -20,7 +20,7 @@ export function FavorPickModal({
   if (!isOpen) return null;
 
   const givableCards = myCards.filter(
-    (c) => c !== "EK" && c !== "GVE_EK" && c !== "DF" && c !== "GVE_DF"
+    (c) => c !== "EK" && c !== "GVE_EK"
   );
 
   return (
@@ -73,7 +73,7 @@ export function FavorPickModal({
         )}
 
         <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
-          * EK และ DEFUSE ไม่สามารถให้ได้
+          * EK ไม่สามารถให้ได้ (Defuse สามารถให้ได้)
         </p>
       </div>
     </div>

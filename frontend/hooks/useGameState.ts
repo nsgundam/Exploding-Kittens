@@ -58,6 +58,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [nopeState, setNopeState] = useState<NopeState | null>(null);
   const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
+  const [isDrawLocked, setIsDrawLocked] = useState<boolean>(false);
+
   const [deckCount, setDeckCount] = useState<number | null>(null);
   const [turnNumber, setTurnNumber] = useState<number>(0);
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
@@ -79,12 +81,31 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
   useEffect(() => { gamePhaseRef.current = gamePhase; }, [gamePhase]);
 
+  // ── NOPE_WINDOW watchdog ────────────────────────────────────────────────
+  // If the server's cardPlayed/actionCancelled event is missed (dropped packet,
+  // brief reconnect, etc.) the UI stays frozen in NOPE_WINDOW. We auto-clear it
+  // after 5 s so the game can continue. (Backend resolve fires at 3 s, Nope
+  // window closes at 2.5 s, so 5 s is a safe upper limit.)
+  useEffect(() => {
+    if (gamePhase !== "NOPE_WINDOW") return;
+    const watchdog = setTimeout(() => {
+      if (gamePhaseRef.current === "NOPE_WINDOW") {
+        console.warn("⚠️ NOPE_WINDOW watchdog: phase stuck, resetting to PLAYING");
+        setGamePhase("PLAYING");
+        setPendingAction(null);
+        setNopeState(null);
+      }
+    }, 5000); // 5 s > 3 s backend timer → safe fallback
+    return () => clearTimeout(watchdog);
+  }, [gamePhase]);
+
   const setters = useMemo(() => ({
     setRoomData, setCardHands, setMyCards, setSessionId, setGameLogs,
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
     setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
-    setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
+    setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, setIsDrawLocked,
+    roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
     
   }), []);
@@ -121,6 +142,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     comboState, setComboState,
     pendingAction, setPendingAction,
     nopeState, setNopeState,
+    isDrawLocked, setIsDrawLocked,
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     pendingAttacks,

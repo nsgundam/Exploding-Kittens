@@ -82,6 +82,7 @@ export const useRoomSocket = (roomId: string) => {
     ikOnTop: gameState.ikOnTop,
     drawAnimState: gameState.drawAnimState,
     setDrawAnimState: gameState.setDrawAnimState,
+    isDrawLocked: gameState.isDrawLocked,
     afterDrawAnimRef: gameState.afterDrawAnimRef,
     afterHellfireRef: gameState.afterHellfireRef,
   };
