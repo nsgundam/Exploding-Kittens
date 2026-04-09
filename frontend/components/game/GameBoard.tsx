@@ -137,6 +137,8 @@ export function GameBoard({
     }
   }, [direction]);
 
+  const canDraw = currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked;
+
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
       <div
@@ -211,7 +213,7 @@ export function GameBoard({
         drawerName={ikDrawerName ?? "ผู้เล่น"}
         isMyTurn={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
         isFaceUp={ekBombState?.drawnCard === "IK" && !ekBombState?.hasDefuse}
-        onRevealDone={onIKRevealDone ?? (() => {})}
+        onRevealDone={onIKRevealDone ?? (() => { })}
       />
 
       {/* EK Insert Modal (after Defuse) */}
@@ -318,12 +320,12 @@ export function GameBoard({
                 onComboSelect={
                   player && !isMyAvatar
                     ? () => {
-                        if (comboState?.isThreeCard) {
-                          setPendingComboTarget(player.player_token);
-                        } else if (emitCombo && comboState) {
-                          emitCombo(comboState.comboCards, player.player_token);
-                        }
+                      if (comboState?.isThreeCard) {
+                        setPendingComboTarget(player.player_token);
+                      } else if (emitCombo && comboState) {
+                        emitCombo(comboState.comboCards, player.player_token);
                       }
+                    }
                     : undefined
                 }
               />
