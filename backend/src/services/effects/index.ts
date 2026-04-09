@@ -278,9 +278,6 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["RH", "AG", "FC"].includes(normalizedCode)) {
-    throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
-  }
   if (normalizedCode === "NP") {
     throw new BadRequestError("Nope card can only be played during the Nope window (3 seconds after a card is played)");
   }

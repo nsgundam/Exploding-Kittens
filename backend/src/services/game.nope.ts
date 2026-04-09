@@ -37,7 +37,7 @@ export async function playNope(
       ? (session.pending_action as Record<string, unknown>)
       : {};
     const pendingCardCode = (pendingData["cardCode"] as string | undefined) ?? "";
-    const nonNopeableCodes = new Set(["EK", "GVE_EK", "IK", "GVE_IK", "DF", "GVE_DF"]);
+    const nonNopeableCodes = new Set(["EK", "IK", "DF"]);
     if (nonNopeableCodes.has(pendingCardCode)) {
       throw new BadRequestError(`${pendingCardCode} cannot be Noped`);
     }
