@@ -68,7 +68,7 @@ export interface GameStateSetters {
   setComboState: React.Dispatch<React.SetStateAction<ComboState | null>>;
   setPendingAction: React.Dispatch<React.SetStateAction<PendingActionState | null>>;
   setNopeState: React.Dispatch<React.SetStateAction<NopeState | null>>;
-  setLastPlayedCard: React.Dispatch<React.SetStateAction<{ cardCode: string; playedByDisplayName: string } | null>>;
+  setLastPlayedCard: (card: { cardCode: string; playedByDisplayName: string; noAnimate?: boolean } | null) => void;
   setCurrentTurnPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
   setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
   setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
@@ -96,6 +96,9 @@ export function useGameSocketEvents(
 
     // AI Rule 5.1: DRY - Get token once per event cycle
     const myPlayerToken = typeof window !== "undefined" ? localStorage.getItem("player_token") : null;
+
+    // ── ref เก็บการ์ดที่ pending อยู่ (เพื่อ restore หลัง Nope animation จบ) ──
+    const pendingCardRef = { current: null as { cardCode: string; playedByDisplayName: string } | null };
 
     // ── roomUpdated ──
     const handleRoomUpdated = (updatedRoom: RoomData) => {
@@ -219,7 +222,7 @@ export function useGameSocketEvents(
           setTimeout(applyBombPhase, 1600);
         }
 
-      } else if (data?.success) {
+      } else if (data?.action === "TURN_ADVANCED" || data?.success) {
         const isFromBottom = data.source === "bottom";
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
@@ -234,7 +237,7 @@ export function useGameSocketEvents(
             setters.setGamePhase("PLAYING");
             setters.setEkBombState(null);
             setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
-            if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+            if (data.nextTurn.turn_number !== undefined) setters.setTurnNumber(data.nextTurn.turn_number);
             setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
           }
         };
@@ -305,7 +308,7 @@ export function useGameSocketEvents(
           }),
         );
       }
-      if (data?.success) {
+      if (data) {
         setters.setGamePhase("PLAYING");
         setters.setPendingAction(null);
         setters.setNopeState(null);
@@ -315,7 +318,16 @@ export function useGameSocketEvents(
         const logMsg = data.message || `${displayName} เล่นไพ่ ${data.cardCode}`;
 
         setters.setGameLogs((prev) => [...prev.slice(-19), `🎴 ${logMsg}`]);
-        setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+
+        // ── Restore play zone: ถ้า Nope ลง lastPlayedCard จะเป็น NP อยู่
+        // → restore กลับเป็นการ์ดเดิมที่ pending (จาก pendingCardRef) แบบไม่ animate
+        // ถ้าไม่มี pending (ไม่ผ่าน actionPending) ให้ set จาก cardPlayed โดยตรง พร้อม animate
+        if (pendingCardRef.current) {
+          setters.setLastPlayedCard({ ...pendingCardRef.current, noAnimate: true });
+          pendingCardRef.current = null;
+        } else {
+          setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+        }
 
         const skipTurnCards = ["AT", "SK", "TA", "RV"];
         const normalizedPlayed = data.cardCode?.replace(/^GVE_/, "");
@@ -493,7 +505,21 @@ export function useGameSocketEvents(
     };
 
     // ── comboPlayed ──
-    const handleComboPlayed = (data: { action: string; success: boolean; comboType: "TWO_CARD" | "THREE_CARD"; stolenCard?: string; wasVoid: boolean; robbedFromDisplayName: string; robbedFromPlayerId: string; thiefHand?: string[]; targetHand?: string[]; nextTurn?: { player_id: string; display_name: string; turn_number: number }; }) => {
+    const handleComboPlayed = (data: {
+      action: string;
+      success: boolean;
+      comboType: "TWO_CARD" | "THREE_CARD";
+      stolenCard?: string;
+      wasVoid: boolean;
+      robbedFromDisplayName: string;
+      robbedFromPlayerId: string;
+      thiefHand?: string[];
+      targetHand?: string[];
+      nextTurn?: { player_id: string; display_name: string; turn_number: number };
+      playedBy?: string;
+      playedByDisplayName?: string;
+      comboCards?: string[];
+    }) => {
       console.log("🐱 Combo Played:", data);
 
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
@@ -517,13 +543,19 @@ export function useGameSocketEvents(
         })
       );
 
-      const myDisplayName = me?.display_name ?? "คุณ";
+      // ── แสดงการ์ดที่กองเล่นไพ่ + trigger animation ──
+      const thiefName = data.playedByDisplayName
+        ?? setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.playedBy)?.display_name
+        ?? "ผู้เล่น";
+      const comboCardCode = data.comboCards?.[0] ?? "CAT_TACO";
+      setters.setLastPlayedCard({ cardCode: comboCardCode, playedByDisplayName: thiefName });
+
+      // ── Log ──
+      const isThreeCard = data.comboType === "THREE_CARD";
       if (data.wasVoid) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo 3 ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
-      } else if (data.stolenCard && me) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 ${myDisplayName} ขโมยการ์ดจาก ${data.robbedFromDisplayName} สำเร็จ!`]);
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 ${thiefName} Combo ${isThreeCard ? "3" : "2"} ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
       } else {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 ${thiefName} Combo ${isThreeCard ? "3" : "2"} ใบ — ขโมยการ์ดจาก ${data.robbedFromDisplayName}!`]);
       }
 
       setters.setGamePhase("PLAYING");
@@ -548,6 +580,14 @@ export function useGameSocketEvents(
         );
       }
 
+      // ── แสดง animation ทันทีที่การ์ดลง (ก่อนนับ 3 วิ Nope Window) ──
+      const playedCardCode = data.comboCards?.[0] ?? data.cardCode;
+      if (playedCardCode) {
+        const pendingCard = { cardCode: playedCardCode, playedByDisplayName: data.playedByDisplayName };
+        pendingCardRef.current = pendingCard;
+        setters.setLastPlayedCard(pendingCard);
+      }
+
       setters.setPendingAction({
         playedBy: data.playedBy,
         playedByDisplayName: data.playedByDisplayName,
@@ -566,6 +606,12 @@ export function useGameSocketEvents(
         nopeCount: data.nopeCount,
         isCancel: data.isCancel,
         lastPlayedByDisplayName: data.playedByDisplayName,
+      });
+
+      // ── แสดง Nope card บน play zone พร้อม animation ──
+      setters.setLastPlayedCard({
+        cardCode: "NP",
+        playedByDisplayName: data.playedByDisplayName,
       });
 
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
@@ -642,7 +688,6 @@ export function useGameSocketEvents(
         })
       );
     };
-
 
     // ── privateHandSync — server sends our actual hand after combo/favor ──
     const handlePrivateHandSync = (data: { cards: string[]; card_count: number }) => {

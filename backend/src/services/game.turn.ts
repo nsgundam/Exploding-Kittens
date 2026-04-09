@@ -9,8 +9,11 @@ export async function advanceTurn(
   roomId: string,
   currentPlayerId: string,
 ): Promise<TurnAdvancedResult> {
+  // Query ทุกคนที่มี seat รวม SPECTATOR (กรณี AFK kick เปลี่ยน role ก่อน advanceTurn)
+  // เพื่อให้หา index ของ currentPlayer ได้ถูกต้อง
+  // loop หา nextPlayer ยัง check is_alive อยู่ดังนั้น SPECTATOR ที่ is_alive:false จะถูกข้ามเสมอ
   const allPlayers = await tx.player.findMany({
-    where: { room_id: roomId, role: PlayerRole.PLAYER, seat_number: { not: null } },
+    where: { room_id: roomId, seat_number: { not: null } },
     orderBy: { seat_number: "asc" },
   });
 
