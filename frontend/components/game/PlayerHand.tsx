@@ -21,13 +21,13 @@ export interface PlayerHandProps {
 }
 
 function isNopeCard(code: string): boolean {
-  return code === "NP" || code === "GVE_NP";
+  return code === "NP";
 }
 
 // ── Cat card detection ───────────────────────────────────────
 const CAT_TYPES = new Set([
   "CAT_TACO", "CAT_MELON", "CAT_BEARD", "CAT_RAINBOW", "CAT_POTATO",
-  "FC", "GVE_FC", "MC", "GVE_MC",
+  "FC", "MC",
 ]);
 
 function isCatCard(code: string): boolean {
@@ -72,7 +72,7 @@ export function PlayerHand({
     // Build the potential new group and check all non-feral cards are the same type.
     // Feral Cat (FC/GVE_FC) counts as a wildcard for exactly ONE card.
     const potentialGroup = [...selectedIndices.map((i) => myCards[i]!), code];
-    const nonFeral = potentialGroup.filter((c) => c !== "FC" && c !== "GVE_FC");
+    const nonFeral = potentialGroup.filter((c) => c !== "FC");
     if (nonFeral.length > 1) {
       const base = nonFeral[0]!;
       if (!nonFeral.every((c) => c === base)) return false;
@@ -226,8 +226,7 @@ export function PlayerHand({
               ? isNopeActive
               : isMyTurn &&
               cardCode !== "DF" &&
-              cardCode !== "EK" &&
-              cardCode !== "GVE_EK";
+              cardCode !== "EK";
 
             // In combo mode: non-compatible cards are dimmed
             const isCompatible = !isComboMode || canAddToCombo(i);
