@@ -62,6 +62,7 @@ export default function RoomPage() {
     ikOnTop,
     drawAnimState,
     setDrawAnimState,
+    isDrawLocked,
     afterDrawAnimRef,
     afterHellfireRef,
   } = useRoomSocket(roomId);
@@ -352,6 +353,7 @@ export default function RoomPage() {
             onCloseSeeTheFuture={closeSeeTheFuture}
             selectSeat={selectSeat}
             drawCard={drawCard}
+            isDrawLocked={isDrawLocked}
             playCard={playCard}
             onPlayCombo={handlePlayCombo}
             defuseCard={defuseCard}

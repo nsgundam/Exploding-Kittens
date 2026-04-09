@@ -160,7 +160,7 @@ export default function LobbyPage() {
   const tabs: { label: string; value: FilterTab }[] = [
     { label: "All", value: "All" },
     { label: "Original", value: "Original" },
-    { label: "Good", value: "Good" },
+    // { label: "Good", value: "Good" },
   ];
 
   return (

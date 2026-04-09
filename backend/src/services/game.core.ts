@@ -239,6 +239,11 @@ export async function drawCard(
     if (!player) throw new NotFoundError("Player");
     if (session.current_turn_player_id !== player.player_id) throw new BadRequestError("It's not your turn");
 
+    // Block drawing while a pending action (Nope window / Favor) is active
+    if (session.pending_action && !isAutoDrawn) {
+      throw new BadRequestError("Cannot draw card while an action is pending (Nope window is open)");
+    }
+
     if (isAutoDrawn) {
       const afkResult = await handleAFK(tx, session, player, roomId);
       if (afkResult) return afkResult;
@@ -730,7 +735,14 @@ export async function eliminatePlayer(
       },
     });
 
-    const result = await checkWinnerOrAdvance(tx, session, roomId, player.player_id, ekCard);
+    // Reset pending_attacks to 0 before advancing — dead players do NOT pass Attack chains forward
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: { pending_attacks: 0 },
+    });
+    const sessionForAdvance = { ...session, pending_attacks: 0 };
+
+    const result = await checkWinnerOrAdvance(tx, sessionForAdvance, roomId, player.player_id, ekCard);
 
     // query ikOnTop after eliminate: IK was drawn out, so should be false in most cases
     const deckStateAfter = await prisma.deckState.findUnique({

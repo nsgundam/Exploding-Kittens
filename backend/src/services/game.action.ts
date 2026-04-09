@@ -56,6 +56,10 @@ export async function playCard(
     if (room.status !== RoomStatus.PLAYING)
       throw new BadRequestError("Game is not active");
 
+    if (cardCode === "NP" || cardCode === "GVE_NP") {
+      throw new BadRequestError("Nope card can only be played during a Nope window. Did not expect it via playCard.");
+    }
+
     const session = await tx.gameSession.findFirst({
       where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
     });

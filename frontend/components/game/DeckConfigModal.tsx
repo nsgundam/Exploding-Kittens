@@ -21,9 +21,7 @@ export default function DeckConfigModal({
   onSaved,
   onSave,
 }: DeckConfigModalProps) {
-  const [selectedDeck, setSelectedDeck] = useState(
-    currentCardVersion === "good_and_evil" ? 2 : 1
-  );
+
   const [addonEnabled, setAddonEnabled] = useState(
     currentExpansions.includes("imploding_kittens")
   );
@@ -34,7 +32,7 @@ export default function DeckConfigModal({
   const handleSave = async () => {
     setLoading(true);
     try {
-      const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
+      const cardVersion = "original";
       const expansions = addonEnabled ? ["imploding_kittens"] : [];
 
       if (onSave) {
@@ -67,7 +65,7 @@ export default function DeckConfigModal({
     }
   };
 
-  const deckPreview = `สำรับ ${selectedDeck}${addonEnabled ? " + Add-on" : " (ไม่มี ADD-ON)"}`;
+  const deckPreview = `Original Edition${addonEnabled ? " + Add-on" : " (ไม่มี ADD-ON)"}`;
 
   return (
     <div
@@ -109,61 +107,11 @@ export default function DeckConfigModal({
         {/* Content */}
         <div style={{ padding: "28px 32px", display: "flex", flexDirection: "column", gap: "24px" }}>
 
-          {/* Deck Selection */}
-          <div>
-            <label className="block text-base mb-3 font-bold" style={{ color: "#5c2d00" }}>
-              🃏 เลือกสำรับการ์ด:
-            </label>
-            <div className="flex gap-3">
-              <button
-                style={{
-                  height: "56px",
-                  flex: 1,
-                  border: selectedDeck === 1 ? "3px solid #c47a3a" : "2px solid rgba(120,70,10,0.3)",
-                  borderRadius: "14px",
-                  background: selectedDeck === 1
-                    ? "linear-gradient(135deg, #f5a623, #e8660d)"
-                    : "rgba(120,70,10,0.08)",
-                  color: selectedDeck === 1 ? "#fff" : "#5c2d00",
-                  fontFamily: "'Fredoka One', cursive",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                  boxShadow: selectedDeck === 1 ? "0 4px 0 #8b3d00" : "none",
-                }}
-                onClick={() => setSelectedDeck(1)}
-              >
-                🎴 สำรับ 1 (Classic)
-              </button>
-              <button
-                style={{
-                  height: "56px",
-                  flex: 1,
-                  border: selectedDeck === 2 ? "3px solid #c47a3a" : "2px solid rgba(120,70,10,0.3)",
-                  borderRadius: "14px",
-                  background: selectedDeck === 2
-                    ? "linear-gradient(135deg, #f5a623, #e8660d)"
-                    : "rgba(120,70,10,0.08)",
-                  color: selectedDeck === 2 ? "#fff" : "#5c2d00",
-                  fontFamily: "'Fredoka One', cursive",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                  boxShadow: selectedDeck === 2 ? "0 4px 0 #8b3d00" : "none",
-                }}
-                onClick={() => setSelectedDeck(2)}
-              >
-                🎴 สำรับ 2 (Good & Evil)
-              </button>
-            </div>
-          </div>
 
           {/* Addon Toggle */}
           <div>
             <label className="block text-base mb-3 font-bold text-center" style={{ color: "#5c2d00" }}>
-              💥 ADD-ON (เพิ่มการ์ดพิเศษ):
+              💥 ADD-ON ( Imploding Kittens Expansion)
             </label>
             <div className="flex items-center justify-center gap-4 mb-4">
               <span className="text-sm" style={{ color: "rgba(80,40,0,0.7)" }}>ไม่ใช้</span>

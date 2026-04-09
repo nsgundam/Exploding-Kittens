@@ -32,6 +32,7 @@ export interface GameBoardProps {
   onCloseSeeTheFuture: () => void;
   selectSeat: (seat_number: number) => void;
   drawCard: (isAutoDraw?: boolean) => void;
+  isDrawLocked?: boolean;
   playCard: (cardCode: string, target?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
@@ -80,6 +81,7 @@ export function GameBoard({
   onCloseSeeTheFuture,
   selectSeat,
   drawCard,
+  isDrawLocked,
   defuseCard,
   eliminatePlayer,
   afterHellfireRef,
@@ -134,6 +136,8 @@ export function GameBoard({
       return () => clearTimeout(t);
     }
   }, [direction]);
+
+  const canDraw = currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked;
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
@@ -350,31 +354,22 @@ export function GameBoard({
               {/* IK face-up on top of deck */}
               {ikOnTop ? (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat))
-                      drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(160deg, #4c1d95 0%, #1e0a3c 100%)",
-                    border: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    border: (canDraw)
                       ? "3px solid rgba(167,139,250,0.9)"
                       : "3px solid rgba(139,92,246,0.5)",
-                    boxShadow: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    boxShadow: (canDraw)
                       ? "0 0 24px rgba(139,92,246,0.8)"
                       : "0 0 10px rgba(139,92,246,0.3)",
                     animation: "ikPulse 1.8s ease-in-out infinite",
                   }}
                 >
-                  {/* Face-up badge */}
-                  <div
-                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black whitespace-nowrap z-10"
-                    style={{
-                      background: "rgba(139,92,246,0.95)",
-                      border: "1px solid rgba(196,181,253,0.8)",
-                      color: "white",
-                    }}
-                  >
+                  <div className="absolute top-2 inset-x-0 tracking-[0.15em] text-center font-black text-[10px] text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
                     ☠ FACE UP
                   </div>
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
@@ -402,17 +397,16 @@ export function GameBoard({
                 </div>
               ) : (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat))
-                      drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(135deg, #8b4a1a, #5c2d0a)",
-                    border: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    border: (canDraw)
                       ? "3px solid #f5a623"
                       : "3px solid #c47a3a",
-                    boxShadow: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    boxShadow: (canDraw)
                       ? "0 0 20px rgba(245,166,35,0.6)"
                       : "none",
                   }}
