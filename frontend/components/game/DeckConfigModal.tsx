@@ -21,9 +21,7 @@ export default function DeckConfigModal({
   onSaved,
   onSave,
 }: DeckConfigModalProps) {
-  const [selectedDeck, setSelectedDeck] = useState(
-    currentCardVersion === "good_and_evil" ? 2 : 1
-  );
+
   const [addonEnabled, setAddonEnabled] = useState(
     currentExpansions.includes("imploding_kittens")
   );
@@ -34,7 +32,7 @@ export default function DeckConfigModal({
   const handleSave = async () => {
     setLoading(true);
     try {
-      const cardVersion = selectedDeck === 1 ? "original" : "good_and_evil";
+      const cardVersion = "original";
       const expansions = addonEnabled ? ["imploding_kittens"] : [];
 
       if (onSave) {
@@ -67,7 +65,7 @@ export default function DeckConfigModal({
     }
   };
 
-  const deckPreview = `Original Edition ${selectedDeck}${addonEnabled ? " + Add-on" : " (ไม่มี ADD-ON)"}`;
+  const deckPreview = `Original Edition${addonEnabled ? " + Add-on" : " (ไม่มี ADD-ON)"}`;
 
   return (
     <div

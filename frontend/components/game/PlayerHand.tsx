@@ -38,8 +38,8 @@ function isCatCard(code: string): boolean {
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
 function canPairWith(a: string, b: string): boolean {
   if (!isCatCard(a) || !isCatCard(b)) return false;
-  const aFeral = a === "FC" || a === "GVE_FC";
-  const bFeral = b === "FC" || b === "GVE_FC";
+  const aFeral = a === "FC";
+  const bFeral = b === "FC";
   if (aFeral || bFeral) return true;
   return a === b;
 }

@@ -30,7 +30,7 @@ export default function CreateRoomModal({
       return;
     }
 
-    const cardVersion = selectedDeck === 1 ? "original" : "good_and_evil";
+    const cardVersion = "original";
     const expansions = addonEnabled ? ["imploding"] : [];
 
     onCreate({

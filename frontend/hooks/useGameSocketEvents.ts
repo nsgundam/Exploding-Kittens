@@ -195,7 +195,6 @@ export function useGameSocketEvents(
         const isMe = myPlayer?.player_id === data.player_id;
 
         // bomb phase callback (runs after animation, or immediately if not me)
-        // bomb phase callback
         const applyBombPhase = () => {
           if (isIK) {
             setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
@@ -251,7 +250,7 @@ export function useGameSocketEvents(
         if (data?.drawnCard && data?.player_id && !data.isAutoDraw) {
           const myPlayer2 = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
           const isMe2 = myPlayer2?.player_id === data.player_id;
-          
+
           if (isMe2) {
             setters.setDrawAnimState({
               drawerName: displayName,
@@ -626,8 +625,8 @@ export function useGameSocketEvents(
       console.log("🔌 Player Disconnected:", data);
       const player = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === data.playerToken);
       if (player && player.role !== "SPECTATOR" && player.is_alive !== false) {
-         setters.setGameLogs((prev) => [...prev.slice(-19), `🔌 ${player.display_name} สัญญาณขาดหาย... กำลังรอการเชื่อมต่อใหม่ (60 วิ)`]);
-         showToast(`🔌 ${player.display_name} สัญญาณขาดหาย...`, 4000);
+        setters.setGameLogs((prev) => [...prev.slice(-19), `🔌 ${player.display_name} สัญญาณขาดหาย... กำลังรอการเชื่อมต่อใหม่ (60 วิ)`]);
+        showToast(`🔌 ${player.display_name} สัญญาณขาดหาย...`, 4000);
       }
     };
 

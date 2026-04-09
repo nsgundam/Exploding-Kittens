@@ -20,7 +20,7 @@ export function FavorPickModal({
   if (!isOpen) return null;
 
   const givableCards = myCards.filter(
-    (c) => c !== "EK" && c !== "GVE_EK"
+    (c) => c !== "EK"
   );
 
   return (

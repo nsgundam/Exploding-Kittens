@@ -354,16 +354,16 @@ export function GameBoard({
               {/* IK face-up on top of deck */}
               {ikOnTop ? (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked) drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(160deg, #4c1d95 0%, #1e0a3c 100%)",
-                    border: (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked)
+                    border: (canDraw)
                       ? "3px solid rgba(167,139,250,0.9)"
                       : "3px solid rgba(139,92,246,0.5)",
-                    boxShadow: (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked)
+                    boxShadow: (canDraw)
                       ? "0 0 24px rgba(139,92,246,0.8)"
                       : "0 0 10px rgba(139,92,246,0.3)",
                     animation: "ikPulse 1.8s ease-in-out infinite",
@@ -397,16 +397,16 @@ export function GameBoard({
                 </div>
               ) : (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked) drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(135deg, #8b4a1a, #5c2d0a)",
-                    border: (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked)
+                    border: (canDraw)
                       ? "3px solid #f5a623"
                       : "3px solid #c47a3a",
-                    boxShadow: (currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked)
+                    boxShadow: (canDraw)
                       ? "0 0 20px rgba(245,166,35,0.6)"
                       : "none",
                   }}
