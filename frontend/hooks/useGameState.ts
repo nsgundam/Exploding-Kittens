@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { Socket } from "socket.io-client";
 import type { RoomData, CardHand } from "@/types";
 import { FavorState, ComboState } from "./useGameActions";
@@ -56,7 +56,8 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [comboState, setComboState] = useState<ComboState | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingActionState | null>(null);
   const [nopeState, setNopeState] = useState<NopeState | null>(null);
-  const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
+  const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null>(null);
+  const lastPlayedCardSeqRef = useRef<number>(0);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [isDrawLocked, setIsDrawLocked] = useState<boolean>(false);
 
@@ -99,11 +100,18 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     return () => clearTimeout(watchdog);
   }, [gamePhase]);
 
+  const setLastPlayedCardWithSeq = useCallback((card: { cardCode: string; playedByDisplayName: string; noAnimate?: boolean } | null) => {
+    if (!card) { setLastPlayedCard(null); return; }
+    lastPlayedCardSeqRef.current += 1;
+    setLastPlayedCard({ ...card, seq: lastPlayedCardSeqRef.current });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setters = useMemo(() => ({
     setRoomData, setCardHands, setMyCards, setSessionId, setGameLogs,
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
-    setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
+    setLastPlayedCard: setLastPlayedCardWithSeq, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
     setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, setIsDrawLocked,
     roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
