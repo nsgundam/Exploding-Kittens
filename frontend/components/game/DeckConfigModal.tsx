@@ -21,9 +21,7 @@ export default function DeckConfigModal({
   onSaved,
   onSave,
 }: DeckConfigModalProps) {
-  const [selectedDeck, setSelectedDeck] = useState(
-    currentCardVersion === "good_and_evil" ? 2 : 1
-  );
+  const selectedDeck = currentCardVersion === "good_and_evil" ? 2 : 1;
   const [addonEnabled, setAddonEnabled] = useState(
     currentExpansions.includes("imploding_kittens")
   );

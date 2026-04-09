@@ -104,7 +104,6 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     if (!card) { setLastPlayedCard(null); return; }
     lastPlayedCardSeqRef.current += 1;
     setLastPlayedCard({ ...card, seq: lastPlayedCardSeqRef.current });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setters = useMemo(() => ({
@@ -116,7 +115,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
     
-  }), []);
+  }), [setLastPlayedCardWithSeq]);
 
   useGameSocketEvents(socket, roomId, setters);
 

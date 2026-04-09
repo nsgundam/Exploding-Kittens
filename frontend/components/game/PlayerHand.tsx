@@ -36,6 +36,7 @@ function isCatCard(code: string): boolean {
 
 
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function canPairWith(a: string, b: string): boolean {
   if (!isCatCard(a) || !isCatCard(b)) return false;
   const aFeral = a === "FC" || a === "GVE_FC";

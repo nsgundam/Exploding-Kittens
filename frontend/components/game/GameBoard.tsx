@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Player, RoomData } from "@/types";
-import { getCardConfig } from "@/types/cards";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { CatComboModal } from "./CatComboModal";
@@ -137,8 +136,6 @@ export function GameBoard({
       return () => clearTimeout(t);
     }
   }, [direction]);
-
-  const canDraw = currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked;
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">

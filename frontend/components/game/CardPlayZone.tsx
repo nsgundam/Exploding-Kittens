@@ -81,7 +81,7 @@ export function CardPlayZone({ lastPlayedCard }: CardPlayZoneProps) {
       prevSeqRef.current = currentSeq;
     }
 
-    setAnimKey((k) => k + 1);
+    setTimeout(() => setAnimKey((k) => k + 1), 0);
   }, [lastPlayedCard]);
 
   // ── Empty state ──
