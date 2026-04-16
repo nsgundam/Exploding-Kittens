@@ -62,6 +62,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [isDrawLocked, setIsDrawLocked] = useState<boolean>(false);
 
   const [deckCount, setDeckCount] = useState<number | null>(null);
+  const [serverRemainingTime, setServerRemainingTime] = useState<number | null>(null);
   const [turnNumber, setTurnNumber] = useState<number>(0);
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
   const [direction, setDirection] = useState<number>(1);
@@ -110,7 +111,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     setRoomData, setCardHands, setMyCards, setSessionId, setGameLogs,
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
-    setLastPlayedCard: setLastPlayedCardWithSeq, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
+    setLastPlayedCard: setLastPlayedCardWithSeq, setCurrentTurnPlayerId, setDeckCount, setServerRemainingTime, setTurnNumber,
     setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, setIsDrawLocked,
     roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
     gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
@@ -157,6 +158,7 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     ikOnTop, setIkOnTop,
     drawAnimState, setDrawAnimState,
     deckCount, setDeckCount,
+    serverRemainingTime, setServerRemainingTime,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,
     afterDrawAnimRef,

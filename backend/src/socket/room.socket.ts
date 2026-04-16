@@ -32,13 +32,18 @@ export const registerRoomSocket = (io: Server): void => {
         socket.data.roomId = roomId;
         socket.join(roomId);
 
+        const updatedRoom = await roomService.getRoomById(roomId);
+
         // Cancel pending disconnect timeout on reconnect (FR-09-3)
         if (disconnectTimeouts.has(playerToken)) {
           clearTimeout(disconnectTimeouts.get(playerToken)!);
           disconnectTimeouts.delete(playerToken);
+          // Emit reconnect event only if the game is actively playing
+          if (updatedRoom?.status === "PLAYING") {
+            io.to(roomId).emit("playerReconnected", { playerToken, displayName });
+          }
         }
 
-        const updatedRoom = await roomService.getRoomById(roomId);
         io.to(roomId).emit("roomUpdated", updatedRoom);
 
         if (updatedRoom?.status === "PLAYING") {
@@ -47,12 +52,18 @@ export const registerRoomSocket = (io: Server): void => {
             const player = updatedRoom.players.find((p: any) => p.player_token === playerToken);
             const sanitizedHands = sanitizeCardHands(state.cardHands, player?.player_id);
 
+            const elapsed = state.session.turn_start_timestamp 
+              ? Math.floor((Date.now() - state.session.turn_start_timestamp.getTime()) / 1000) 
+              : 0;
+            const remaining_time = Math.max(0, 30 - elapsed);
+
             socket.emit("gameStarted", {
               room: updatedRoom,
               session_id: state.session.session_id,
               first_turn_player_id: state.session.current_turn_player_id,
               cardHands: sanitizedHands,
               deck_count: state.deckState?.cards_remaining,
+              remaining_time,
             });
           }
         }

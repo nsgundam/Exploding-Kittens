@@ -53,6 +53,7 @@ export async function advanceTurn(
       current_turn_player_id: nextPlayer.player_id,
       turn_number: nextTurnNumber,
       pending_attacks: pendingAttacks,
+      turn_start_timestamp: new Date(),
     },
   });
 
@@ -81,7 +82,11 @@ export async function resolveDrawCompletion(
     const nextTurnNumber = session.turn_number + 1;
     await tx.gameSession.update({
       where: { session_id: session.session_id },
-      data: { turn_number: nextTurnNumber, pending_attacks: nextPending },
+      data: { 
+        turn_number: nextTurnNumber, 
+        pending_attacks: nextPending,
+        turn_start_timestamp: new Date(),
+      },
     });
     return {
       success: true,

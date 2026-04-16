@@ -71,6 +71,7 @@ export interface GameStateSetters {
   setLastPlayedCard: (card: { cardCode: string; playedByDisplayName: string; noAnimate?: boolean } | null) => void;
   setCurrentTurnPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
   setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
+  setServerRemainingTime: React.Dispatch<React.SetStateAction<number | null>>;
   setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
   setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
   setDirection: React.Dispatch<React.SetStateAction<number>>;
@@ -103,6 +104,24 @@ export function useGameSocketEvents(
     // ── roomUpdated ──
     const handleRoomUpdated = (updatedRoom: RoomData) => {
       console.log("🔄 Room Updated:", updatedRoom);
+
+      const oldRoom = setters.roomDataRef.current;
+      if (oldRoom && oldRoom.room_id === updatedRoom.room_id) {
+        const previousPlayers = oldRoom.players || [];
+        const newPlayers = updatedRoom.players || [];
+
+        const freshlyJoined = newPlayers.filter(np =>
+          !previousPlayers.some(op => op.player_token === np.player_token)
+        );
+
+        freshlyJoined.forEach(p => {
+          if (p.player_token !== myPlayerToken && updatedRoom.status === "WAITING") {
+            setters.setGameLogs((prev) => [...prev.slice(-19), `👋 ${p.display_name} ได้เข้าร่วมเกม!`]);
+            showToast(`👋 ${p.display_name} ได้เข้าร่วมเกม!`, 3500);
+          }
+        });
+      }
+
       setters.setRoomData(updatedRoom);
       if (updatedRoom.status === "WAITING") {
         setters.setGamePhase("WAITING");
@@ -114,12 +133,13 @@ export function useGameSocketEvents(
     };
 
     // ── gameStarted ──
-    const handleGameStarted = (data: GameStartedPayload & { deck_count?: number }) => {
+    const handleGameStarted = (data: GameStartedPayload & { deck_count?: number; remaining_time?: number }) => {
       console.log("🎮 Game Started:", data);
       if (data?.room) setters.setRoomData(data.room);
       if (data?.session_id) setters.setSessionId(data.session_id);
       if (data?.first_turn_player_id) setters.setCurrentTurnPlayerId(data.first_turn_player_id);
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      if (data?.remaining_time !== undefined) setters.setServerRemainingTime(data.remaining_time);
       setters.setGamePhase("PLAYING");
       setters.setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
       setters.setDirection(1); // reset direction on new game
@@ -676,6 +696,13 @@ export function useGameSocketEvents(
       }
     };
 
+    // ── playerReconnected ──
+    const handlePlayerReconnected = (data: { playerToken: string; displayName: string }) => {
+      console.log("🔌 Player Reconnected:", data);
+      setters.setGameLogs((prev) => [...prev.slice(-19), `🔌 ${data.displayName} กลับเข้ามาในเกมแล้ว!`]);
+      showToast(`🔌 ${data.displayName} กลับเข้ามาในเกมแล้ว!`, 4000);
+    };
+
     // ── handCountsUpdated — sync card counts for all players ──
     const handleHandCountsUpdated = (data: { handCounts: Record<string, number> }) => {
       setters.setCardHands((prev) =>
@@ -713,6 +740,7 @@ export function useGameSocketEvents(
     socket.on("actionCancelled", handleActionCancelled);
     socket.on("alterTheFutureCommitted", handleAlterTheFutureCommitted);
     socket.on("playerDisconnected", handlePlayerDisconnected);
+    socket.on("playerReconnected", handlePlayerReconnected);
     socket.on("handCountsUpdated", handleHandCountsUpdated);
     socket.on("privateHandSync", handlePrivateHandSync);
 
@@ -736,6 +764,7 @@ export function useGameSocketEvents(
       socket.off("actionCancelled", handleActionCancelled);
       socket.off("alterTheFutureCommitted", handleAlterTheFutureCommitted);
       socket.off("playerDisconnected", handlePlayerDisconnected);
+      socket.off("playerReconnected", handlePlayerReconnected);
       socket.off("handCountsUpdated", handleHandCountsUpdated);
       socket.off("privateHandSync", handlePrivateHandSync);
     };

@@ -10,6 +10,7 @@ export const useGameTimer = (
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
   turnNumber: number,
+  serverRemainingTime?: number | null,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
@@ -22,12 +23,14 @@ export const useGameTimer = (
 
   useEffect(() => {
     // Reset timer เมื่อ turn เปลี่ยนหรือ phase เปลี่ยน
-    timeLeftRef.current = 30;
+    // หรือใช้ค่า remainingTime จาก Server ถ้ามีการส่งมา (กรณี reconnect)
+    const initialTime = serverRemainingTime !== null && serverRemainingTime !== undefined ? serverRemainingTime : 30;
+    timeLeftRef.current = initialTime;
     hasAutoDrawnThisTurnRef.current = false;
     lastCardPlayedCountRef.current = cardPlayedCountRef.current;
 
     const resetTimeout = setTimeout(() => {
-      setTimeLeft(30);
+      setTimeLeft(initialTime);
     }, 0);
 
     let interval: NodeJS.Timeout;
@@ -72,7 +75,7 @@ export const useGameTimer = (
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, turnNumber]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, turnNumber, serverRemainingTime]);
 
   // cardPlayed — เรียกจากภายนอกเพื่อ reset timer เมื่อมีการเล่นการ์ด
   const onCardPlayed = () => {

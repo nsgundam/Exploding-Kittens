@@ -84,6 +84,7 @@ export interface GameStartedPayload {
   session_id: string;
   first_turn_player_id: string;
   cardHands: CardHand[];
+  remaining_time?: number;
 }
 
 export interface CardDrawnPayload {
