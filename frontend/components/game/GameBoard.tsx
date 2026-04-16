@@ -189,7 +189,7 @@ export function GameBoard({
         afterHellfireRef={afterHellfireRef}
       />
 
-      {pendingComboTarget && comboState?.isThreeCard && (
+      {pendingComboTarget && comboState && (
         <CatComboModal
           isOpen={true}
           comboCards={comboState.comboCards}
@@ -197,9 +197,9 @@ export function GameBoard({
           myPlayerToken={myPlayerToken}
           startAtDemandStep={true}
           preselectedTarget={pendingComboTarget}
-          onConfirm={(_token, demandedCard) => {
+          onConfirm={(token, demandedCard, cardIndex) => {
             if (emitCombo && comboState) {
-              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard);
+              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard, cardIndex);
             }
             setPendingComboTarget(null);
           }}
@@ -318,14 +318,8 @@ export function GameBoard({
                     : undefined
                 }
                 onComboSelect={
-                  player && !isMyAvatar
-                    ? () => {
-                      if (comboState?.isThreeCard) {
-                        setPendingComboTarget(player.player_token);
-                      } else if (emitCombo && comboState) {
-                        emitCombo(comboState.comboCards, player.player_token);
-                      }
-                    }
+                  player && !isMyAvatar && comboState
+                    ? () => setPendingComboTarget(player.player_token)
                     : undefined
                 }
               />

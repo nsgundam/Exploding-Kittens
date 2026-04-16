@@ -281,8 +281,8 @@ export const registerGameSocket = (io: Server): void => {
     // ── Play Combo (Cat Combo 2-card / 3-card) ─────────────────
     socket.on("playCombo", async (payload: PlayComboPayload) => {
       try {
-        const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard } = payload;
-        const result = await gameService.comboCard(roomId, playerToken, comboCards, targetPlayerToken, demandedCard);
+        const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard, targetCardIndex } = payload;
+        const result = await gameService.comboCard(roomId, playerToken, comboCards, targetPlayerToken, demandedCard, targetCardIndex);
 
         if (result.action === "ACTION_PENDING") {
           io.to(roomId).emit("actionPending", result);
