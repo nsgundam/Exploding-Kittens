@@ -308,45 +308,77 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
+    const handleProcessDrawCard = async (roomId: string, playerToken: string, isAutoDraw: boolean, actingSocket: Socket | undefined = undefined) => {
+      const result = await gameService.drawCard(roomId, playerToken, isAutoDraw);
+
+      // AFK kick — emit playerEliminated instead of cardDrawn
+      if ((result as any).isAfkKick) {
+        io.to(roomId).emit("playerEliminated", result);
+        if (result.action === "GAME_OVER") {
+          const updatedRoom = await roomService.getRoomById(roomId);
+          io.to(roomId).emit("roomUpdated", updatedRoom);
+          io.emit("roomListUpdated");
+        }
+      } else if (result.action === "DREW_EXPLODING_KITTEN") {
+        const drawerPlayer = await gameService.getPlayerByToken(roomId, playerToken);
+        const drawerExtras = {
+          player_id: drawerPlayer?.player_id,
+          drawnByDisplayName: drawerPlayer?.display_name,
+        };
+        const sockets = await io.in(roomId).fetchSockets();
+        const drawerSocket = sockets.find((s) => s.data.playerToken === playerToken);
+        
+        if (drawerSocket) {
+          drawerSocket.emit("cardDrawn", { ...result, ...drawerExtras });
+          io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
+        } else {
+          io.to(roomId).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
+        }
+      } else if (result.action === "TURN_ADVANCED") {
+        const sockets = await io.in(roomId).fetchSockets();
+        const drawerSocket = sockets.find((s) => s.data.playerToken === playerToken);
+        
+        if (drawerSocket) {
+          drawerSocket.emit("cardDrawn", result);
+          io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...result, drawnCard: undefined });
+        } else {
+          // If drawer is disconnected but someone else triggered it (Host forced), emit drawnCard without revealing
+          io.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
+        }
+        await broadcastHandCounts(io, roomId);
+      } else {
+        io.to(roomId).emit("cardDrawn", result);
+      }
+    };
+
     // ── Draw Card (S2-20) ──────────────────────────────────────
     socket.on("drawCard", async (payload: DrawCardPayload) => {
       try {
         const { roomId, playerToken, isAutoDraw } = payload;
-
-        const result = await gameService.drawCard(roomId, playerToken, isAutoDraw ?? false);
-
-        // AFK kick — emit playerEliminated instead of cardDrawn
-        if ((result as any).isAfkKick) {
-          io.to(roomId).emit("playerEliminated", result);
-          if (result.action === "GAME_OVER") {
-            const updatedRoom = await roomService.getRoomById(roomId);
-            io.to(roomId).emit("roomUpdated", updatedRoom);
-            io.emit("roomListUpdated");
-          }
-        } else if (result.action === "DREW_EXPLODING_KITTEN") {
-          // Send full result (with drawnCard + player_id) only to the drawer
-          // Others get result without drawnCard so they don't see the card face
-          const drawerPlayer = await gameService.getPlayerByToken(roomId, playerToken);
-          const drawerExtras = {
-            player_id: drawerPlayer?.player_id,
-            drawnByDisplayName: drawerPlayer?.display_name,
-          };
-          socket.emit("cardDrawn", { ...result, ...drawerExtras });
-          socket.to(roomId).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
-        } else if (result.action === "TURN_ADVANCED") {
-          // Normal draw
-          socket.emit("cardDrawn", result);
-          socket.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
-          // Sync card counts for all players
-          await broadcastHandCounts(io, roomId);
-        } else {
-          io.to(roomId).emit("cardDrawn", result);
-        }
+        await handleProcessDrawCard(roomId, playerToken, isAutoDraw ?? false, socket);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
+    // ── Force Auto Draw (Host Backup for disconnected players) ──
+    socket.on("forceAutoDraw", async (payload: { roomId: string; targetPlayerId: string; hostToken: string }) => {
+      try {
+        const { roomId, targetPlayerId, hostToken } = payload;
+        
+        const room = await roomService.getRoomById(roomId);
+        if (room.host_token !== hostToken) {
+          throw new Error("Only host can force auto draw");
+        }
+        
+        const targetPlayer = room.players.find(p => p.player_id === targetPlayerId);
+        if (!targetPlayer) throw new Error("Target player not found");
+
+        await handleProcessDrawCard(roomId, targetPlayer.player_token, true);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
     // ── Defuse Card ────────────────────────────────────────────
     socket.on("defuseCard", async (payload: DefuseCardPayload) => {
       try {

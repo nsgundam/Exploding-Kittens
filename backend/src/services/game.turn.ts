@@ -141,6 +141,14 @@ export async function processGameOver(
     },
   });
 
+  // Kick out players who are disconnected at the end of the game
+  await tx.player.deleteMany({
+    where: {
+      room_id: roomId,
+      is_active: false,
+    },
+  });
+
   await tx.player.updateMany({
     where: { room_id: roomId, role: { not: PlayerRole.SPECTATOR } },
     data: {
@@ -218,6 +226,12 @@ export async function handleAFK(
       where: { player_id: player.player_id },
       data: { is_alive: false, role: PlayerRole.SPECTATOR },
     });
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: { pending_attacks: 0 },
+    });
+    session.pending_attacks = 0; // ในหน่วยความจำเพื่อให้ advanceTurn ใช้ค่าใหม่
+
     await tx.gameLog.create({
       data: {
         session_id: session.session_id,

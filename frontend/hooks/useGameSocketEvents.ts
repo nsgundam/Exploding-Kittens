@@ -703,6 +703,17 @@ export function useGameSocketEvents(
       showToast(`🔌 ${data.displayName} กลับเข้ามาในเกมแล้ว!`, 4000);
     };
 
+    // ── hostMigrated ── 
+    const handleHostMigrated = (data: { newHostToken: string; newHostDisplayName: string }) => {
+      console.log("👑 Host Migrated:", data);
+      setters.setRoomData((prev) => {
+        if (!prev) return prev;
+        return { ...prev, host_token: data.newHostToken };
+      });
+      setters.setGameLogs((prev) => [...prev, `👑 ${data.newHostDisplayName} เป็นหัวหน้าห้องคนใหม่`]);
+      showToast(`👑 ${data.newHostDisplayName} เป็นหัวหน้าห้องคนใหม่`, 4000);
+    };
+
     // ── handCountsUpdated — sync card counts for all players ──
     const handleHandCountsUpdated = (data: { handCounts: Record<string, number> }) => {
       setters.setCardHands((prev) =>
@@ -743,6 +754,7 @@ export function useGameSocketEvents(
     socket.on("playerReconnected", handlePlayerReconnected);
     socket.on("handCountsUpdated", handleHandCountsUpdated);
     socket.on("privateHandSync", handlePrivateHandSync);
+    socket.on("hostMigrated", handleHostMigrated);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -767,6 +779,7 @@ export function useGameSocketEvents(
       socket.off("playerReconnected", handlePlayerReconnected);
       socket.off("handCountsUpdated", handleHandCountsUpdated);
       socket.off("privateHandSync", handlePrivateHandSync);
+      socket.off("hostMigrated", handleHostMigrated);
     };
   }, [socket, roomId, setters]);
 }

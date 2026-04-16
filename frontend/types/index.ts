@@ -181,7 +181,7 @@ export interface ApiRoom {
   room_name: string;
   status: RoomStatus;
   max_players: number;
-  players?: Array<{ role: PlayerRole }>;
+  players?: Array<{ role: PlayerRole; player_token: string; is_alive: boolean }>;
   deck_config?: DeckConfig;
 }
 

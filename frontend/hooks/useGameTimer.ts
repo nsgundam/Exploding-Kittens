@@ -51,22 +51,31 @@ export const useGameTimer = (
         }
 
         if (timeLeftRef.current === 0 && !hasAutoDrawnThisTurnRef.current) {
-          const myToken = localStorage.getItem("player_token");
+          const myToken = localStorage.getItem("player_token") || "";
           const myPlayer = roomDataRef.current?.players?.find(
             (p: Player) => p.player_token === myToken
           );
+          
+          const isMyTurn = myPlayer && myPlayer.player_id === currentTurnPlayerId && myPlayer.is_alive !== false;
+          const isHost = roomDataRef.current?.host_token === myToken;
 
-          if (
-            myPlayer &&
-            myPlayer.player_id === currentTurnPlayerId &&
-            myPlayer.is_alive !== false
-          ) {
+          if (isMyTurn) {
             hasAutoDrawnThisTurnRef.current = true;
             socket?.emit("drawCard", {
               roomId,
               playerToken: myToken,
               isAutoDraw: true,
             });
+          } else if (isHost) {
+            // Host backup: if the turn player disconnected, wait 2 more seconds then force draw for them.
+            hasAutoDrawnThisTurnRef.current = true;
+            setTimeout(() => {
+              socket?.emit("forceAutoDraw", {
+                roomId,
+                targetPlayerId: currentTurnPlayerId,
+                hostToken: myToken,
+              });
+            }, 2000);
           }
         }
       }, 1000);

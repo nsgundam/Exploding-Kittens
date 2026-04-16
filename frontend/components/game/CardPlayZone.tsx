@@ -141,7 +141,7 @@ export function CardPlayZone({ lastPlayedCard, players }: CardPlayZoneProps) {
   // Avatar bg: darken the card color
   const avatarBg = `${color}28`;
   const avatarBorder = `${color}55`;
-  
+
   // Resolve avatar image
   const playerRecord = players?.find((p) => p.display_name === player);
   const avatarSrc = resolveAvatarSrc(playerRecord?.avatar_url || playerRecord?.profile_picture);
@@ -283,63 +283,6 @@ export function CardPlayZone({ lastPlayedCard, players }: CardPlayZoneProps) {
             {label}
           </span>
         </div>
-      </div>
-
-      {/* ── Player name row ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          animation: `cpz-name-in 0.4s 0.42s ease-out both`,
-        }}
-      >
-        {/* Avatar */}
-        <div
-          style={{
-            width: "22px",
-            height: "22px",
-            borderRadius: "50%",
-            background: avatarBg,
-            border: `1px solid ${avatarBorder}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "8px",
-            fontWeight: 800,
-            color: color,
-            flexShrink: 0,
-            fontFamily: "'Fredoka One', cursive",
-          }}
-        >
-          {avatarSrc ? (
-            <img
-              src={avatarSrc}
-              alt={player}
-              className="w-full h-full object-cover rounded-full"
-            />
-          ) : (
-            initials(player)
-          )}
-        </div>
-
-        {/* Name with glow */}
-        <span
-          style={{
-            fontSize: "11px",
-            fontWeight: 800,
-            color: color,
-            letterSpacing: "0.5px",
-            fontFamily: "'Fredoka One', cursive",
-            animation: `cpz-glow-pulse 1.8s 0.6s ease-in-out 2`,
-            whiteSpace: "nowrap",
-            maxWidth: "100px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {player}
-        </span>
       </div>
 
       {/* ── "PLAY CARD" label ── */}

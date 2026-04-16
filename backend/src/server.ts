@@ -11,9 +11,24 @@ import { getErrorMessage, getErrorStatusCode } from "./utils/errors";
 
 const app = express();
 
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_URLS = [
+  process.env.FRONTEND_URL,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+].filter(Boolean) as string[];
 
-app.use(cors({ origin: FRONTEND_URL }));
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || FRONTEND_URLS.includes(origin) || origin.includes("localhost") || origin.includes("127.0.0.1")) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow for dev
+    }
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/rooms", roomRoutes);
@@ -21,7 +36,7 @@ app.use("/api/cards", cardRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: FRONTEND_URL },
+  cors: corsOptions,
 });
 
 registerRoomSocket(io);
