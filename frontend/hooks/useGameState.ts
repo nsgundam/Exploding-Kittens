@@ -4,6 +4,11 @@ import type { RoomData, CardHand } from "@/types";
 import { FavorState, ComboState } from "./useGameActions";
 import { useGameSocketEvents } from "./useGameSocketEvents";
 import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
+import type { AttackAnimState } from "@/components/game/AttackCardAnimation";
+import type { TargetedAttackAnimState } from "@/components/game/TargetedAttackAnimation";
+import type { NopeAnimState } from "@/components/game/NopeCardAnimation";
+import type { ShuffleAnimState } from "@/components/game/ShuffleCardAnimation";
+import type { DefuseEffectState } from "@/components/game/DefuseEffect";
 
 export type GamePhase =
   | "WAITING"
@@ -67,6 +72,16 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [direction, setDirection] = useState<number>(1);
   const [ikOnTop, setIkOnTop] = useState<boolean>(false);
   const [drawAnimState, setDrawAnimState] = useState<DrawAnimState | null>(null);
+  // ── Attack animation state ────────────────────────────────────────────────
+  const [attackAnimState, setAttackAnimState] = useState<AttackAnimState | null>(null);
+  // ── Targeted Attack animation state ──────────────────────────────────────
+  const [taAnimState, setTaAnimState] = useState<TargetedAttackAnimState | null>(null);
+  // ── Nope animation state ──────────────────────────────────────────────────
+  const [nopeAnimState, setNopeAnimState] = useState<NopeAnimState | null>(null);
+  // ── Shuffle animation state ───────────────────────────────────────────────
+  const [shuffleAnimState, setShuffleAnimState] = useState<ShuffleAnimState | null>(null);
+  // ── Defuse effect state ────────────────────────────────────────────────────
+  const [defuseEffectState, setDefuseEffectState] = useState<DefuseEffectState | null>(null);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
@@ -112,8 +127,13 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
     setLastPlayedCard: setLastPlayedCardWithSeq, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
     setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, setIsDrawLocked,
+    setAttackAnimState,
+    setTaAnimState,
+    setNopeAnimState,
+    setShuffleAnimState,
+    setDefuseEffectState,
     roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
-    gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef
+    gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef,
     
   }), [setLastPlayedCardWithSeq]);
 
@@ -156,6 +176,11 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     direction, setDirection,
     ikOnTop, setIkOnTop,
     drawAnimState, setDrawAnimState,
+    attackAnimState, setAttackAnimState,
+    taAnimState, setTaAnimState,
+    nopeAnimState, setNopeAnimState,
+    shuffleAnimState, setShuffleAnimState,
+    defuseEffectState, setDefuseEffectState,
     deckCount, setDeckCount,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,
