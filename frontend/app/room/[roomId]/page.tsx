@@ -251,14 +251,16 @@ export default function RoomPage() {
 
           {/* Center: Room info */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5"
-            style={{ top: "60%" }}
+            className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5"
           >
             <div
-              className="text-xs tracking-[0.25em] uppercase"
-              style={{ color: "rgba(100,50,0,0.7)" }}
+              className="text-2xl leading-none tracking-wide"
+              style={{
+                color: "#3d1a00",
+                textShadow: "0 1px 0 rgba(255,255,255,0.4)",
+              }}
             >
-              ห้องเกม
+              ID: {roomId.split('-')[0]}
             </div>
             <div
               className="text-2xl leading-none tracking-wide"

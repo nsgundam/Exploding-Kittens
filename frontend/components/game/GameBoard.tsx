@@ -480,7 +480,7 @@ export function GameBoard({
             </div>
 
             {/* PLAY CARD ZONE — Holographic Reveal (Style D) */}
-            <CardPlayZone lastPlayedCard={lastPlayedCard ?? null} />
+            <CardPlayZone lastPlayedCard={lastPlayedCard ?? null} players={roomData.players} />
           </div>
         )}
       </div>
