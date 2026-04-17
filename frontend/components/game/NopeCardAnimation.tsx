@@ -181,7 +181,6 @@ export function NopeCardAnimation({ state, onComplete }: NopeCardAnimationProps)
       if (!completedRef.current) { completedRef.current = true; onCompleteRef.current(); }
     }, TOTAL_MS + 300);
 
-    const capturedIsCancel = state.isCancel;
     const capturedNopeCount = state.nopeCount;
 
     function frame(now: number) {

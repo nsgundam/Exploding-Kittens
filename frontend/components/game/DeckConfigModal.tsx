@@ -15,7 +15,6 @@ interface DeckConfigModalProps {
 export default function DeckConfigModal({
   isOpen,
   roomId,
-  currentCardVersion,
   currentExpansions,
   onClose,
   onSaved,

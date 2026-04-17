@@ -16,7 +16,6 @@ interface RoomCardProps {
 }
 
 export default function RoomCard({
-  id,
   name,
   addon,
   players,
