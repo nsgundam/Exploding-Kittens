@@ -4,7 +4,6 @@ import { getCardConfig } from "@/types/cards";
 
 export interface CardPlayZoneProps {
   lastPlayedCard: { cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null;
-  players?: any[];
 }
 
 // ── Keyframe injection (module-level, run once) ────────────────────────────
@@ -58,7 +57,7 @@ function injectCPZStyles() {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export function CardPlayZone({ lastPlayedCard, players }: CardPlayZoneProps) {
+export function CardPlayZone({ lastPlayedCard }: CardPlayZoneProps) {
   // animKey เปลี่ยนทุกครั้งที่มีการ์ดใหม่จริงๆ → force re-mount เพื่อ restart animation
   const [animKey, setAnimKey] = useState(0);
   const prevSeqRef = useRef<number | null>(null);
@@ -129,7 +128,6 @@ export function CardPlayZone({ lastPlayedCard, players }: CardPlayZoneProps) {
   const color = cfg.color;
   const emoji = cfg.emoji;
   const label = cfg.label;
-  const player = lastPlayedCard.playedByDisplayName;
 
   return (
     <div className="flex flex-col items-center gap-2">
