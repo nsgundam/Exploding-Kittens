@@ -1,5 +1,9 @@
 "use client";
-
+import { AttackCardAnimation } from "@/components/game/AttackCardAnimation";
+import { TargetedAttackAnimation } from "@/components/game/TargetedAttackAnimation";
+import { NopeCardAnimation } from "@/components/game/NopeCardAnimation";
+import { ShuffleCardAnimation } from "@/components/game/ShuffleCardAnimation";
+import { DefuseEffect } from "@/components/game/DefuseEffect";
 import { useRoomSocket } from "@/hooks/useRoomSocket";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -65,6 +69,16 @@ export default function RoomPage() {
     isDrawLocked,
     afterDrawAnimRef,
     afterHellfireRef,
+    attackAnimState,
+    setAttackAnimState,
+    taAnimState,
+    setTaAnimState,
+    nopeAnimState,
+    setNopeAnimState,
+    shuffleAnimState,
+    setShuffleAnimState,
+    defuseEffectState,
+    setDefuseEffectState,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -523,6 +537,36 @@ export default function RoomPage() {
             afterDrawAnimRef.current = null;
           }
         }}
+      />
+
+      {/* ── ATTACK CARD ANIMATION ────────────────────────────────────── */}
+      <AttackCardAnimation
+        state={attackAnimState ?? null}
+        onComplete={() => setAttackAnimState(null)}
+      />
+
+      {/* ── TARGETED ATTACK ANIMATION ────────────────────────────────── */}
+      <TargetedAttackAnimation
+        state={taAnimState ?? null}
+        onComplete={() => setTaAnimState(null)}
+      />
+
+      {/* ── NOPE CARD ANIMATION ──────────────────────────────────────── */}
+      <NopeCardAnimation
+        state={nopeAnimState ?? null}
+        onComplete={() => setNopeAnimState(null)}
+      />
+
+      {/* ── SHUFFLE CARD ANIMATION ───────────────────────────────────── */}
+      <ShuffleCardAnimation
+        state={shuffleAnimState ?? null}
+        onComplete={() => setShuffleAnimState(null)}
+      />
+
+      {/* ── DEFUSE EFFECT ────────────────────────────────────────────── */}
+      <DefuseEffect
+        state={defuseEffectState ?? null}
+        onComplete={() => setDefuseEffectState(null)}
       />
 
       {/* ── DECK CONFIG MODAL ────────────────────────────────────────── */}
