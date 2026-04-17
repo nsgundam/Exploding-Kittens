@@ -23,6 +23,11 @@ interface CardEffectResult {
 import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
 import { FavorState, ComboState } from "./useGameActions";
 import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
+import type { AttackAnimState } from "@/components/game/AttackCardAnimation";
+import type { TargetedAttackAnimState } from "@/components/game/TargetedAttackAnimation";
+import type { NopeAnimState } from "@/components/game/NopeCardAnimation";
+import type { ShuffleAnimState } from "@/components/game/ShuffleCardAnimation";
+import type { DefuseEffectState } from "@/components/game/DefuseEffect";
 
 // ── Toast notification ─────────────────────────────────────
 function showToast(message: string, duration = 3500) {
@@ -77,6 +82,16 @@ export interface GameStateSetters {
   setIkOnTop: React.Dispatch<React.SetStateAction<boolean>>;
   setIsDrawLocked: React.Dispatch<React.SetStateAction<boolean>>;
   setDrawAnimState: React.Dispatch<React.SetStateAction<DrawAnimState | null>>;
+  // ── Attack animation ────────────────────────────────────────────────────
+  setAttackAnimState: React.Dispatch<React.SetStateAction<AttackAnimState | null>>;
+  // ── Targeted Attack animation ─────────────────────────────────────────────
+  setTaAnimState: React.Dispatch<React.SetStateAction<TargetedAttackAnimState | null>>;
+  // ── Nope animation ────────────────────────────────────────────────────────
+  setNopeAnimState: React.Dispatch<React.SetStateAction<NopeAnimState | null>>;
+  // ── Shuffle animation ─────────────────────────────────────────────────────
+  setShuffleAnimState: React.Dispatch<React.SetStateAction<ShuffleAnimState | null>>;
+  // ── Defuse effect ─────────────────────────────────────────────────────────
+  setDefuseEffectState: React.Dispatch<React.SetStateAction<DefuseEffectState | null>>;
   roomDataRef: React.MutableRefObject<RoomData | null>;
   currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
   pendingNextTurnRef: React.MutableRefObject<string | null>;
@@ -350,6 +365,11 @@ export function useGameSocketEvents(
           setters.setIkOnTop(data.effect.ikOnTop);
         }
 
+        // ── Shuffle animation ──────────────────────────────────────────────────
+        if (normalizedPlayed === "SH" || normalizedPlayed === "GVE_SH") {
+          setters.setShuffleAnimState({ playedByDisplayName: displayName });
+        }
+
         if (data.effect?.type === "ALTER_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
           setters.setSeeTheFutureCards(data.effect.topCards);
           setters.setGamePhase("ALTER_FUTURE");
@@ -367,6 +387,34 @@ export function useGameSocketEvents(
           if (me?.player_id === data.playedBy) {
             setters.setGameLogs((prev) => [...prev.slice(-19), `🤝 รอให้ผู้เล่นอื่นเลือกการ์ดให้คุณ...`]);
           }
+        }
+
+        // ── Attack animation (AT หรือ GVE_AT) ────────────────────────────────
+        if (normalizedPlayed === "AT") {
+          const nextPlayer = setters.roomDataRef.current?.players?.find(
+            (p: Player) => p.player_id === data.nextTurn?.player_id
+          );
+          setters.setAttackAnimState({
+            playedByDisplayName: displayName,
+            targetDisplayName: nextPlayer?.display_name,
+            targetAvatarUrl: nextPlayer?.profile_picture ?? null,
+            targetSeat: nextPlayer?.seat_number ?? null,
+            pendingAttacks: data.nextTurn?.pending_attacks,
+          });
+        }
+
+        // ── Targeted Attack animation (TA หรือ GVE_TA) ──────────────────────
+        if (normalizedPlayed === "TA") {
+          const nextPlayer = setters.roomDataRef.current?.players?.find(
+            (p: Player) => p.player_id === data.nextTurn?.player_id
+          );
+          setters.setTaAnimState({
+            playedByDisplayName: displayName,
+            targetDisplayName: nextPlayer?.display_name,
+            targetAvatarUrl: nextPlayer?.profile_picture ?? null,
+            targetSeat: nextPlayer?.seat_number ?? null,
+            pendingAttacks: data.nextTurn?.pending_attacks,
+          });
         }
       }
     };
@@ -437,6 +485,11 @@ export function useGameSocketEvents(
       const defusingPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === defuserPlayerId);
       const displayName = defusingPlayer?.display_name ?? "ผู้เล่น";
       setters.setGameLogs((prev) => [...prev.slice(-19), `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`]);
+
+      // ── Defuse effect (เฉพาะคนที่ defuse เท่านั้น) ─────────────────────────
+      if (isMe) {
+        setters.setDefuseEffectState({ defuserDisplayName: displayName });
+      }
     };
 
     // ── ekInserted ──
@@ -449,6 +502,7 @@ export function useGameSocketEvents(
       if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
       setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
       setters.setGameLogs((prev) => [...prev.slice(-19), `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`]);
+
     };
 
     // ── playerEliminated ──
@@ -626,6 +680,13 @@ export function useGameSocketEvents(
         );
       }
       setters.setGameLogs((prev) => [...prev.slice(-19), `🚫 ${data.playedByDisplayName} เล่น Nope! (${data.isCancel ? "ยกเลิก" : "ผ่าน"})`]);
+
+      // ── Nope animation ─────────────────────────────────────────────────────
+      setters.setNopeAnimState({
+        playedByDisplayName: data.playedByDisplayName,
+        isCancel: data.isCancel,
+        nopeCount: data.nopeCount,
+      });
     };
 
     // ── actionCancelled ──

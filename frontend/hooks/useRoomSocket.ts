@@ -82,6 +82,21 @@ export const useRoomSocket = (roomId: string) => {
     ikOnTop: gameState.ikOnTop,
     drawAnimState: gameState.drawAnimState,
     setDrawAnimState: gameState.setDrawAnimState,
+    // ── Attack animation ──────────────────────────────────────────────────
+    attackAnimState: gameState.attackAnimState,
+    setAttackAnimState: gameState.setAttackAnimState,
+    // ── Targeted Attack animation ─────────────────────────────────────────
+    taAnimState: gameState.taAnimState,
+    setTaAnimState: gameState.setTaAnimState,
+    // ── Nope animation ────────────────────────────────────────────────────
+    nopeAnimState: gameState.nopeAnimState,
+    setNopeAnimState: gameState.setNopeAnimState,
+    // ── Shuffle animation ─────────────────────────────────────────────────
+    shuffleAnimState: gameState.shuffleAnimState,
+    setShuffleAnimState: gameState.setShuffleAnimState,
+    // ── Defuse effect ─────────────────────────────────────────────────────
+    defuseEffectState: gameState.defuseEffectState,
+    setDefuseEffectState: gameState.setDefuseEffectState,
     isDrawLocked: gameState.isDrawLocked,
     afterDrawAnimRef: gameState.afterDrawAnimRef,
     afterHellfireRef: gameState.afterHellfireRef,
