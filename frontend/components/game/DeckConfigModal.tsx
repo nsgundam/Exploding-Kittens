@@ -5,7 +5,6 @@ import React, { useState } from "react";
 interface DeckConfigModalProps {
   isOpen: boolean;
   roomId: string;
-  currentCardVersion: string;
   currentExpansions: string[];
   onClose: () => void;
   onSaved: (cardVersion: string, expansions: string[]) => void;
