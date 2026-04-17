@@ -1,8 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { getCardConfig } from "@/types/cards";
-import { resolveAvatarSrc } from "@/lib/avatar";
-import Image from "next/image";
 
 export interface CardPlayZoneProps {
   lastPlayedCard: { cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null;
@@ -57,11 +55,6 @@ function injectCPZStyles() {
   el.textContent = KEYFRAMES;
   document.head.appendChild(el);
   _cpzStyleInjected = true;
-}
-
-// ── Avatar initials helper ─────────────────────────────────────────────────
-function initials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -137,14 +130,6 @@ export function CardPlayZone({ lastPlayedCard, players }: CardPlayZoneProps) {
   const emoji = cfg.emoji;
   const label = cfg.label;
   const player = lastPlayedCard.playedByDisplayName;
-
-  // Avatar bg: darken the card color
-  const avatarBg = `${color}28`;
-  const avatarBorder = `${color}55`;
-
-  // Resolve avatar image
-  const playerRecord = players?.find((p) => p.display_name === player);
-  const avatarSrc = resolveAvatarSrc(playerRecord?.avatar_url || playerRecord?.profile_picture);
 
   return (
     <div className="flex flex-col items-center gap-2">

@@ -55,7 +55,7 @@ export interface GameBoardProps {
   deckCount?: number | null;
   pendingAttacks?: number;
   comboState?: { comboCards: string[]; isThreeCard: boolean } | null;
-  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
+  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string, targetCardIndex?: number) => void;
   cancelCombo?: () => void;
   cancelFavor?: () => void;
   onPlayCombo?: (cardCodes: string[]) => void;
