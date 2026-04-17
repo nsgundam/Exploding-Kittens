@@ -280,6 +280,7 @@ export interface PlayComboPayload {
   comboCards: string[];           // e.g. ["CAT_TACO","CAT_TACO"] or ["CAT_TACO","CAT_TACO","CAT_TACO"]
   targetPlayerToken: string;
   demandedCard?: string;          // 3-card only
+  targetCardIndex?: number;       // 2-card only, the index of the face-down card clicked
 }
 
 /**

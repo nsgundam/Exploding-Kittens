@@ -141,14 +141,14 @@ export function PlayerHand({
         {/* ── COMBO BAR ── shows when 1+ cat selected */}
         {isMyTurn && selectedIndices.length >= 1 && (
           <div
-            className="fixed left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-2.5 rounded-2xl"
+            className="fixed left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 px-3 py-1.5 rounded-xl"
             style={{
               background: "rgba(0,0,0,0.75)",
-              border: "2px solid rgba(250,204,21,0.5)",
-              boxShadow: "0 0 24px rgba(250,204,21,0.2)",
+              border: "1.5px solid rgba(250,204,21,0.5)",
+              boxShadow: "0 0 16px rgba(250,204,21,0.2)",
               backdropFilter: "blur(12px)",
               fontFamily: "'Fredoka One', cursive",
-              bottom: "210px",
+              bottom: "280px",
               transition: "all 0.2s",
             }}
           >
@@ -170,7 +170,7 @@ export function PlayerHand({
 
             {/* Badge */}
             <div
-              className="text-xs font-black uppercase tracking-wider"
+              className="text-[10px] font-black uppercase tracking-wider"
               style={{ color: "rgba(250,204,21,0.9)" }}
             >
               {comboCount === 1 && "เลือก 1 ใบ — ต้องการอีก 1 หรือ 2 ใบ"}

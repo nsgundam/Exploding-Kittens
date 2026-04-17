@@ -1,9 +1,11 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { getCardConfig } from "@/types/cards";
+import { Player } from "@/types";
 
 export interface CardPlayZoneProps {
   lastPlayedCard: { cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null;
+  players?: Player[];
 }
 
 // ── Keyframe injection (module-level, run once) ────────────────────────────
@@ -54,11 +56,6 @@ function injectCPZStyles() {
   el.textContent = KEYFRAMES;
   document.head.appendChild(el);
   _cpzStyleInjected = true;
-}
-
-// ── Avatar initials helper ─────────────────────────────────────────────────
-function initials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -133,11 +130,6 @@ export function CardPlayZone({ lastPlayedCard }: CardPlayZoneProps) {
   const color = cfg.color;
   const emoji = cfg.emoji;
   const label = cfg.label;
-  const player = lastPlayedCard.playedByDisplayName;
-
-  // Avatar bg: darken the card color
-  const avatarBg = `${color}28`;
-  const avatarBorder = `${color}55`;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -276,55 +268,6 @@ export function CardPlayZone({ lastPlayedCard }: CardPlayZoneProps) {
             {label}
           </span>
         </div>
-      </div>
-
-      {/* ── Player name row ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          animation: `cpz-name-in 0.4s 0.42s ease-out both`,
-        }}
-      >
-        {/* Avatar */}
-        <div
-          style={{
-            width: "22px",
-            height: "22px",
-            borderRadius: "50%",
-            background: avatarBg,
-            border: `1px solid ${avatarBorder}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "8px",
-            fontWeight: 800,
-            color: color,
-            flexShrink: 0,
-            fontFamily: "'Fredoka One', cursive",
-          }}
-        >
-          {initials(player)}
-        </div>
-
-        {/* Name with glow */}
-        <span
-          style={{
-            fontSize: "11px",
-            fontWeight: 800,
-            color: color,
-            letterSpacing: "0.5px",
-            fontFamily: "'Fredoka One', cursive",
-            animation: `cpz-glow-pulse 1.8s 0.6s ease-in-out 2`,
-            whiteSpace: "nowrap",
-            maxWidth: "100px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {player}
-        </span>
       </div>
 
       {/* ── "PLAY CARD" label ── */}

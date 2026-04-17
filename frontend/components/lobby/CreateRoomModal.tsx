@@ -19,7 +19,6 @@ export default function CreateRoomModal({
   onCreate,
 }: CreateRoomModalProps) {
   const [roomName, setRoomName] = useState("");
-  const [selectedDeck, setSelectedDeck] = useState(1);
   const [addonEnabled, setAddonEnabled] = useState(false);
 
   if (!isOpen) return null;
@@ -40,7 +39,6 @@ export default function CreateRoomModal({
     });
 
     setRoomName("");
-    setSelectedDeck(1);
     setAddonEnabled(false);
   };
 

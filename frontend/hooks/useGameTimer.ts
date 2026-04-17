@@ -10,6 +10,7 @@ export const useGameTimer = (
   currentTurnPlayerId: string | null,
   roomDataRef: RefObject<RoomData | null>,
   turnNumber: number,
+  serverRemainingTime?: number | null,
 ) => {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef(30);
@@ -22,12 +23,14 @@ export const useGameTimer = (
 
   useEffect(() => {
     // Reset timer เมื่อ turn เปลี่ยนหรือ phase เปลี่ยน
-    timeLeftRef.current = 30;
+    // หรือใช้ค่า remainingTime จาก Server ถ้ามีการส่งมา (กรณี reconnect)
+    const initialTime = serverRemainingTime !== null && serverRemainingTime !== undefined ? serverRemainingTime : 30;
+    timeLeftRef.current = initialTime;
     hasAutoDrawnThisTurnRef.current = false;
     lastCardPlayedCountRef.current = cardPlayedCountRef.current;
 
     const resetTimeout = setTimeout(() => {
-      setTimeLeft(30);
+      setTimeLeft(initialTime);
     }, 0);
 
     let interval: NodeJS.Timeout;
@@ -48,22 +51,31 @@ export const useGameTimer = (
         }
 
         if (timeLeftRef.current === 0 && !hasAutoDrawnThisTurnRef.current) {
-          const myToken = localStorage.getItem("player_token");
+          const myToken = localStorage.getItem("player_token") || "";
           const myPlayer = roomDataRef.current?.players?.find(
             (p: Player) => p.player_token === myToken
           );
+          
+          const isMyTurn = myPlayer && myPlayer.player_id === currentTurnPlayerId && myPlayer.is_alive !== false;
+          const isHost = roomDataRef.current?.host_token === myToken;
 
-          if (
-            myPlayer &&
-            myPlayer.player_id === currentTurnPlayerId &&
-            myPlayer.is_alive !== false
-          ) {
+          if (isMyTurn) {
             hasAutoDrawnThisTurnRef.current = true;
             socket?.emit("drawCard", {
               roomId,
               playerToken: myToken,
               isAutoDraw: true,
             });
+          } else if (isHost) {
+            // Host backup: if the turn player disconnected, wait 2 more seconds then force draw for them.
+            hasAutoDrawnThisTurnRef.current = true;
+            setTimeout(() => {
+              socket?.emit("forceAutoDraw", {
+                roomId,
+                targetPlayerId: currentTurnPlayerId,
+                hostToken: myToken,
+              });
+            }, 2000);
           }
         }
       }, 1000);
@@ -72,7 +84,7 @@ export const useGameTimer = (
       clearInterval(interval);
       clearTimeout(resetTimeout);
     };
-  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, turnNumber]);
+  }, [currentTurnPlayerId, gamePhase, roomId, socket, roomDataRef, turnNumber, serverRemainingTime]);
 
   // cardPlayed — เรียกจากภายนอกเพื่อ reset timer เมื่อมีการเล่นการ์ด
   const onCardPlayed = () => {

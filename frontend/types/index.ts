@@ -84,6 +84,7 @@ export interface GameStartedPayload {
   session_id: string;
   first_turn_player_id: string;
   cardHands: CardHand[];
+  remaining_time?: number;
 }
 
 export interface CardDrawnPayload {
@@ -180,7 +181,7 @@ export interface ApiRoom {
   room_name: string;
   status: RoomStatus;
   max_players: number;
-  players?: Array<{ role: PlayerRole }>;
+  players?: Array<{ role: PlayerRole; player_token: string; is_alive: boolean }>;
   deck_config?: DeckConfig;
 }
 

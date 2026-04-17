@@ -31,6 +31,7 @@ export async function createGameSession(
       current_turn_player_id: firstPlayer.player_id,
       turn_number: 1,
       start_time: new Date(),
+      turn_start_timestamp: new Date(),
       direction: 1,
       pending_attacks: 0,
     },

@@ -153,6 +153,7 @@ export async function comboCard(
   comboCards: string[],
   targetPlayerToken: string,
   demandedCard?: string,
+  targetCardIndex?: number,
 ): Promise<ComboResult> {
   return await prisma.$transaction(async (tx) => {
     const session = await tx.gameSession.findFirst({
@@ -206,7 +207,7 @@ export async function comboCard(
       data: { discard_pile: [...discardPile, ...comboCards] },
     });
 
-    const pendingAction = { type: "COMBO_CARD", comboCards, playedByToken: playerToken, targetPlayerToken, demandedCard };
+    const pendingAction = { type: "COMBO_CARD", comboCards, playedByToken: playerToken, targetPlayerToken, demandedCard, targetCardIndex };
 
     await tx.gameSession.update({
       where: { session_id: session.session_id },

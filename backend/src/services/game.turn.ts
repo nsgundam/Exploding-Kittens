@@ -53,6 +53,7 @@ export async function advanceTurn(
       current_turn_player_id: nextPlayer.player_id,
       turn_number: nextTurnNumber,
       pending_attacks: pendingAttacks,
+      turn_start_timestamp: new Date(),
     },
   });
 
@@ -81,7 +82,11 @@ export async function resolveDrawCompletion(
     const nextTurnNumber = session.turn_number + 1;
     await tx.gameSession.update({
       where: { session_id: session.session_id },
-      data: { turn_number: nextTurnNumber, pending_attacks: nextPending },
+      data: { 
+        turn_number: nextTurnNumber, 
+        pending_attacks: nextPending,
+        turn_start_timestamp: new Date(),
+      },
     });
     return {
       success: true,
@@ -133,6 +138,14 @@ export async function processGameOver(
       status: RoomStatus.WAITING,
       restart_available_at: new Date(),
       last_winner_token: winner.player_token ?? null,
+    },
+  });
+
+  // Kick out players who are disconnected at the end of the game
+  await tx.player.deleteMany({
+    where: {
+      room_id: roomId,
+      is_active: false,
     },
   });
 
@@ -213,6 +226,12 @@ export async function handleAFK(
       where: { player_id: player.player_id },
       data: { is_alive: false, role: PlayerRole.SPECTATOR },
     });
+    await tx.gameSession.update({
+      where: { session_id: session.session_id },
+      data: { pending_attacks: 0 },
+    });
+    session.pending_attacks = 0; // ในหน่วยความจำเพื่อให้ advanceTurn ใช้ค่าใหม่
+
     await tx.gameLog.create({
       data: {
         session_id: session.session_id,

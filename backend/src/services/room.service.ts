@@ -200,6 +200,7 @@ export const roomService = {
           data: {
             display_name: normalizedDisplayName,
             ...profilePictureData,
+            is_active: true,
           },
         });
       }
@@ -211,9 +212,29 @@ export const roomService = {
           ...profilePictureData,
           room_id: roomId,
           role: PlayerRole.SPECTATOR,
+          is_active: true,
         },
       });
     });
+  },
+
+  /**
+   * Update player connectivity status.
+   */
+  async setPlayerActive(roomId: string, playerToken: string, isActive: boolean): Promise<Player | null> {
+    try {
+      return await prisma.player.update({
+        where: {
+          player_token_room_id: {
+            player_token: playerToken,
+            room_id: roomId,
+          },
+        },
+        data: { is_active: isActive },
+      });
+    } catch (e) {
+      return null;
+    }
   },
 
   /**
@@ -413,13 +434,26 @@ export const roomService = {
       }
 
       // Migrate host ถ้าคนที่ออกเป็น host (FR-03-11)
+      // รันก่อน findUnique เพื่อให้ updatedRoom มี host_token ใหม่เลย
+      let newHostToken: string | null = null;
       if (room && room.host_token === playerToken) {
         const candidateHost =
-          remainingPlayers.find((p) => p.role === PlayerRole.PLAYER) || remainingPlayers[0];
+          remainingPlayers.find((p) => p.role === PlayerRole.PLAYER && p.is_alive) ||
+          remainingPlayers.find((p) => p.role === PlayerRole.PLAYER) ||
+          remainingPlayers[0];
         if (candidateHost) {
+          newHostToken = candidateHost.player_token;
           await tx.room.update({
             where: { room_id: roomId },
-            data: { host_token: candidateHost.player_token },
+            data: { host_token: newHostToken },
+          });
+          // แจ้ง Frontend ว่า Host เปลี่ยนแล้ว
+          gameEvents.push({
+            eventName: "hostMigrated",
+            payload: {
+              newHostToken,
+              newHostDisplayName: candidateHost.display_name,
+            },
           });
         }
       }
@@ -463,4 +497,41 @@ export const roomService = {
 
     return await this.getRoomById(roomId);
   },
+
+  /**
+   * On disconnect: immediately migrate host if the disconnecting player is the host.
+   * Does NOT eliminate the player — just reassigns host role.
+   */
+  async migrateHostOnDisconnect(
+    roomId: string,
+    playerToken: string,
+  ): Promise<{ newHostToken: string; newHostDisplayName: string } | null> {
+    const room = await prisma.room.findUnique({ where: { room_id: roomId } });
+    if (!room || room.host_token !== playerToken) return null;
+
+    const candidates = await prisma.player.findMany({
+      where: {
+        room_id: roomId,
+        player_token: { not: playerToken },
+        role: PlayerRole.PLAYER,
+        is_alive: true,
+      },
+      orderBy: { joined_at: "asc" },
+    });
+
+    const candidate = candidates[0] ?? await prisma.player.findFirst({
+      where: { room_id: roomId, player_token: { not: playerToken } },
+      orderBy: { joined_at: "asc" },
+    });
+
+    if (!candidate) return null;
+
+    await prisma.room.update({
+      where: { room_id: roomId },
+      data: { host_token: candidate.player_token },
+    });
+
+    return { newHostToken: candidate.player_token, newHostDisplayName: candidate.display_name };
+  },
 };
+

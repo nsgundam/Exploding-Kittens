@@ -5,7 +5,9 @@ export async function matchAndProxy(req: NextRequest, { params }: { params: Prom
     try {
         const slugParams = await params;
         const path = slugParams?.slug ? slugParams.slug.join("/") : "";
-        const targetUrl = `/api/rooms${path ? `/${path}` : ""}`;
+        const search = req.nextUrl.search || "";
+        // Use 127.0.0.1 for high stability between proxy and backend
+        const targetUrl = `http://127.0.0.1:4000/api/rooms${path ? `/${path}` : ""}${search}`;
 
         const playerToken = req.headers.get("x-player-token");
 

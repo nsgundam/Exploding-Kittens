@@ -107,6 +107,7 @@ model GameSession {
   end_time               DateTime?
   status                 GameSessionStatus @default(WAITING)
   winner_player_id       String?
+  turn_start_timestamp   DateTime          @default(now())
 
   pending_action           Json?
   pending_action_timestamp DateTime?

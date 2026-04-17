@@ -55,7 +55,7 @@ export interface GameBoardProps {
   deckCount?: number | null;
   pendingAttacks?: number;
   comboState?: { comboCards: string[]; isThreeCard: boolean } | null;
-  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
+  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string, targetCardIndex?: number) => void;
   cancelCombo?: () => void;
   cancelFavor?: () => void;
   onPlayCombo?: (cardCodes: string[]) => void;
@@ -189,7 +189,7 @@ export function GameBoard({
         afterHellfireRef={afterHellfireRef}
       />
 
-      {pendingComboTarget && comboState?.isThreeCard && (
+      {pendingComboTarget && comboState && (
         <CatComboModal
           isOpen={true}
           comboCards={comboState.comboCards}
@@ -197,9 +197,9 @@ export function GameBoard({
           myPlayerToken={myPlayerToken}
           startAtDemandStep={true}
           preselectedTarget={pendingComboTarget}
-          onConfirm={(_token, demandedCard) => {
+          onConfirm={(token, demandedCard, cardIndex) => {
             if (emitCombo && comboState) {
-              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard);
+              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard, cardIndex);
             }
             setPendingComboTarget(null);
           }}
@@ -318,14 +318,8 @@ export function GameBoard({
                     : undefined
                 }
                 onComboSelect={
-                  player && !isMyAvatar
-                    ? () => {
-                      if (comboState?.isThreeCard) {
-                        setPendingComboTarget(player.player_token);
-                      } else if (emitCombo && comboState) {
-                        emitCombo(comboState.comboCards, player.player_token);
-                      }
-                    }
+                  player && !isMyAvatar && comboState
+                    ? () => setPendingComboTarget(player.player_token)
                     : undefined
                 }
               />
@@ -486,7 +480,7 @@ export function GameBoard({
             </div>
 
             {/* PLAY CARD ZONE — Holographic Reveal (Style D) */}
-            <CardPlayZone lastPlayedCard={lastPlayedCard ?? null} />
+            <CardPlayZone lastPlayedCard={lastPlayedCard ?? null} players={roomData.players} />
           </div>
         )}
       </div>

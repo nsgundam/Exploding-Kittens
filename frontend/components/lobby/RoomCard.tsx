@@ -11,6 +11,7 @@ interface RoomCardProps {
   maxPlayers: number;
   status: "waiting" | "playing";
   cardVersion?: string;
+  canRejoin?: boolean;
   onClick: () => void;
 }
 

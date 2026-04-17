@@ -24,7 +24,22 @@ export const createRoom = asyncHandler(async (req: Request, res: Response) => {
 export const getAllRooms = asyncHandler(async (req: Request, res: Response) => {
   const { status, card_version } = req.query;
   const rooms = await roomService.getAllRooms(status as RoomStatus, card_version as string);
-  res.status(200).json(rooms);
+  
+  // Sanitize: Remove sensitive tokens before sending to public lobby
+  const sanitizedRooms = rooms.map(room => ({
+    ...room,
+    players: room.players.map(p => ({
+      player_id: p.player_id,
+      display_name: p.display_name,
+      profile_picture: p.profile_picture,
+      role: p.role,
+      seat_number: p.seat_number,
+      is_alive: p.is_alive,
+      is_host: room.host_token === p.player_token
+    }))
+  }));
+  
+  res.status(200).json(sanitizedRooms);
 });
 
 export const getCurrentRoom = asyncHandler(async (req: Request, res: Response) => {

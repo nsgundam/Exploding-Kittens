@@ -201,7 +201,7 @@ export async function resolvePendingAction(roomId: string) {
         nextTurn: effectData.turnResult?.nextTurn,
       };
     } else if (pendingActionData.type === "COMBO_CARD") {
-      const { comboCards, targetPlayerToken, demandedCard } = pendingActionData;
+      const { comboCards, targetPlayerToken, demandedCard, targetCardIndex } = pendingActionData;
       const isThreeCard = comboCards.length === 3;
 
       const target = await tx.player.findFirst({
@@ -239,14 +239,15 @@ export async function resolvePendingAction(roomId: string) {
             targetCards.splice(demandIdx, 1);
           }
         } else {
-          const stealable = targetCards.filter(
-            (c) => c !== "EK" && c !== "GVE_EK" && c !== "DF" && c !== "GVE_DF"
-          );
-          const pool = stealable.length > 0 ? stealable : targetCards;
-          const randomIdx = Math.floor(Math.random() * pool.length);
-          stolenCard = pool[randomIdx]!;
-          const realIdx = targetCards.indexOf(stolenCard);
-          targetCards.splice(realIdx, 1);
+          let randomIdx: number;
+          if (typeof targetCardIndex === "number" && targetCardIndex >= 0 && targetCardIndex < targetCards.length) {
+            randomIdx = targetCardIndex;
+          } else {
+            randomIdx = Math.floor(Math.random() * targetCards.length);
+          }
+          
+          stolenCard = targetCards[randomIdx]!;
+          targetCards.splice(randomIdx, 1);
         }
       }
 
