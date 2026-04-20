@@ -52,7 +52,9 @@ export function InsertIKModal({ deckCount, isOpen, onConfirm }: InsertIKModalPro
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
         style={{
-          width: "480px",
+          width: "min(480px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "linear-gradient(160deg, #1a0530 0%, #0a001a 60%, #0d0005 100%)",
           border: "2px solid rgba(139,92,246,0.55)",
           boxShadow:

@@ -140,7 +140,7 @@ export function GameBoard({
   const canDraw = currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked;
 
   return (
-    <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
+    <main className="w-full h-full min-h-0 flex items-center justify-center px-6 py-4 relative">
       <div
         className="absolute left-2 top-1/4 text-5xl opacity-5 animate-float"
         style={{ animationDelay: "1s" }}
@@ -272,15 +272,21 @@ export function GameBoard({
       )}
 
       {/* ── BOARD LAYOUT ── */}
-      <div className="w-full relative h-130">
+      <div className="w-full h-full min-h-0 relative">
         {[5, 1, 2, 4, 3].map((seatNum) => {
           let positionClasses = "";
+          // Positions tuned to sit "around the table" (like the original layout),
+          // and adjusted slightly for very short viewports (phone landscape).
           if (seatNum === 5)
-            positionClasses = "left-1/2 -top-[8%] -translate-x-1/2";
-          else if (seatNum === 1) positionClasses = "left-[17%] top-[20%]";
-          else if (seatNum === 2) positionClasses = "left-[17%] top-[68%]";
-          else if (seatNum === 4) positionClasses = "right-[16%] top-[20%]";
-          else if (seatNum === 3) positionClasses = "right-[16%] top-[68%]";
+            positionClasses = "left-1/2 top-[6%] -translate-x-1/2 [@media(max-height:450px)]:top-[4%]";
+          else if (seatNum === 1)
+            positionClasses = "left-[10%] top-[28%] [@media(max-height:450px)]:left-[6%] [@media(max-height:450px)]:top-[18%]";
+          else if (seatNum === 2)
+            positionClasses = "left-[10%] top-[72%] [@media(max-height:450px)]:left-[6%] [@media(max-height:450px)]:top-[82%]";
+          else if (seatNum === 4)
+            positionClasses = "right-[10%] top-[28%] [@media(max-height:450px)]:right-[6%] [@media(max-height:450px)]:top-[18%]";
+          else if (seatNum === 3)
+            positionClasses = "right-[10%] top-[72%] [@media(max-height:450px)]:right-[6%] [@media(max-height:450px)]:top-[82%]";
 
           const player = getPlayerAtSeat(seatNum);
           const isHost =

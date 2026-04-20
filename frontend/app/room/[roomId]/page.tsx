@@ -99,7 +99,7 @@ export default function RoomPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
         <div className="text-6xl mb-4">😿</div>
         <p className="text-red-500 text-2xl tracking-widest">{error}</p>
         <p className="text-orange-300 mt-4 animate-pulse">
@@ -111,7 +111,7 @@ export default function RoomPage() {
 
   if (!roomData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
+      <div className="h-full w-full flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#3d1f0a_0%,#1a0d04_100%)] font-bungee">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">💣</div>
           <div className="flex items-center justify-center gap-3 text-[#f5a623] text-xl tracking-widest animate-pulse">
@@ -206,7 +206,7 @@ export default function RoomPage() {
       `}</style>
 
       <div
-        className="min-h-screen w-full overflow-hidden flex flex-col"
+        className="h-full w-full overflow-hidden flex flex-col"
         style={{
           backgroundImage: "url('/images/cat.jpg')",
           backgroundSize: "cover",
@@ -217,7 +217,7 @@ export default function RoomPage() {
       >
         {/* ── HEADER ───────────────────────────────────────────────────── */}
         <header
-          className="flex items-center justify-between px-5 py-4 relative z-50"
+          className="flex items-center justify-between px-5 py-4 [@media(max-height:450px)]:px-3 [@media(max-height:450px)]:py-2 relative z-50"
           style={{
             background: "transparent",
             borderBottom: "1px solid rgba(150,100,20,0.2)",
@@ -357,60 +357,62 @@ export default function RoomPage() {
         </header>
 
         {/* ── MAIN GAME AREA ───────────────────────────────────────────── */}
-        <div className="flex-1 relative z-10 w-full mx-auto flex items-center justify-center pt-8">
-          <GameBoard
-            roomData={roomData}
-            myProfilePicture={myProfilePicture}
-            myDisplayName={myDisplayName}
-            currentTurnSeat={currentTurnSeat}
-            gamePhase={gamePhase}
-            ekBombState={ekBombState}
-            seeTheFutureCards={seeTheFutureCards}
-            onCloseSeeTheFuture={closeSeeTheFuture}
-            selectSeat={selectSeat}
-            drawCard={drawCard}
-            isDrawLocked={isDrawLocked}
-            playCard={playCard}
-            onPlayCombo={handlePlayCombo}
-            defuseCard={defuseCard}
-            eliminatePlayer={eliminatePlayer}
-            insertEK={insertEK}
-            placeIKBack={placeIKBack}
-            eliminatedPlayerId={eliminatedPlayerId}
-            dismissEliminated={dismissEliminated}
-            winner={winner}
-            myPlayerToken={myPlayerToken}
-            favorState={favorState}
-            selectFavorTarget={selectFavorTarget}
-            pickFavorCard={pickFavorCard}
-            myCards={myCards}
-            isMySeat={isMySeat}
-            gameLogs={gameLogs}
-            timeLeft={timeLeft}
-            lastPlayedCard={lastPlayedCard}
-            pendingAttacks={pendingAttacks}
-            comboState={comboState}
-            emitCombo={emitCombo}
-            cancelCombo={cancelCombo}
-            cancelFavor={cancelFavor}
-            deckCount={deckCount}
-            pendingAction={pendingAction}
-            nopeState={nopeState}
-            playNope={playNope}
-            selectTATarget={selectTATarget}
-            cancelTA={cancelTA}
-            direction={direction}
-            commitAlterTheFuture={commitAlterTheFuture}
-            ikDrawerName={ikDrawerName}
-            onIKRevealDone={handleIKRevealDone}
-            ikOnTop={ikOnTop}
-            afterHellfireRef={afterHellfireRef}
-          />
+        <div className="flex-1 min-h-0 relative z-10 w-full mx-auto flex items-center justify-center pt-8 [@media(max-height:450px)]:pt-2">
+          <div className="origin-top w-full h-full flex items-center justify-center [@media(max-height:450px)]:scale-[0.88] [@media(max-height:390px)]:scale-[0.8]">
+            <GameBoard
+              roomData={roomData}
+              myProfilePicture={myProfilePicture}
+              myDisplayName={myDisplayName}
+              currentTurnSeat={currentTurnSeat}
+              gamePhase={gamePhase}
+              ekBombState={ekBombState}
+              seeTheFutureCards={seeTheFutureCards}
+              onCloseSeeTheFuture={closeSeeTheFuture}
+              selectSeat={selectSeat}
+              drawCard={drawCard}
+              isDrawLocked={isDrawLocked}
+              playCard={playCard}
+              onPlayCombo={handlePlayCombo}
+              defuseCard={defuseCard}
+              eliminatePlayer={eliminatePlayer}
+              insertEK={insertEK}
+              placeIKBack={placeIKBack}
+              eliminatedPlayerId={eliminatedPlayerId}
+              dismissEliminated={dismissEliminated}
+              winner={winner}
+              myPlayerToken={myPlayerToken}
+              favorState={favorState}
+              selectFavorTarget={selectFavorTarget}
+              pickFavorCard={pickFavorCard}
+              myCards={myCards}
+              isMySeat={isMySeat}
+              gameLogs={gameLogs}
+              timeLeft={timeLeft}
+              lastPlayedCard={lastPlayedCard}
+              pendingAttacks={pendingAttacks}
+              comboState={comboState}
+              emitCombo={emitCombo}
+              cancelCombo={cancelCombo}
+              cancelFavor={cancelFavor}
+              deckCount={deckCount}
+              pendingAction={pendingAction}
+              nopeState={nopeState}
+              playNope={playNope}
+              selectTATarget={selectTATarget}
+              cancelTA={cancelTA}
+              direction={direction}
+              commitAlterTheFuture={commitAlterTheFuture}
+              ikDrawerName={ikDrawerName}
+              onIKRevealDone={handleIKRevealDone}
+              ikOnTop={ikOnTop}
+              afterHellfireRef={afterHellfireRef}
+            />
+          </div>
         </div>
 
         {/* ── FOOTER / PLAYER HAND AREA ────────────────────────────────── */}
         <footer
-          className="px-6 py-4 flex items-end justify-between gap-4 z-50 relative h-48"
+          className="shrink-0 px-6 py-4 [@media(max-height:450px)]:px-3 [@media(max-height:450px)]:py-2 flex items-end justify-between gap-4 z-50 relative h-48 [@media(max-height:450px)]:h-32"
           style={{
             background: "transparent",
             borderTop: "1px solid rgba(150,100,20,0.25)",
@@ -597,11 +599,13 @@ export default function RoomPage() {
           <div
             className="flex flex-col items-center gap-6 rounded-2xl px-10 py-8"
             style={{
+              width: "min(420px, calc(100vw - 2rem))",
+              maxHeight: "calc(100dvh - 2rem)",
+              overflowY: "auto",
               background: "linear-gradient(160deg, #3d1f0a 0%, #1a0d04 100%)",
               border: "2px solid rgba(245,166,35,0.35)",
               boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
               fontFamily: "'Fredoka One', cursive",
-              minWidth: 320,
             }}
             onClick={(e) => e.stopPropagation()}
           >
