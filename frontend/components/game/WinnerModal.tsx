@@ -44,7 +44,9 @@ export function WinnerModal({ isMe, displayName }: WinnerModalProps) {
       <div
         className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
         style={{
-          width: "420px",
+          width: "min(420px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "rgba(0,10,0,0.95)",
           border: "2px solid rgba(250,204,21,0.6)",
           boxShadow:

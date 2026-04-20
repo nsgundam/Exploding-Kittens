@@ -205,7 +205,7 @@ export default function LobbyPage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col gap-3 px-8 py-5 max-w-8xl w-full mx-auto overflow-hidden text-white relative">
+    <div className="h-full flex flex-col gap-3 px-4 sm:px-8 py-4 sm:py-5 max-w-8xl w-full mx-auto overflow-hidden text-white relative">
       <AnimatedBackground />
 
       {/* ═══ HEADER ═══ */}
@@ -215,13 +215,13 @@ export default function LobbyPage() {
           backgroundImage: "url('/images/lobby_header.png')",
           backgroundSize: "100% 100%",
           backgroundRepeat: "no-repeat",
-          height: "90px",
+          height: "clamp(72px, 10vw, 90px)",
           borderRadius: "16px",
           boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
         }}
       >
         <h1
-          className="text-3xl md:text-4xl font-black tracking-widest text-white uppercase drop-shadow-lg"
+          className="text-2xl sm:text-3xl md:text-4xl font-black tracking-widest text-white uppercase drop-shadow-lg text-center px-2"
           style={{
             fontFamily: "'Bungee', cursive",
             textShadow: "0 2px 12px rgba(0,0,0,0.55)",
@@ -352,7 +352,7 @@ export default function LobbyPage() {
 
       {/* ═══ CONTROLS ═══ */}
       <div
-        className="relative flex gap-4 items-center px-8 py-6 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0 flex-wrap md:flex-nowrap"
+        className="relative flex gap-4 items-center px-4 sm:px-8 py-4 sm:py-6 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-10 shrink-0 flex-wrap md:flex-nowrap"
         style={{ background: "#BE491F", border: "2px solid #8b2d0e" }}
       >
         {" "}

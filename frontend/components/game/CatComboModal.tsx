@@ -136,9 +136,8 @@ export function CatComboModal({
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
         style={{
-          width: "500px",
-          maxWidth: "95vw",
-          maxHeight: "90vh",
+          width: "min(500px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
           overflowY: "auto",
           background: "rgba(13,8,32,0.45)",
           backdropFilter: "blur(24px)",

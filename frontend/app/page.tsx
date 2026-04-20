@@ -123,14 +123,14 @@ export default function Home() {
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen w-full relative flex flex-col items-center justify-between p-8 md:p-16 font-sans selection:bg-orange-500/30 overflow-hidden">
+    <div className="h-full w-full relative flex flex-col items-center justify-between p-4 sm:p-8 md:p-16 [@media(max-height:450px)]:p-3 font-sans selection:bg-orange-500/30 overflow-hidden">
       <AnimatedBackground />
 
-      <div className="text-center space-y-4 z-10 pt-10 mt-10">
-        <h1 className="text-5xl md:text-7xl font-bungee tracking-wider text-transparent bg-clip-text bg-linear-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
+      <div className="text-center space-y-4 z-10 pt-6 sm:pt-10 mt-4 sm:mt-10">
+        <h1 className="text-4xl sm:text-5xl md:text-7xl [@media(max-height:450px)]:text-3xl font-bungee tracking-wider text-transparent bg-clip-text bg-linear-to-r from-orange-400 to-red-600 drop-shadow-[0_8px_8px_rgba(0,0,0,0.8)]">
           EXPLODING KITTENS
         </h1>
-        <p className="text-zinc-200 text-xl md:text-2xl font-bold drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
+        <p className="text-zinc-200 text-lg sm:text-xl md:text-2xl [@media(max-height:450px)]:text-base font-bold drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
           Enter your name to join the game
         </p>
       </div>
@@ -138,7 +138,7 @@ export default function Home() {
       <div className="flex-1 flex items-center justify-center z-10">
         <div className="flex flex-col items-center space-y-4">
           <div className="relative group/avatar cursor-pointer" onClick={handleRandomizeAvatar}>
-            <div className="w-36 h-36 md:w-48 md:h-48 rounded-full bg-zinc-900/90 border-4 border-zinc-700 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] relative z-10 group-hover/avatar:border-orange-500 transition-colors">
+            <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-48 md:h-48 [@media(max-height:450px)]:w-20 [@media(max-height:450px)]:h-20 rounded-full bg-zinc-900/90 border-4 border-zinc-700 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] relative z-10 group-hover/avatar:border-orange-500 transition-colors">
               <Image
                 src={currentAvatarUrl}
                 alt="Player Avatar"
@@ -154,7 +154,7 @@ export default function Home() {
         </div>
       </div>
 
-      <form onSubmit={handleJoin} className="w-full max-w-sm z-10 flex flex-col gap-6 pb-10">
+      <form onSubmit={handleJoin} className="w-full max-w-sm z-10 flex flex-col gap-6 pb-8 sm:pb-10">
         <div className="w-full drop-shadow-xl">
           <Input
             type="text"

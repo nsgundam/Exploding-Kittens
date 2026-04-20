@@ -141,8 +141,8 @@ export function GameLogPanel({ gameLogs }: GameLogPanelProps) {
 
   return (
     <div
-      className="absolute left-3 top-1/2 -translate-y-1/2 z-20"
-      style={{ width: "240px" }}
+      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 hidden md:block [@media(max-height:450px)]:hidden pointer-events-none"
+      style={{ width: "min(240px, calc(100vw - 1.5rem))" }}
     >
       {/* Header */}
       <div

@@ -29,8 +29,9 @@ export function FavorPickModal({
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
         style={{
-          width: "520px",
-          maxWidth: "95vw",
+          width: "min(520px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "rgba(0,5,26,0.45)",
           backdropFilter: "blur(24px)",
           border: "2px solid rgba(59,130,246,0.4)",
