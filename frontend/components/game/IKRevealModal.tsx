@@ -60,7 +60,9 @@ export function IKRevealModal({
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-8 rounded-3xl"
         style={{
-          width: "420px",
+          width: "min(420px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "linear-gradient(160deg, #1a0530 0%, #0a001a 70%)",
           border: "2px solid rgba(139,92,246,0.65)",
           boxShadow: "0 0 100px rgba(139,92,246,0.25), 0 24px 60px rgba(0,0,0,0.95)",

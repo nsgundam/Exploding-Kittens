@@ -39,7 +39,9 @@ export function FavorTargetModal({
       <div
         className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
         style={{
-          width: "460px",
+          width: "min(460px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "linear-gradient(160deg, #1a0a00 0%, #0d0500 100%)",
           border: "2px solid rgba(245,166,35,0.5)",
           boxShadow: "0 0 60px rgba(245,166,35,0.2), 0 24px 60px rgba(0,0,0,0.9)",

@@ -50,7 +50,12 @@ export default function CreateRoomModal({
       onClick={onClose}
     >
       <div
-        style={{ width: "560px", padding: "0" }}
+        style={{
+          width: "min(560px, calc(100vw - 2rem))",
+          padding: "0",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
+        }}
         className="bg-zinc-900/60 backdrop-blur-3xl border border-white/30 rounded-3xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.6)] animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >

@@ -74,13 +74,14 @@ export default function DeckConfigModal({
     >
       <div
         style={{
-          width: "480px",
+          width: "min(480px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
           background: "rgba(240,220,170,0.97)",
           border: "3px solid rgba(120,70,10,0.5)",
           borderRadius: "24px",
           boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
           fontFamily: "'Fredoka One', cursive",
-          overflow: "hidden",
+          overflow: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >

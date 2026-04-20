@@ -124,7 +124,9 @@ export function EKBombSequence({
         <div
           className="relative z-10 flex flex-col items-center gap-5 p-7 rounded-3xl"
           style={{
-            width: "460px",
+            width: "min(460px, calc(100vw - 2rem))",
+            maxHeight: "calc(100dvh - 2rem)",
+            overflowY: "auto",
             background: "linear-gradient(160deg, #1a0530 0%, #0a001a 60%, #0d0005 100%)",
             border: "2px solid rgba(139,92,246,0.7)",
             boxShadow: "0 0 80px rgba(139,92,246,0.3), 0 24px 60px rgba(0,0,0,0.95)",
@@ -242,7 +244,9 @@ export function EKBombSequence({
         <div
           className="relative z-10 pointer-events-auto flex flex-col items-center gap-4 p-6 rounded-3xl shadow-2xl"
           style={{
-            width: "440px",
+            width: "min(440px, calc(100vw - 2rem))",
+            maxHeight: "calc(100dvh - 2rem)",
+            overflowY: "auto",
             background: "rgba(20,0,0,0.92)",
             border: "2px solid rgba(239,68,68,0.6)",
             boxShadow: "0 0 60px rgba(239,68,68,0.4), 0 24px 60px rgba(0,0,0,0.8)",

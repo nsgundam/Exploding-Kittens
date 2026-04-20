@@ -70,8 +70,11 @@ export function NopeToast({
 
   return (
     <div
-      className="fixed bottom-[280px] left-1/2 -translate-x-1/2 z-[2000] flex flex-col items-center gap-1 pointer-events-none"
-      style={{ animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)" }}
+      className="fixed left-1/2 -translate-x-1/2 z-[2000] flex flex-col items-center gap-1 pointer-events-none"
+      style={{
+        bottom: "min(280px, 30vh)",
+        animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+      }}
     >
       <style>{`
         @keyframes slideUp {

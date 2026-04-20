@@ -15,7 +15,9 @@ export function EliminatedModal({ isMe, displayName, onDismiss }: EliminatedModa
       <div
         className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl text-center"
         style={{
-          width: "380px",
+          width: "min(380px, calc(100vw - 2rem))",
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
           background: "rgba(10,0,0,0.93)",
           border: "2px solid rgba(239,68,68,0.5)",
           boxShadow: "0 0 60px rgba(239,68,68,0.3), 0 24px 60px rgba(0,0,0,0.8)",
