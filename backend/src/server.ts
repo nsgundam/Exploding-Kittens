@@ -11,20 +11,21 @@ import { getErrorMessage, getErrorStatusCode } from "./utils/errors";
 
 const app = express();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
-const allowedOrigins = FRONTEND_URL.split(",");
+const FRONTEND_URLS = [
+  process.env.FRONTEND_URL,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+].filter(Boolean) as string[];
 
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes("*")) {
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || FRONTEND_URLS.includes(origin) || origin.includes("localhost") || origin.includes("127.0.0.1")) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(null, true); // Allow for dev
     }
   },
-  credentials: true,
+  credentials: true
 };
 
 app.use(cors(corsOptions));

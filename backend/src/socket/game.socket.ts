@@ -8,6 +8,7 @@ import { Server, Socket } from "socket.io";
 import { gameService } from "../services/game.service";
 import { roomService } from "../services/room.service";
 import { CardHand } from "@prisma/client";
+import { prisma } from "../config/prisma";
 import {
   StartGamePayload,
   DrawCardPayload,
@@ -19,6 +20,60 @@ import {
 } from "../types/types";
 import { getErrorMessage } from "../utils/errors";
 import { sanitizeCardHands, getPublicComboResult } from "../utils/sanitizers";
+
+/**
+ * Broadcast each player's card count to every socket in the room.
+ * Only the count (not the cards themselves) is sent to preserve anti-cheat.
+ */
+async function broadcastHandCounts(io: Server, roomId: string): Promise<void> {
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: "IN_PROGRESS" },
+    select: { session_id: true },
+  });
+  if (!session) return;
+  const hands = await prisma.cardHand.findMany({
+    where: { session_id: session.session_id },
+    select: { player_id: true, card_count: true },
+  });
+  // handCounts: { [player_id]: card_count }
+  const handCounts: Record<string, number> = {};
+  for (const h of hands) {
+    handCounts[h.player_id] = h.card_count;
+  }
+  io.to(roomId).emit("handCountsUpdated", { handCounts });
+}
+
+/**
+ * Broadcast each player's actual private hand (anti-cheat safe).
+ * Each socket only receives their own cards — used after Combo/Favor to ensure
+ * hand state is correct even when targeted socket delivery fails.
+ */
+async function broadcastPrivateHands(io: Server, roomId: string): Promise<void> {
+  const session = await prisma.gameSession.findFirst({
+    where: { room_id: roomId, status: "IN_PROGRESS" },
+    select: { session_id: true },
+  });
+  if (!session) return;
+
+  const hands = await prisma.cardHand.findMany({
+    where: { session_id: session.session_id },
+  });
+
+  const sockets = await io.in(roomId).fetchSockets();
+  for (const s of sockets) {
+    const sToken = s.data.playerToken as string | undefined;
+    if (!sToken) continue;
+    // Fetch player record to map token → player_id
+    const player = await prisma.player.findFirst({
+      where: { room_id: roomId, player_token: sToken },
+      select: { player_id: true },
+    });
+    if (!player) continue;
+    const hand = hands.find((h) => h.player_id === player.player_id);
+    if (!hand) continue;
+    s.emit("privateHandSync", { cards: (hand.cards ?? []) as string[], card_count: hand.card_count });
+  }
+}
 
 export const registerGameSocket = (io: Server): void => {
   io.on("connection", (socket: Socket) => {
@@ -152,10 +207,17 @@ export const registerGameSocket = (io: Server): void => {
           if (res.success) {
             if (res.action === "ACTION_CANCELLED") {
               io.to(roomId).emit("actionCancelled", res);
+              // Sync hand counts: original card + Nope card are both spent
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "CARD_PLAYED") {
               await handleBroadcastPlayedCard(roomId, res.playedByToken || payloadPlayerToken, res);
+              // Sync hand counts (e.g. after Favor resolves)
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "COMBO_PLAYED") {
               await handleBroadcastComboPlayed(roomId, null, res.playedByToken || payloadPlayerToken, res.robbedFromToken || targetPlayerToken!, res);
+              // Sync hand counts AND private hands after combo steal
+              await broadcastHandCounts(io, roomId);
+              await broadcastPrivateHands(io, roomId);
             } else if (res.action === "TURN_ADVANCED") {
               // DB card resolved and drew a normal card → broadcast like a draw
               // Send hand.cards privately to the drawer; others get count only
@@ -167,9 +229,22 @@ export const registerGameSocket = (io: Server): void => {
               } else {
                 io.to(roomId).emit("cardDrawn", { ...res, drawnCard: undefined, hand: undefined });
               }
+              await broadcastHandCounts(io, roomId);
             } else if (res.action === "DREW_EXPLODING_KITTEN") {
-              // DB card drew EK or IK → same flow as normal draw EK
-              io.to(roomId).emit("cardDrawn", res);
+              // DB card drew EK or IK → send drawnCard + player_id only to drawer
+              const sockets = await io.in(roomId).fetchSockets();
+              const drawerSocket = sockets.find(s => s.data.playerToken === payloadPlayerToken);
+              const drawerPlayer = await gameService.getPlayerByToken(roomId, payloadPlayerToken);
+              const drawerExtras = {
+                player_id: drawerPlayer?.player_id,
+                drawnByDisplayName: drawerPlayer?.display_name,
+              };
+              if (drawerSocket) {
+                drawerSocket.emit("cardDrawn", { ...res, ...drawerExtras });
+                io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...res, ...drawerExtras, drawnCard: undefined });
+              } else {
+                io.to(roomId).emit("cardDrawn", { ...res, ...drawerExtras, drawnCard: undefined });
+              }
             } else if (res.action === "GAME_OVER") {
               // DB card drew EK/IK and caused elimination → game over
               io.to(roomId).emit("playerEliminated", res);
@@ -206,8 +281,8 @@ export const registerGameSocket = (io: Server): void => {
     // ── Play Combo (Cat Combo 2-card / 3-card) ─────────────────
     socket.on("playCombo", async (payload: PlayComboPayload) => {
       try {
-        const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard } = payload;
-        const result = await gameService.comboCard(roomId, playerToken, comboCards, targetPlayerToken, demandedCard);
+        const { roomId, playerToken, comboCards, targetPlayerToken, demandedCard, targetCardIndex } = payload;
+        const result = await gameService.comboCard(roomId, playerToken, comboCards, targetPlayerToken, demandedCard, targetCardIndex);
 
         if (result.action === "ACTION_PENDING") {
           io.to(roomId).emit("actionPending", result);
@@ -233,35 +308,77 @@ export const registerGameSocket = (io: Server): void => {
       }
     });
 
+    const handleProcessDrawCard = async (roomId: string, playerToken: string, isAutoDraw: boolean, actingSocket: Socket | undefined = undefined) => {
+      const result = await gameService.drawCard(roomId, playerToken, isAutoDraw);
+
+      // AFK kick — emit playerEliminated instead of cardDrawn
+      if ((result as any).isAfkKick) {
+        io.to(roomId).emit("playerEliminated", result);
+        if (result.action === "GAME_OVER") {
+          const updatedRoom = await roomService.getRoomById(roomId);
+          io.to(roomId).emit("roomUpdated", updatedRoom);
+          io.emit("roomListUpdated");
+        }
+      } else if (result.action === "DREW_EXPLODING_KITTEN") {
+        const drawerPlayer = await gameService.getPlayerByToken(roomId, playerToken);
+        const drawerExtras = {
+          player_id: drawerPlayer?.player_id,
+          drawnByDisplayName: drawerPlayer?.display_name,
+        };
+        const sockets = await io.in(roomId).fetchSockets();
+        const drawerSocket = sockets.find((s) => s.data.playerToken === playerToken);
+        
+        if (drawerSocket) {
+          drawerSocket.emit("cardDrawn", { ...result, ...drawerExtras });
+          io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
+        } else {
+          io.to(roomId).emit("cardDrawn", { ...result, ...drawerExtras, drawnCard: undefined });
+        }
+      } else if (result.action === "TURN_ADVANCED") {
+        const sockets = await io.in(roomId).fetchSockets();
+        const drawerSocket = sockets.find((s) => s.data.playerToken === playerToken);
+        
+        if (drawerSocket) {
+          drawerSocket.emit("cardDrawn", result);
+          io.to(roomId).except(drawerSocket.id).emit("cardDrawn", { ...result, drawnCard: undefined });
+        } else {
+          // If drawer is disconnected but someone else triggered it (Host forced), emit drawnCard without revealing
+          io.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
+        }
+        await broadcastHandCounts(io, roomId);
+      } else {
+        io.to(roomId).emit("cardDrawn", result);
+      }
+    };
+
     // ── Draw Card (S2-20) ──────────────────────────────────────
     socket.on("drawCard", async (payload: DrawCardPayload) => {
       try {
         const { roomId, playerToken, isAutoDraw } = payload;
-
-        const result = await gameService.drawCard(roomId, playerToken, isAutoDraw ?? false);
-
-        // AFK kick — emit playerEliminated instead of cardDrawn
-        if ((result as any).isAfkKick) {
-          io.to(roomId).emit("playerEliminated", result);
-          if (result.action === "GAME_OVER") {
-            const updatedRoom = await roomService.getRoomById(roomId);
-            io.to(roomId).emit("roomUpdated", updatedRoom);
-            io.emit("roomListUpdated");
-          }
-        } else if (result.action === "DREW_EXPLODING_KITTEN") {
-          io.to(roomId).emit("cardDrawn", result);
-        } else if (result.action === "TURN_ADVANCED") {
-          // Normal draw
-          socket.emit("cardDrawn", result);
-          socket.to(roomId).emit("cardDrawn", { ...result, drawnCard: undefined });
-        } else {
-          io.to(roomId).emit("cardDrawn", result);
-        }
+        await handleProcessDrawCard(roomId, playerToken, isAutoDraw ?? false, socket);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }
     });
 
+    // ── Force Auto Draw (Host Backup for disconnected players) ──
+    socket.on("forceAutoDraw", async (payload: { roomId: string; targetPlayerId: string; hostToken: string }) => {
+      try {
+        const { roomId, targetPlayerId, hostToken } = payload;
+        
+        const room = await roomService.getRoomById(roomId);
+        if (room.host_token !== hostToken) {
+          throw new Error("Only host can force auto draw");
+        }
+        
+        const targetPlayer = room.players.find(p => p.player_id === targetPlayerId);
+        if (!targetPlayer) throw new Error("Target player not found");
+
+        await handleProcessDrawCard(roomId, targetPlayer.player_token, true);
+      } catch (err: unknown) {
+        socket.emit("errorMessage", getErrorMessage(err));
+      }
+    });
     // ── Defuse Card ────────────────────────────────────────────
     socket.on("defuseCard", async (payload: DefuseCardPayload) => {
       try {
@@ -342,6 +459,8 @@ export const registerGameSocket = (io: Server): void => {
           cardCode,
           requesterPlayerId: payload.requesterPlayerId,
         });
+        // Sync card counts after Favor card transfer
+        await broadcastHandCounts(io, roomId);
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

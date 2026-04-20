@@ -25,7 +25,7 @@ export function ActionBanners({
       {/* ── ATTACK PENDING INDICATOR ── */}
       {pendingAttacks > 0 && currentTurnSeat !== null && isMySeat(currentTurnSeat) && (
         <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl animate-bounce"
+          className="fixed bottom-[280px] left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-xl animate-bounce"
           style={{
             background: "linear-gradient(135deg, rgba(239,68,68,0.95), rgba(153,27,27,0.95))",
             border: "2px solid rgba(239,68,68,0.8)",
@@ -33,23 +33,23 @@ export function ActionBanners({
             fontFamily: "'Fredoka One', cursive",
           }}
         >
-          <span className="text-2xl">⚡</span>
+          <span className="text-lg">⚡</span>
           <div>
-            <div className="text-white font-black text-sm tracking-wider uppercase">
+            <div className="text-white font-black text-[10px] tracking-wider uppercase">
               ⚡ ATTACK! เหลืออีก {pendingAttacks} เทิร์น
             </div>
             <div className="text-red-200 text-xs">
               {"🔴".repeat(Math.min(pendingAttacks, 5))} จั่วต่อได้เลย!
             </div>
           </div>
-          <span className="text-2xl">⚡</span>
+          <span className="text-lg">⚡</span>
         </div>
       )}
 
       {/* ── TARGETED ATTACK SELECT TARGET banner ── */}
       {gamePhase === "TA_SELECT_TARGET" && (
         <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          className="fixed bottom-[280px] left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
           style={{
             background: "rgba(30,5,5,0.97)",
             border: "2px solid #ef4444",
@@ -57,8 +57,8 @@ export function ActionBanners({
             fontFamily: "'Fredoka One', cursive",
           }}
         >
-          <span className="text-xl">🎯</span>
-          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะโจมตี (2 เทิร์น)</span>
+          <span className="text-lg">🎯</span>
+          <span className="text-white font-black text-[10px]">เลือกผู้เล่นที่จะโจมตี (2 เทิร์น)</span>
           {cancelTA && (
             <button
               onClick={cancelTA}
@@ -74,7 +74,7 @@ export function ActionBanners({
       {/* ── COMBO SELECT TARGET banner ── */}
       {gamePhase === "COMBO_SELECT_TARGET" && (
         <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          className="fixed bottom-[280px] left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
           style={{
             background: "rgba(10,5,30,0.95)",
             border: "2px solid #facc15",
@@ -82,8 +82,8 @@ export function ActionBanners({
             fontFamily: "'Fredoka One', cursive",
           }}
         >
-          <span className="text-xl">🐱</span>
-          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
+          <span className="text-lg">🐱</span>
+          <span className="text-white font-black text-[10px]">เลือกผู้เล่นที่จะขโมยการ์ด</span>
           {cancelCombo && (
             <button
               onClick={cancelCombo}
@@ -99,7 +99,7 @@ export function ActionBanners({
       {/* ── FAVOR SELECT TARGET banner ── */}
       {gamePhase === "FAVOR_SELECT_TARGET" && (
         <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl"
+          className="fixed bottom-[280px] left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-xl"
           style={{
             background: "rgba(10,5,30,0.95)",
             border: "2px solid #facc15",
@@ -107,8 +107,8 @@ export function ActionBanners({
             fontFamily: "'Fredoka One', cursive",
           }}
         >
-          <span className="text-xl">🐱</span>
-          <span className="text-white font-black text-sm">เลือกผู้เล่นที่จะขโมยการ์ด</span>
+          <span className="text-lg">🐱</span>
+          <span className="text-white font-black text-[10px]">เลือกผู้เล่นที่จะขโมยการ์ด</span>
           {cancelFavor && (
             <button
               onClick={cancelFavor}

@@ -46,22 +46,31 @@ export default function LobbyPage() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const res = await fetch(`/api/rooms?status=WAITING`, {
-          cache: "no-store",
-        });
+        // Fetch ALL rooms to be safe, then filter on client
+        const res = await fetch(`/api/rooms`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Fetch rooms failed: ${res.status}`);
-        const data: ApiRoom[] = await res.json();
-        setRooms(data.map(mapApiRoomToUi));
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+          // Filter out PLAYING rooms unless it's MY room handled by the prompt
+          const uiRooms = data.map(mapApiRoomToUi);
+          setRooms(uiRooms);
+        } else {
+          setRooms([]);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Lobby fetch error:", err);
       }
     };
     fetchRooms();
-    const timer = setInterval(fetchRooms, 3000);
+    const timer = setInterval(fetchRooms, 4000);
     return () => clearInterval(timer);
   }, []);
 
   const filteredRooms = rooms.filter((room) => {
+    // Only show WAITING rooms in the main list
+    if (room.status !== "waiting") return false;
+    
     const matchTab =
       activeTab === "All" ||
       (activeTab === "Original" && room.cardVersion === "Original") ||
@@ -74,6 +83,38 @@ export default function LobbyPage() {
       `${room.id}.${room.name}`.toLowerCase().includes(q);
     return matchTab && matchSearch;
   });
+
+  const myPlayerToken = typeof window !== "undefined" ? localStorage.getItem("player_token") : null;
+
+  // หาว่า player นี้อยู่ในห้องไหนอยู่แล้ว
+  const [myActiveRoomId, setMyActiveRoomId] = useState<string | null>(null);
+  const [showRejoinPrompt, setShowRejoinPrompt] = useState(false);
+  const hasPromptedRef = React.useRef(false);
+
+  useEffect(() => {
+    const checkMyRoom = async () => {
+      if (!myPlayerToken) return;
+      try {
+        const res = await fetch(`/api/rooms/current`, {
+          headers: { "x-player-token": myPlayerToken },
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const rid = data?.roomId ?? null;
+        setMyActiveRoomId(rid);
+        
+        // ถ้าเจอห้องที่เคยอยู่ และยังไม่เคยถาม ให้โชว์ถามทันที
+        if (rid && !hasPromptedRef.current) {
+          setShowRejoinPrompt(true);
+          hasPromptedRef.current = true;
+        }
+      } catch { /* ignore */ }
+    };
+    checkMyRoom();
+    const t = setInterval(checkMyRoom, 4000);
+    return () => clearInterval(t);
+  }, [myPlayerToken]);
 
   const handleRoomClick = (room: LobbyRoom) => {
     setSelectedRoom(room);
@@ -160,7 +201,7 @@ export default function LobbyPage() {
   const tabs: { label: string; value: FilterTab }[] = [
     { label: "All", value: "All" },
     { label: "Original", value: "Original" },
-    { label: "Good", value: "Good" },
+    // { label: "Good", value: "Good" },
   ];
 
   return (
@@ -277,6 +318,37 @@ export default function LobbyPage() {
           )}
         </div>
       </div>
+
+      {/* ═══ REJOIN PROMPT OVERLAY ═══ */}
+      {showRejoinPrompt && myActiveRoomId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div 
+            className="w-full max-w-sm bg-[#FAF2DF] border-4 border-black rounded-[32px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center text-center gap-6"
+            style={{ fontFamily: "'Fredoka One', cursive" }}
+          >
+            <div className="text-6xl animate-bounce">🙀</div>
+            <div className="flex flex-col gap-2">
+              <h2 className="text-2xl font-black text-[#3d1a00] uppercase tracking-tight">คุณหลุดออกจากเกม!</h2>
+              <p className="text-[#8b5e3c] font-bold">ต้องการกลับเข้าสู่ห้องเดิมไหมครับ?</p>
+            </div>
+            
+            <div className="flex flex-col w-full gap-3">
+              <button
+                onClick={() => router.push(`/room/${myActiveRoomId}`)}
+                className="w-full h-14 bg-linear-to-r from-[#16a34a] to-[#15803d] border-4 border-black rounded-2xl text-white font-black text-xl shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+              >
+                กลับเข้าห้องเดิม
+              </button>
+              <button
+                onClick={() => setShowRejoinPrompt(false)}
+                className="w-full h-12 bg-white/50 border-2 border-black/10 rounded-2xl text-[#8b5e3c] font-bold text-sm hover:bg-white/80 transition-all"
+              >
+                ไม่เป็นไร ดูห้องอื่นแทน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ CONTROLS ═══ */}
       <div

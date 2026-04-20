@@ -19,16 +19,18 @@ const TOKEN_EXPIRY_MS = 12 * 60 * 60 * 1000;
 
 export default function Home() {
   const router = useRouter();
-  
+
   const [name, setName] = useState("");
   const [avatarStyle, setAvatarStyle] = useState<typeof AVATAR_STYLES[number]>(AVATAR_STYLES[0]);
-  const [seed, setSeed] = useState("default-seed"); 
+  const [seed, setSeed] = useState("default-seed");
   const [isLoading, setIsLoading] = useState(false);
-  const [isMounted, setIsMounted] = useState(false); 
+  const [isMounted, setIsMounted] = useState(false);
+  const [rejoinRoomId, setRejoinRoomId] = useState<string | null>(null);
+  const [showRejoinPrompt, setShowRejoinPrompt] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMounted(true); 
+    setIsMounted(true);
 
     try {
       // Manage token expiry
@@ -68,13 +70,14 @@ export default function Home() {
         fetch("/api/rooms/current", {
           headers: { "x-player-token": token }
         })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.roomId) {
-            router.push(`/room/${data.roomId}`);
-          }
-        })
-        .catch(err => console.error("Auto-reconnect failed:", err));
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.roomId) {
+              setRejoinRoomId(data.roomId);
+              setShowRejoinPrompt(true);
+            }
+          })
+          .catch(err => console.error("Auto-reconnect failed:", err));
       }
     } catch (e) {
       console.error(e);
@@ -104,12 +107,12 @@ export default function Home() {
         localStorage.setItem("player_token", playerToken);
         localStorage.setItem("token_created_at", Date.now().toString());
       }
-      
+
       localStorage.setItem("display_name", name.trim());
       localStorage.setItem("profile_picture", currentAvatarValue);
-      
+
       await new Promise(resolve => setTimeout(resolve, 800));
-      
+
       router.push("/Lobby");
     } catch (error) {
       console.error("Failed to join:", error);
@@ -131,15 +134,15 @@ export default function Home() {
           Enter your name to join the game
         </p>
       </div>
-      
+
       <div className="flex-1 flex items-center justify-center z-10">
         <div className="flex flex-col items-center space-y-4">
           <div className="relative group/avatar cursor-pointer" onClick={handleRandomizeAvatar}>
             <div className="w-36 h-36 md:w-48 md:h-48 rounded-full bg-zinc-900/90 border-4 border-zinc-700 flex items-center justify-center overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] relative z-10 group-hover/avatar:border-orange-500 transition-colors">
-              <Image 
-                src={currentAvatarUrl} 
-                alt="Player Avatar" 
-                width={192} 
+              <Image
+                src={currentAvatarUrl}
+                alt="Player Avatar"
+                width={192}
                 height={192}
                 className="object-cover group-hover/avatar:scale-110 transition-transform duration-300"
               />
@@ -164,8 +167,8 @@ export default function Home() {
           />
         </div>
 
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={!name.trim() || isLoading}
           className="w-full h-16 text-xl font-bungee tracking-widest bg-linear-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white border-2 border-orange-400/50 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all rounded-2xl"
         >
@@ -176,6 +179,37 @@ export default function Home() {
           )}
         </Button>
       </form>
+
+      {/* ═══ REJOIN PROMPT OVERLAY ═══ */}
+      {showRejoinPrompt && rejoinRoomId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div
+            className="w-full max-w-sm bg-[#FAF2DF] border-4 border-black rounded-[32px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center text-center gap-6"
+            style={{ fontFamily: "'Fredoka One', cursive" }}
+          >
+            <div className="text-6xl animate-bounce">🙀</div>
+            <div className="flex flex-col gap-2">
+              <h2 className="text-2xl font-black text-[#3d1a00] uppercase tracking-tight">คุณมีเกมที่ค้างอยู่!</h2>
+              <p className="text-[#8b5e3c] font-bold">ต้องการกลับเข้าสู่ห้องเดิมหรือไม่?</p>
+            </div>
+
+            <div className="flex flex-col w-full gap-3">
+              <button
+                onClick={() => router.push(`/room/${rejoinRoomId}`)}
+                className="w-full h-14 bg-linear-to-r from-[#16a34a] to-[#15803d] border-4 border-black rounded-2xl text-white font-black text-xl shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+              >
+                กลับเข้าห้องเดิม
+              </button>
+              <button
+                onClick={() => setShowRejoinPrompt(false)}
+                className="w-full h-12 bg-white/50 border-2 border-black/10 rounded-2xl text-[#8b5e3c] font-bold text-sm hover:bg-white/80 transition-all"
+              >
+                ข้ามไปหน้าล็อบบี้
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

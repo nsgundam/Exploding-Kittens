@@ -21,11 +21,25 @@ export async function playNope(
       throw new BadRequestError("No pending action to Nope");
     }
 
-    if (
-      typeof session.pending_action === "object" &&
-      (session.pending_action as Record<string, unknown>)["card"] === CardCode.IMPLODING_KITTEN
-    ) {
-      throw new BadRequestError("Imploding Kitten cannot be Noped");
+    // Check that the Nope window (2.5s) has not expired.
+    // We use 2500ms (not 3000ms) to prevent a race condition where a late Nope
+    // resets the timestamp just as the 3s resolve timer fires, causing a 3s extra freeze.
+    if (!session.pending_action_timestamp) {
+      throw new BadRequestError("No pending action to Nope");
+    }
+    const elapsed = Date.now() - session.pending_action_timestamp.getTime();
+    if (elapsed >= 2500) {
+      throw new BadRequestError("Nope window has already closed");
+    }
+
+    // Block Nope for cards that cannot be Noped: EK, IK, Defuse
+    const pendingData = typeof session.pending_action === "object"
+      ? (session.pending_action as Record<string, unknown>)
+      : {};
+    const pendingCardCode = (pendingData["cardCode"] as string | undefined) ?? "";
+    const nonNopeableCodes = new Set(["EK", "IK", "DF"]);
+    if (nonNopeableCodes.has(pendingCardCode)) {
+      throw new BadRequestError(`${pendingCardCode} cannot be Noped`);
     }
 
     const player = await tx.player.findFirst({
@@ -133,6 +147,8 @@ export async function resolvePendingAction(roomId: string) {
         success: true as const,
         action: "ACTION_CANCELLED" as const,
         originalAction: pendingActionData.type,
+        cardCode: pendingActionData.cardCode as string | undefined,
+        comboCards: pendingActionData.comboCards as string[] | undefined,
         playedBy: originalPlayer.player_id,
         playedByDisplayName: originalPlayer.display_name,
       };
@@ -185,7 +201,7 @@ export async function resolvePendingAction(roomId: string) {
         nextTurn: effectData.turnResult?.nextTurn,
       };
     } else if (pendingActionData.type === "COMBO_CARD") {
-      const { comboCards, targetPlayerToken, demandedCard } = pendingActionData;
+      const { comboCards, targetPlayerToken, demandedCard, targetCardIndex } = pendingActionData;
       const isThreeCard = comboCards.length === 3;
 
       const target = await tx.player.findFirst({
@@ -223,14 +239,15 @@ export async function resolvePendingAction(roomId: string) {
             targetCards.splice(demandIdx, 1);
           }
         } else {
-          const stealable = targetCards.filter(
-            (c) => c !== "EK" && c !== "GVE_EK" && c !== "DF" && c !== "GVE_DF"
-          );
-          const pool = stealable.length > 0 ? stealable : targetCards;
-          const randomIdx = Math.floor(Math.random() * pool.length);
-          stolenCard = pool[randomIdx]!;
-          const realIdx = targetCards.indexOf(stolenCard);
-          targetCards.splice(realIdx, 1);
+          let randomIdx: number;
+          if (typeof targetCardIndex === "number" && targetCardIndex >= 0 && targetCardIndex < targetCards.length) {
+            randomIdx = targetCardIndex;
+          } else {
+            randomIdx = Math.floor(Math.random() * targetCards.length);
+          }
+          
+          stolenCard = targetCards[randomIdx]!;
+          targetCards.splice(randomIdx, 1);
         }
       }
 

@@ -1,10 +1,15 @@
 "use client";
-
+import { AttackCardAnimation } from "@/components/game/AttackCardAnimation";
+import { TargetedAttackAnimation } from "@/components/game/TargetedAttackAnimation";
+import { NopeCardAnimation } from "@/components/game/NopeCardAnimation";
+import { ShuffleCardAnimation } from "@/components/game/ShuffleCardAnimation";
+import { DefuseEffect } from "@/components/game/DefuseEffect";
 import { useRoomSocket } from "@/hooks/useRoomSocket";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { GameBoard } from "@/components/game/GameBoard";
 import { PlayerHand } from "@/components/game/PlayerHand";
+import { DrawCardAnimation } from "@/components/game/DrawCardAnimation";
 import DeckConfigModal from "@/components/game/DeckConfigModal";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
@@ -59,6 +64,21 @@ export default function RoomPage() {
     commitAlterTheFuture,
     setGamePhase,
     ikOnTop,
+    drawAnimState,
+    setDrawAnimState,
+    isDrawLocked,
+    afterDrawAnimRef,
+    afterHellfireRef,
+    attackAnimState,
+    setAttackAnimState,
+    taAnimState,
+    setTaAnimState,
+    nopeAnimState,
+    setNopeAnimState,
+    shuffleAnimState,
+    setShuffleAnimState,
+    defuseEffectState,
+    setDefuseEffectState,
   } = useRoomSocket(roomId);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -245,14 +265,16 @@ export default function RoomPage() {
 
           {/* Center: Room info */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5"
-            style={{ top: "60%" }}
+            className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5"
           >
             <div
-              className="text-xs tracking-[0.25em] uppercase"
-              style={{ color: "rgba(100,50,0,0.7)" }}
+              className="text-2xl leading-none tracking-wide"
+              style={{
+                color: "#3d1a00",
+                textShadow: "0 1px 0 rgba(255,255,255,0.4)",
+              }}
             >
-              ห้องเกม
+              ID: {roomId.split('-')[0]}
             </div>
             <div
               className="text-2xl leading-none tracking-wide"
@@ -347,6 +369,7 @@ export default function RoomPage() {
             onCloseSeeTheFuture={closeSeeTheFuture}
             selectSeat={selectSeat}
             drawCard={drawCard}
+            isDrawLocked={isDrawLocked}
             playCard={playCard}
             onPlayCombo={handlePlayCombo}
             defuseCard={defuseCard}
@@ -381,6 +404,7 @@ export default function RoomPage() {
             ikDrawerName={ikDrawerName}
             onIKRevealDone={handleIKRevealDone}
             ikOnTop={ikOnTop}
+            afterHellfireRef={afterHellfireRef}
           />
         </div>
 
@@ -502,6 +526,48 @@ export default function RoomPage() {
 
         </footer>
       </div>
+
+      {/* ── DRAW CARD ANIMATION ──────────────────────────────────────── */}
+      <DrawCardAnimation
+        state={drawAnimState ?? null}
+        onComplete={() => {
+          setDrawAnimState(null);
+          if (afterDrawAnimRef.current) {
+            afterDrawAnimRef.current();
+            afterDrawAnimRef.current = null;
+          }
+        }}
+      />
+
+      {/* ── ATTACK CARD ANIMATION ────────────────────────────────────── */}
+      <AttackCardAnimation
+        state={attackAnimState ?? null}
+        onComplete={() => setAttackAnimState(null)}
+      />
+
+      {/* ── TARGETED ATTACK ANIMATION ────────────────────────────────── */}
+      <TargetedAttackAnimation
+        state={taAnimState ?? null}
+        onComplete={() => setTaAnimState(null)}
+      />
+
+      {/* ── NOPE CARD ANIMATION ──────────────────────────────────────── */}
+      <NopeCardAnimation
+        state={nopeAnimState ?? null}
+        onComplete={() => setNopeAnimState(null)}
+      />
+
+      {/* ── SHUFFLE CARD ANIMATION ───────────────────────────────────── */}
+      <ShuffleCardAnimation
+        state={shuffleAnimState ?? null}
+        onComplete={() => setShuffleAnimState(null)}
+      />
+
+      {/* ── DEFUSE EFFECT ────────────────────────────────────────────── */}
+      <DefuseEffect
+        state={defuseEffectState ?? null}
+        onComplete={() => setDefuseEffectState(null)}
+      />
 
       {/* ── DECK CONFIG MODAL ────────────────────────────────────────── */}
       {showDeckConfig && (

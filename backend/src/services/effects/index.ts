@@ -217,7 +217,7 @@ const handleShuffleEffect: EffectHandler = async ({ tx, session }) => {
     where: { session_id: session.session_id },
     data: {
       deck_order: shuffled,
-      ik_face_up: ikStillOnTop,
+      ik_face_up: deckState.ik_face_up,
     }
   });
   return { effect: { type: "SHUFFLE", shuffled: true, ikOnTop: ikStillOnTop } };
@@ -246,8 +246,7 @@ const handleFavorEffect: EffectHandler = async ({ tx, session, roomId, currentPl
     },
   });
   const targetCards = ((targetHand?.cards ?? []) as string[]).filter(
-    (c) => c !== CardCode.EXPLODING_KITTEN && c !== CardCode.GVE_EXPLODING_KITTEN &&
-      c !== CardCode.DEFUSE && c !== CardCode.GVE_DEFUSE
+    (c) => c !== CardCode.EXPLODING_KITTEN && c !== CardCode.GVE_EXPLODING_KITTEN
   );
 
   if (targetCards.length === 0) {
@@ -279,8 +278,8 @@ export const applyCardEffect = async (
   normalizedCode: string,
   context: EffectContext
 ): Promise<{ effect?: CardEffectResult; turnResult?: TurnAdvancedResult }> => {
-  if (["NP", "RH", "AG", "FC"].includes(normalizedCode)) {
-    throw new BadRequestError(`Card ${normalizedCode} action is not yet implemented`);
+  if (normalizedCode === "NP") {
+    throw new BadRequestError("Nope card can only be played during the Nope window (3 seconds after a card is played)");
   }
   if (normalizedCode.startsWith("CAT_") || normalizedCode === "MC") {
     throw new BadRequestError(`Combo cards are not yet implemented`);

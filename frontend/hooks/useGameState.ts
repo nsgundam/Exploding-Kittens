@@ -1,8 +1,14 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { Socket } from "socket.io-client";
 import type { RoomData, CardHand } from "@/types";
 import { FavorState, ComboState } from "./useGameActions";
 import { useGameSocketEvents } from "./useGameSocketEvents";
+import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
+import type { AttackAnimState } from "@/components/game/AttackCardAnimation";
+import type { TargetedAttackAnimState } from "@/components/game/TargetedAttackAnimation";
+import type { NopeAnimState } from "@/components/game/NopeCardAnimation";
+import type { ShuffleAnimState } from "@/components/game/ShuffleCardAnimation";
+import type { DefuseEffectState } from "@/components/game/DefuseEffect";
 
 export type GamePhase =
   | "WAITING"
@@ -55,33 +61,82 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
   const [comboState, setComboState] = useState<ComboState | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingActionState | null>(null);
   const [nopeState, setNopeState] = useState<NopeState | null>(null);
-  const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string } | null>(null);
+  const [lastPlayedCard, setLastPlayedCard] = useState<{ cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null>(null);
+  const lastPlayedCardSeqRef = useRef<number>(0);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
+  const [isDrawLocked, setIsDrawLocked] = useState<boolean>(false);
+
   const [deckCount, setDeckCount] = useState<number | null>(null);
+  const [serverRemainingTime, setServerRemainingTime] = useState<number | null>(null);
   const [turnNumber, setTurnNumber] = useState<number>(0);
   const [pendingAttacks, setPendingAttacks] = useState<number>(0);
   const [direction, setDirection] = useState<number>(1);
   const [ikOnTop, setIkOnTop] = useState<boolean>(false);
+  const [drawAnimState, setDrawAnimState] = useState<DrawAnimState | null>(null);
+  // ── Attack animation state ────────────────────────────────────────────────
+  const [attackAnimState, setAttackAnimState] = useState<AttackAnimState | null>(null);
+  // ── Targeted Attack animation state ──────────────────────────────────────
+  const [taAnimState, setTaAnimState] = useState<TargetedAttackAnimState | null>(null);
+  // ── Nope animation state ──────────────────────────────────────────────────
+  const [nopeAnimState, setNopeAnimState] = useState<NopeAnimState | null>(null);
+  // ── Shuffle animation state ───────────────────────────────────────────────
+  const [shuffleAnimState, setShuffleAnimState] = useState<ShuffleAnimState | null>(null);
+  // ── Defuse effect state ────────────────────────────────────────────────────
+  const [defuseEffectState, setDefuseEffectState] = useState<DefuseEffectState | null>(null);
 
   const roomDataRef = useRef<RoomData | null>(null);
   const currentTurnPlayerIdRef = useRef<string | null>(null);
   const pendingNextTurnRef = useRef<string | null>(null);
   const gamePhaseRef = useRef<GamePhase>("WAITING");
   const onCardPlayedRef = useRef<(() => void) | null>(null);
+  // callback to run after DrawCardAnimation completes (used for EK/IK bomb reveal)
+  const afterDrawAnimRef = useRef<(() => void) | null>(null);
+  // callback to run after hellfire/implosion animation completes (used to defer popup)
+  const afterHellfireRef = useRef<(() => void) | null>(null);
 
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
   useEffect(() => { currentTurnPlayerIdRef.current = currentTurnPlayerId; }, [currentTurnPlayerId]);
   useEffect(() => { gamePhaseRef.current = gamePhase; }, [gamePhase]);
 
+  // ── NOPE_WINDOW watchdog ────────────────────────────────────────────────
+  // If the server's cardPlayed/actionCancelled event is missed (dropped packet,
+  // brief reconnect, etc.) the UI stays frozen in NOPE_WINDOW. We auto-clear it
+  // after 5 s so the game can continue. (Backend resolve fires at 3 s, Nope
+  // window closes at 2.5 s, so 5 s is a safe upper limit.)
+  useEffect(() => {
+    if (gamePhase !== "NOPE_WINDOW") return;
+    const watchdog = setTimeout(() => {
+      if (gamePhaseRef.current === "NOPE_WINDOW") {
+        console.warn("⚠️ NOPE_WINDOW watchdog: phase stuck, resetting to PLAYING");
+        setGamePhase("PLAYING");
+        setPendingAction(null);
+        setNopeState(null);
+      }
+    }, 5000); // 5 s > 3 s backend timer → safe fallback
+    return () => clearTimeout(watchdog);
+  }, [gamePhase]);
+
+  const setLastPlayedCardWithSeq = useCallback((card: { cardCode: string; playedByDisplayName: string; noAnimate?: boolean } | null) => {
+    if (!card) { setLastPlayedCard(null); return; }
+    lastPlayedCardSeqRef.current += 1;
+    setLastPlayedCard({ ...card, seq: lastPlayedCardSeqRef.current });
+  }, []);
+
   const setters = useMemo(() => ({
     setRoomData, setCardHands, setMyCards, setSessionId, setGameLogs,
     setGamePhase, setEkBombState, setSeeTheFutureCards, setEliminatedPlayerId,
     setWinner, setFavorState, setComboState, setPendingAction, setNopeState,
-    setLastPlayedCard, setCurrentTurnPlayerId, setDeckCount, setTurnNumber,
-    setPendingAttacks, setDirection, setIkOnTop, roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
-    gamePhaseRef, onCardPlayedRef
+    setLastPlayedCard: setLastPlayedCardWithSeq, setCurrentTurnPlayerId, setDeckCount, setServerRemainingTime, setTurnNumber,
+    setPendingAttacks, setDirection, setIkOnTop, setDrawAnimState, setIsDrawLocked,
+    setAttackAnimState,
+    setTaAnimState,
+    setNopeAnimState,
+    setShuffleAnimState,
+    setDefuseEffectState,
+    roomDataRef, currentTurnPlayerIdRef, pendingNextTurnRef,
+    gamePhaseRef, onCardPlayedRef, afterDrawAnimRef, afterHellfireRef,
     
-  }), []);
+  }), [setLastPlayedCardWithSeq]);
 
   useGameSocketEvents(socket, roomId, setters);
 
@@ -115,14 +170,24 @@ export const useGameState = (socket: Socket | null, roomId: string) => {
     comboState, setComboState,
     pendingAction, setPendingAction,
     nopeState, setNopeState,
+    isDrawLocked, setIsDrawLocked,
     lastPlayedCard, setLastPlayedCard,
     currentTurnPlayerId, setCurrentTurnPlayerId,
     pendingAttacks,
     direction, setDirection,
     ikOnTop, setIkOnTop,
+    drawAnimState, setDrawAnimState,
+    attackAnimState, setAttackAnimState,
+    taAnimState, setTaAnimState,
+    nopeAnimState, setNopeAnimState,
+    shuffleAnimState, setShuffleAnimState,
+    defuseEffectState, setDefuseEffectState,
     deckCount, setDeckCount,
+    serverRemainingTime, setServerRemainingTime,
     turnNumber, setTurnNumber,
     currentTurnPlayerIdRef, pendingNextTurnRef, roomDataRef,
+    afterDrawAnimRef,
+    afterHellfireRef,
     setOnCardPlayed,
   };
 };

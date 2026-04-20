@@ -1,98 +1,53 @@
-# 🐱 Exploding Kittens – Frontend  
+# 🐱 Frontend — Exploding Kittens Client
 
----
+This directory contains the web client for the Exploding Kittens Online Multiplayer game. It provides the user interface, handles client state, and communicates in real-time with the game server via WebSockets.
 
-## 📌 ภาพรวมโปรเจค (Project Overview)
+## 🛠️ Technology Stack
+- **Framework:** Next.js (React 19)
+- **Styling:** Tailwind CSS & PostCSS
+- **Animations:** Framer Motion & Canvas Confetti
+- **Components:** Radix UI / shadcn concepts
+- **Real-Time Communication:** Socket.io-client
 
-โปรเจคนี้เป็นส่วน **Frontend** ของเกม **Exploding Kittens** แบบ Web Application  
-พัฒนาโดยใช้ **Next.js (App Router + TypeScript)**
+## 🚀 Installation & Local Development
 
-หน้าที่ของ Frontend คือการพัฒนา **User Interface (UI)** และเตรียมโครงสร้างสำหรับเชื่อมต่อ **Backend** 
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
----
+2. **Environment Variables:**
+   Create a `.env` or `.env.local` file in the root of the `frontend` directory:
+   ```env
+   # Ensure these point to your running backend instance
+   NEXT_PUBLIC_SOCKET_URL="http://localhost:4000"
+   NEXT_PUBLIC_API_URL="http://localhost:4000"
+   ```
 
-## 🛠 เทคโนโลยีที่ใช้ (Tech Stack)
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
-- ⚛️ **Next.js**
-- ⚡ **React**
-- 🟦 **TypeScript**
-- 🎨 **PostCSS**
-- 🔍 **ESLint**
+   The app will start at `http://localhost:3000`.
 
----
+4. **Build for Production:**
+   ```bash
+   npm run build
+   npm run start
+   ```
 
-## 📂 โครงสร้างโปรเจค (Project Structure)
+## 🏗️ Architecture Overview
 
-> โปรเจค Next.js อยู่ภายในโฟลเดอร์ `frontend`
+- **`/app`**: Contains the Next.js App Router pages (e.g., Lobby, Game Room).
+- **`/components`**: Reusable UI pieces.
+  - `/game`: Components specifically for rendering the game board, deck, cards, player hands, Nope windows, and the EK Bomb sequence.
+  - `/lobby`: Room creation, room list, and player profile configuration.
+- **`/hooks`**: Custom React hooks for encapsulating game state, managing socket event listeners, and countdown timers.
+- **State Management:** The frontend state strictly reflects the server's Source of Truth. Optimistic updates are used sparingly; actions are broadcast to the server, and the UI updates upon receiving validation events.
 
-```txt
-EXPLODING-KITTENS/
-└── frontend/
-    ├── app/                # หน้าเว็บ (App Router)
-    ├── public/             # ไฟล์ static เช่น รูปภาพ
-    ├── .next/              # ไฟล์ build (สร้างอัตโนมัติ)
-    ├── node_modules/       # dependencies
-    ├── package.json
-    ├── package-lock.json
-    ├── tsconfig.json
-    ├── next.config.ts
-    ├── postcss.config.mjs
-    ├── eslint.config.mjs
-    └── README.md
-```
-
----
-
-## 🚀 วิธีการรันโปรเจค (Getting Started)
-
-> ⚠️ โปรเจค Next.js อยู่ภายในโฟลเดอร์ `frontend`
-
-### 1️⃣ Clone Repository
-
-```bash
-git clone https://github.com/<your-username>/Exploding-Kittens.git
-```
-
-### 2️⃣ เข้าไปที่โฟลเดอร์ Frontend
-
-```bash
-cd Exploding-Kittens/frontend
-```
-
-### 3️⃣ ติดตั้ง Dependencies
-
-```bash
-npm install
-```
-### ติดตั้งแพ็กเกจ canvas-confetti 
-```bash
-npm install canvas-confetti
-npm install --save-dev @types/canvas-confetti
-```
-### 4️⃣ รัน Development Server
-
-```bash
-npm run dev
-```
-
-จากนั้นเปิดเบราว์เซอร์ที่:
-
-```
-http://localhost:3000
-```
-
----
-
-## 👨‍💻 หน้าที่ความรับผิดชอบ (Frontend Responsibilities)
-
-Frontend Developer มีหน้าที่ดังนี้:
-
-- 🎨 ออกแบบและพัฒนา User Interface (UI)
-- 🧩 สร้างและจัดการ React Components
-- 🗂 วางโครงสร้างหน้าเว็บ (Routing & Layout)
-- 🔄 จัดการ State Management
-- 🔗 เชื่อมต่อ API กับ Backend
-- 🎮 พัฒนา Interface สำหรับการเล่นเกม
-- 🧪 ทดสอบและแก้ไขปัญหา UI
-
----
+## 🎨 UI/UX Features
+- **Card Fanning & Interaction:** Your hand is displayed dynamically with hover states and select-to-play workflows.
+- **Nope Chains:** A global 3-second Nope window is surfaced for interrupts whenever an actionable card is played.
+- **Imploding Kittens:** Visual indicators for face-up and face-down states on the deck.
+- **Responsive:** Designed to be totally playable on both desktop and mobile devices.

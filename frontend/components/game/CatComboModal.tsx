@@ -16,7 +16,7 @@ export interface CatComboModalProps {
   expansions?: string[];
   startAtDemandStep?: boolean;    // เริ่มที่ step demand card เลย (สำหรับ 3-card จาก board)
   preselectedTarget?: string;     // player_token ที่เลือกไว้แล้ว
-  onConfirm: (targetPlayerToken: string, demandedCard?: string) => void;
+  onConfirm: (targetPlayerToken: string, demandedCard?: string, cardIndex?: number) => void;
   onCancel: () => void;
 }
 
@@ -49,6 +49,7 @@ export function CatComboModal({
     preselectedTarget ? (players.find(p => p.player_token === preselectedTarget) ?? null) : null
   );
   const [demandedCard, setDemandedCard] = useState<string>("");
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [filterText, setFilterText] = useState("");
 
   // กรองการ์ดที่สามารถขโมยได้ตาม deck version และ expansions
@@ -97,17 +98,15 @@ export function CatComboModal({
 
   const handleSelectTarget = (player: Player) => {
     setSelectedTarget(player);
-    if (isThreeCard) {
-      setStep("demand_card");
-    } else {
-      onConfirm(player.player_token);
-      resetState();
-    }
+    // Both 2-card and 3-card go to the "demand_card" step now
+    setStep("demand_card");
   };
 
   const handleDemandConfirm = () => {
-    if (!selectedTarget || !demandedCard) return;
-    onConfirm(selectedTarget.player_token, demandedCard);
+    if (!selectedTarget) return;
+    if (isThreeCard && !demandedCard) return;
+    if (!isThreeCard && selectedCardIndex === null) return;
+    onConfirm(selectedTarget.player_token, demandedCard, selectedCardIndex ?? undefined);
     resetState();
   };
 
@@ -115,6 +114,7 @@ export function CatComboModal({
     setStep("select_target");
     setSelectedTarget(null);
     setDemandedCard("");
+    setSelectedCardIndex(null);
     setFilterText("");
   };
 
@@ -188,7 +188,7 @@ export function CatComboModal({
             <div className="text-xs mt-0.5" style={{ color: `${cardConfig.color}77` }}>
               {isThreeCard
                 ? "ขโมยการ์ดที่ระบุ — ถ้าไม่มี ถือว่าโมฆะ"
-                : "ขโมยการ์ดแบบสุ่ม — ผู้ถูกเลือกไม่เห็นหน้าการ์ด"}
+                : "สุ่มจิ้มการ์ด 1 ใบจากมือผู้เล่นอื่น"}
             </div>
           </div>
         </div>
@@ -214,7 +214,7 @@ export function CatComboModal({
               >
                 {isThreeCard
                   ? "เลือกผู้เล่น จากนั้นระบุการ์ดที่ต้องการ"
-                  : "ระบบจะสุ่มการ์ด 1 ใบจากผู้เล่นที่คุณเลือก"}
+                  : "เลือกผู้เล่น แล้วสุ่มหยิบการ์ดจากมือ 1 ใบ"}
               </div>
             </div>
 
@@ -324,11 +324,42 @@ export function CatComboModal({
                 className="text-xs mt-0.5"
                 style={{ color: "rgba(255,255,255,0.4)" }}
               >
-                ถ้าผู้เล่นไม่มีการ์ดนั้น Combo จะโมฆะ
+                {isThreeCard ? "ถ้าผู้เล่นไม่มีการ์ดนั้น Combo จะโมฆะ" : "จิ้มเพื่อสุ่มหยิบไพ่หลังการ์ดของเป้าหมาย"}
               </div>
             </div>
 
-            {/* Search */}
+            {/* Content for Step 2 based on Combo Size */}
+            {!isThreeCard ? (
+              <div className="flex flex-wrap justify-center gap-3 w-full py-4 max-h-[220px] overflow-y-auto">
+                {Array.from({ length: selectedTarget.hand_count ?? 0 }).map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedCardIndex(idx)}
+                    className="relative rounded-xl transition-all flex flex-col items-center justify-center shadow-lg"
+                    style={{
+                      width: "60px",
+                      height: "90px",
+                      background: selectedCardIndex === idx ? `linear-gradient(135deg, ${cardConfig.color}, ${cardConfig.color}88)` : "linear-gradient(135deg, #1e0a3c, #3b156a)",
+                      border: "2px solid " + (selectedCardIndex === idx ? "#fff" : "rgba(255,255,255,0.2)"),
+                      transform: selectedCardIndex === idx ? "scale(1.1) translateY(-4px)" : "scale(1)",
+                      boxShadow: selectedCardIndex === idx ? `0 10px 20px ${cardConfig.color}66` : "0 4px 10px rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    <div
+                      className="absolute inset-1 rounded-lg opacity-20"
+                      style={{
+                        backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 4px)",
+                        backgroundSize: "6px 6px",
+                      }}
+                    />
+                    <span className="text-xl opacity-60">🐱</span>
+                    <span className="text-[10px] mt-1 font-black" style={{ color: "rgba(255,255,255,0.5)" }}>#{idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Search */}
             <div className="w-full relative">
               <span
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-base pointer-events-none"
@@ -424,6 +455,8 @@ export function CatComboModal({
                 </div>
               </div>
             )}
+              </>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 w-full">
@@ -431,6 +464,7 @@ export function CatComboModal({
                 onClick={() => {
                   setStep("select_target");
                   setDemandedCard("");
+                  setSelectedCardIndex(null);
                   setFilterText("");
                 }}
                 className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95"
@@ -445,15 +479,15 @@ export function CatComboModal({
               </button>
               <button
                 onClick={handleDemandConfirm}
-                disabled={!demandedCard}
+                disabled={isThreeCard ? !demandedCard : selectedCardIndex === null}
                 className="flex-1 py-3 px-6 rounded-2xl font-black text-sm uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{
-                  background: demandedCard
+                  background: (isThreeCard ? demandedCard : selectedCardIndex !== null)
                     ? `linear-gradient(135deg, ${cardConfig.color}, ${cardConfig.color}bb)`
                     : "rgba(255,255,255,0.05)",
-                  border: `2px solid ${demandedCard ? cardConfig.color : "transparent"}`,
-                  color: demandedCard ? "#000" : "rgba(255,255,255,0.3)",
-                  boxShadow: demandedCard
+                  border: `2px solid ${(isThreeCard ? demandedCard : selectedCardIndex !== null) ? cardConfig.color : "transparent"}`,
+                  color: (isThreeCard ? demandedCard : selectedCardIndex !== null) ? "#000" : "rgba(255,255,255,0.3)",
+                  boxShadow: (isThreeCard ? demandedCard : selectedCardIndex !== null)
                     ? `0 4px 20px ${cardConfig.color}55`
                     : "none",
                   fontFamily: "'Fredoka One', cursive",

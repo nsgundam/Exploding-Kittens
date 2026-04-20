@@ -56,6 +56,10 @@ export async function playCard(
     if (room.status !== RoomStatus.PLAYING)
       throw new BadRequestError("Game is not active");
 
+    if (cardCode === "NP" || cardCode === "GVE_NP") {
+      throw new BadRequestError("Nope card can only be played during a Nope window. Did not expect it via playCard.");
+    }
+
     const session = await tx.gameSession.findFirst({
       where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
     });
@@ -149,6 +153,7 @@ export async function comboCard(
   comboCards: string[],
   targetPlayerToken: string,
   demandedCard?: string,
+  targetCardIndex?: number,
 ): Promise<ComboResult> {
   return await prisma.$transaction(async (tx) => {
     const session = await tx.gameSession.findFirst({
@@ -202,7 +207,7 @@ export async function comboCard(
       data: { discard_pile: [...discardPile, ...comboCards] },
     });
 
-    const pendingAction = { type: "COMBO_CARD", comboCards, playedByToken: playerToken, targetPlayerToken, demandedCard };
+    const pendingAction = { type: "COMBO_CARD", comboCards, playedByToken: playerToken, targetPlayerToken, demandedCard, targetCardIndex };
 
     await tx.gameSession.update({
       where: { session_id: session.session_id },

@@ -5,6 +5,11 @@ import { extractPlayerToken } from "../middleware/auth.middleware";
 
 const router = Router();
 
+// ── Authenticated routes (token required) ──────────────────────
+
+// GET /api/rooms/current — check if player is in a room
+router.get("/current", extractPlayerToken, roomControllers.getCurrentRoom);
+
 // ── Public routes (no token required) ──────────────────────────
 
 // GET /api/rooms — list rooms (optionally filter by status)
@@ -12,11 +17,6 @@ router.get("/", roomControllers.getAllRooms);
 
 // GET /api/rooms/:roomId — get room details
 router.get("/:roomId", roomControllers.getRoom);
-
-// ── Authenticated routes (token required) ──────────────────────
-
-// GET /api/rooms/current — check if player is in a room
-router.get("/current", extractPlayerToken, roomControllers.getCurrentRoom);
 
 // POST /api/rooms — create a new room
 router.post("/", extractPlayerToken, roomControllers.createRoom);

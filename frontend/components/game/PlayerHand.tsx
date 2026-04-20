@@ -21,13 +21,13 @@ export interface PlayerHandProps {
 }
 
 function isNopeCard(code: string): boolean {
-  return code === "NP" || code === "GVE_NP";
+  return code === "NP";
 }
 
 // ── Cat card detection ───────────────────────────────────────
 const CAT_TYPES = new Set([
   "CAT_TACO", "CAT_MELON", "CAT_BEARD", "CAT_RAINBOW", "CAT_POTATO",
-  "FC", "GVE_FC", "MC", "GVE_MC",
+  "FC", "MC",
 ]);
 
 function isCatCard(code: string): boolean {
@@ -36,10 +36,11 @@ function isCatCard(code: string): boolean {
 
 
 /** Two cat cards can form a combo if they are the same type, or one/both are feral */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function canPairWith(a: string, b: string): boolean {
   if (!isCatCard(a) || !isCatCard(b)) return false;
-  const aFeral = a === "FC" || a === "GVE_FC";
-  const bFeral = b === "FC" || b === "GVE_FC";
+  const aFeral = a === "FC";
+  const bFeral = b === "FC";
   if (aFeral || bFeral) return true;
   return a === b;
 }
@@ -69,9 +70,15 @@ export function PlayerHand({
     if (selectedIndices.length === 0) return true;
     if (selectedIndices.length >= 3) return false;
 
-    // Must be compatible with the first selected card
-    const firstCode = myCards[selectedIndices[0]];
-    return canPairWith(firstCode, code);
+    // Build the potential new group and check all non-feral cards are the same type.
+    // Feral Cat (FC/GVE_FC) counts as a wildcard for exactly ONE card.
+    const potentialGroup = [...selectedIndices.map((i) => myCards[i]!), code];
+    const nonFeral = potentialGroup.filter((c) => c !== "FC");
+    if (nonFeral.length > 1) {
+      const base = nonFeral[0]!;
+      if (!nonFeral.every((c) => c === base)) return false;
+    }
+    return true;
   };
 
   const handleCardClick = (idx: number) => {
@@ -83,6 +90,11 @@ export function PlayerHand({
         onPlayNope();
       }
       return;
+    } else {
+      // If NOT in Nope Window, prevent clicking Nope (or trying to play it as a normal card)
+      if (isNopeCard(code)) {
+        return;
+      }
     }
 
     // Non-cat cards: play immediately (existing behavior)
@@ -129,14 +141,14 @@ export function PlayerHand({
         {/* ── COMBO BAR ── shows when 1+ cat selected */}
         {isMyTurn && selectedIndices.length >= 1 && (
           <div
-            className="fixed left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-2.5 rounded-2xl"
+            className="fixed left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 px-3 py-1.5 rounded-xl"
             style={{
               background: "rgba(0,0,0,0.75)",
-              border: "2px solid rgba(250,204,21,0.5)",
-              boxShadow: "0 0 24px rgba(250,204,21,0.2)",
+              border: "1.5px solid rgba(250,204,21,0.5)",
+              boxShadow: "0 0 16px rgba(250,204,21,0.2)",
               backdropFilter: "blur(12px)",
               fontFamily: "'Fredoka One', cursive",
-              bottom: "210px",
+              bottom: "280px",
               transition: "all 0.2s",
             }}
           >
@@ -158,7 +170,7 @@ export function PlayerHand({
 
             {/* Badge */}
             <div
-              className="text-xs font-black uppercase tracking-wider"
+              className="text-[10px] font-black uppercase tracking-wider"
               style={{ color: "rgba(250,204,21,0.9)" }}
             >
               {comboCount === 1 && "เลือก 1 ใบ — ต้องการอีก 1 หรือ 2 ใบ"}
@@ -214,9 +226,8 @@ export function PlayerHand({
             const isActive = nopeWindowActive
               ? isNopeActive
               : isMyTurn &&
-                cardCode !== "DF" &&
-                cardCode !== "EK" &&
-                cardCode !== "GVE_EK";
+              cardCode !== "DF" &&
+              cardCode !== "EK";
 
             // In combo mode: non-compatible cards are dimmed
             const isCompatible = !isComboMode || canAddToCombo(i);
@@ -330,6 +341,6 @@ export function PlayerHand({
           })}
         </div>
       </div>
-</>
+    </>
   );
 }

@@ -334,8 +334,8 @@ export function PlayerAvatar({
         </div>
       )}
 
-      {/* Leave seat button */}
-      {onLeaveSeat && occupied && !isFavorTargetMode && !isComboTargetMode && (
+      {/* Leave seat button — only show for the seat that belongs to ME */}
+      {onLeaveSeat && occupied && isMe && !isFavorTargetMode && !isComboTargetMode && (
         <button
           className="mt-1 px-2 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase"
           style={{

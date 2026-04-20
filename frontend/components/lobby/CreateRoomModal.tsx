@@ -19,7 +19,6 @@ export default function CreateRoomModal({
   onCreate,
 }: CreateRoomModalProps) {
   const [roomName, setRoomName] = useState("");
-  const [selectedDeck, setSelectedDeck] = useState(1);
   const [addonEnabled, setAddonEnabled] = useState(false);
 
   if (!isOpen) return null;
@@ -30,7 +29,7 @@ export default function CreateRoomModal({
       return;
     }
 
-    const cardVersion = selectedDeck === 1 ? "classic" : "good_and_evil";
+    const cardVersion = "original";
     const expansions = addonEnabled ? ["imploding"] : [];
 
     onCreate({
@@ -40,11 +39,10 @@ export default function CreateRoomModal({
     });
 
     setRoomName("");
-    setSelectedDeck(1);
     setAddonEnabled(false);
   };
 
-  const deckPreview = `สำรับ ${selectedDeck}${addonEnabled ? " + Add-on" : " (ไม่มี ADD-ON)"}`;
+  const deckPreview = `${addonEnabled ? "original + Add-on" : "original"}`;
 
   return (
     <div
@@ -61,9 +59,8 @@ export default function CreateRoomModal({
           style={{ padding: "32px 48px 24px 48px" }}
           className="flex items-center justify-center gap-3 border-b border-white/20"
         >
-          <span className="text-3xl">🎴</span>
           <h2 className="text-2xl font-bold text-white font-bungee">
-            สร้างห้องใหม่
+            Create new room
           </h2>
         </div>
 
@@ -79,56 +76,23 @@ export default function CreateRoomModal({
           {/* Room Name */}
           <div>
             <label className="block text-base mb-2 text-[#ffaa00] font-bungee">
-              ชื่อห้อง:
+              Room name:
             </label>
             <input
               type="text"
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
-              placeholder="กรอกชื่อห้อง"
+              placeholder="room name"
               maxLength={30}
               style={{ height: "56px" }}
               className="w-full px-4 text-base border-2 border-gray-400 rounded-xl outline-none font-bungee bg-white text-black focus:border-[#ffaa00] transition-colors"
             />
           </div>
 
-          {/* Deck Selection */}
-          <div>
-            <label className="block text-base mb-2 text-[#ffaa00] font-bungee">
-              เลือกสำรับการ์ด:
-            </label>
-            <div className="flex gap-3">
-              <button
-                style={{ height: "56px" }}
-                className={[
-                  "flex-1 border-2 rounded-xl cursor-pointer transition-all font-bold text-base font-bungee flex items-center justify-center gap-2",
-                  selectedDeck === 1
-                    ? "bg-linear-to-br from-[#ffcc00] to-[#ff9900] border-[#ff6600] text-black"
-                    : "bg-[#2a2a2a] border-gray-500 text-white hover:border-[#ffaa00]",
-                ].join(" ")}
-                onClick={() => setSelectedDeck(1)}
-              >
-                🎴 สำรับ 1 (classic)
-              </button>
-              <button
-                style={{ height: "56px" }}
-                className={[
-                  "flex-1 border-2 rounded-xl cursor-pointer transition-all font-bold text-base font-bungee flex items-center justify-center gap-2",
-                  selectedDeck === 2
-                    ? "bg-linear-to-br from-[#ffcc00] to-[#ff9900] border-[#ff6600] text-black"
-                    : "bg-[#2a2a2a] border-gray-500 text-white hover:border-[#ffaa00]",
-                ].join(" ")}
-                onClick={() => setSelectedDeck(2)}
-              >
-                🎴 สำรับ 2 (good and evil)
-              </button>
-            </div>
-          </div>
-
           {/* Addon Toggle */}
           <div>
             <label className="block text-base mb-3 text-[#ffaa00] font-bungee text-center">
-              ADD-ON (เพิ่มการ์ดพิเศษ):
+              ADD-ON
             </label>
             <div
               style={{
@@ -139,7 +103,7 @@ export default function CreateRoomModal({
                 marginBottom: "20px",
               }}
             >
-              <span className="text-sm text-white/80">ไม่ใช้</span>
+              <span className="text-sm text-white/80">OFF</span>
               <div
                 className={[
                   "w-14 h-7 rounded-full relative cursor-pointer transition-all border-2 border-black shrink-0",
@@ -157,7 +121,7 @@ export default function CreateRoomModal({
               <span
                 className={`text-sm ${addonEnabled ? "text-[#ffaa00]" : "text-white/80"}`}
               >
-                ใช้
+                ON
               </span>
             </div>
             <div
@@ -170,7 +134,7 @@ export default function CreateRoomModal({
               }}
               className="bg-[#ffaa00]/15 rounded-xl border border-[#ffaa00]/50 text-sm text-white/90"
             >
-              ℹ️ {deckPreview}
+              {deckPreview}
             </div>
           </div>
         </div>
@@ -182,14 +146,14 @@ export default function CreateRoomModal({
             className="flex-1 bg-linear-to-br from-[#ff6600] to-[#ff4400] border-2 border-black rounded-xl text-base font-bold text-black font-bungee transition-all hover:scale-[1.02] hover:shadow-[0_4px_15px_rgba(255,102,0,0.5)] cursor-pointer"
             onClick={handleCreate}
           >
-            สร้างห้อง
+            Create room
           </button>
           <button
             style={{ height: "60px" }}
             className="flex-1 bg-[#555] border-2 border-black rounded-xl text-base font-bold text-white font-bungee transition-all hover:scale-[1.02] hover:bg-[#666] cursor-pointer"
             onClick={onClose}
           >
-            ยกเลิก
+            Cancel
           </button>
         </div>
       </div>

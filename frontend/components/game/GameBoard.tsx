@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Player, RoomData } from "@/types";
-import { getCardConfig } from "@/types/cards";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { EKBombSequence } from "./EKBombSequence";
 import { CatComboModal } from "./CatComboModal";
@@ -19,6 +18,7 @@ import { WinnerModal } from "./WinnerModal";
 import { EliminatedModal } from "./EliminatedModal";
 import { GameLogPanel } from "./GameLogPanel";
 import { ActionBanners } from "./ActionBanners";
+import { CardPlayZone } from "./CardPlayZone";
 
 export interface GameBoardProps {
   roomData: RoomData;
@@ -32,9 +32,11 @@ export interface GameBoardProps {
   onCloseSeeTheFuture: () => void;
   selectSeat: (seat_number: number) => void;
   drawCard: (isAutoDraw?: boolean) => void;
+  isDrawLocked?: boolean;
   playCard: (cardCode: string, target?: string) => void;
   defuseCard: () => void;
   eliminatePlayer: () => void;
+  afterHellfireRef?: React.MutableRefObject<(() => void) | null>;
   insertEK: (position: number) => void;
   placeIKBack: (position: number) => void;
   ikDrawerName?: string; // ชื่อผู้เล่นที่จั่วได้ IK (สำหรับ IKRevealModal)
@@ -49,11 +51,11 @@ export interface GameBoardProps {
   myCards: string[];
   isMySeat: (seat: number) => boolean;
   timeLeft?: number;
-  lastPlayedCard?: { cardCode: string; playedByDisplayName: string } | null;
+  lastPlayedCard?: { cardCode: string; playedByDisplayName: string; seq?: number; noAnimate?: boolean } | null;
   deckCount?: number | null;
   pendingAttacks?: number;
   comboState?: { comboCards: string[]; isThreeCard: boolean } | null;
-  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => void;
+  emitCombo?: (comboCards: string[], targetPlayerToken: string, demandedCard?: string, targetCardIndex?: number) => void;
   cancelCombo?: () => void;
   cancelFavor?: () => void;
   onPlayCombo?: (cardCodes: string[]) => void;
@@ -79,8 +81,10 @@ export function GameBoard({
   onCloseSeeTheFuture,
   selectSeat,
   drawCard,
+  isDrawLocked,
   defuseCard,
   eliminatePlayer,
+  afterHellfireRef,
   insertEK,
   placeIKBack,
   eliminatedPlayerId,
@@ -133,6 +137,8 @@ export function GameBoard({
     }
   }, [direction]);
 
+  const canDraw = currentTurnSeat !== null && isMySeat(currentTurnSeat) && gamePhase === "PLAYING" && !isDrawLocked;
+
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-4 relative">
       <div
@@ -180,9 +186,10 @@ export function GameBoard({
         onExplode={handleExplode}
         isMyBomb={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
         isIKFaceUp={ekBombState?.drawnCard === "IK" && !ekBombState?.hasDefuse}
+        afterHellfireRef={afterHellfireRef}
       />
 
-      {pendingComboTarget && comboState?.isThreeCard && (
+      {pendingComboTarget && comboState && (
         <CatComboModal
           isOpen={true}
           comboCards={comboState.comboCards}
@@ -190,9 +197,9 @@ export function GameBoard({
           myPlayerToken={myPlayerToken}
           startAtDemandStep={true}
           preselectedTarget={pendingComboTarget}
-          onConfirm={(_token, demandedCard) => {
+          onConfirm={(token, demandedCard, cardIndex) => {
             if (emitCombo && comboState) {
-              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard);
+              emitCombo(comboState.comboCards, pendingComboTarget, demandedCard, cardIndex);
             }
             setPendingComboTarget(null);
           }}
@@ -206,7 +213,7 @@ export function GameBoard({
         drawerName={ikDrawerName ?? "ผู้เล่น"}
         isMyTurn={currentTurnSeat !== null && isMySeat(currentTurnSeat)}
         isFaceUp={ekBombState?.drawnCard === "IK" && !ekBombState?.hasDefuse}
-        onRevealDone={onIKRevealDone ?? (() => {})}
+        onRevealDone={onIKRevealDone ?? (() => { })}
       />
 
       {/* EK Insert Modal (after Defuse) */}
@@ -311,14 +318,8 @@ export function GameBoard({
                     : undefined
                 }
                 onComboSelect={
-                  player && !isMyAvatar
-                    ? () => {
-                        if (comboState?.isThreeCard) {
-                          setPendingComboTarget(player.player_token);
-                        } else if (emitCombo && comboState) {
-                          emitCombo(comboState.comboCards, player.player_token);
-                        }
-                      }
+                  player && !isMyAvatar && comboState
+                    ? () => setPendingComboTarget(player.player_token)
                     : undefined
                 }
               />
@@ -347,31 +348,22 @@ export function GameBoard({
               {/* IK face-up on top of deck */}
               {ikOnTop ? (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat))
-                      drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(160deg, #4c1d95 0%, #1e0a3c 100%)",
-                    border: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    border: (canDraw)
                       ? "3px solid rgba(167,139,250,0.9)"
                       : "3px solid rgba(139,92,246,0.5)",
-                    boxShadow: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    boxShadow: (canDraw)
                       ? "0 0 24px rgba(139,92,246,0.8)"
                       : "0 0 10px rgba(139,92,246,0.3)",
                     animation: "ikPulse 1.8s ease-in-out infinite",
                   }}
                 >
-                  {/* Face-up badge */}
-                  <div
-                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-black whitespace-nowrap z-10"
-                    style={{
-                      background: "rgba(139,92,246,0.95)",
-                      border: "1px solid rgba(196,181,253,0.8)",
-                      color: "white",
-                    }}
-                  >
+                  <div className="absolute top-2 inset-x-0 tracking-[0.15em] text-center font-black text-[10px] text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
                     ☠ FACE UP
                   </div>
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
@@ -399,17 +391,16 @@ export function GameBoard({
                 </div>
               ) : (
                 <div
-                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${currentTurnSeat !== null && isMySeat(currentTurnSeat) ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
+                  className={`relative w-28 h-40 rounded-xl card-shadow transition-transform ${canDraw ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   onClick={() => {
-                    if (currentTurnSeat !== null && isMySeat(currentTurnSeat))
-                      drawCard();
+                    if (canDraw) drawCard();
                   }}
                   style={{
                     background: "linear-gradient(135deg, #8b4a1a, #5c2d0a)",
-                    border: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    border: (canDraw)
                       ? "3px solid #f5a623"
                       : "3px solid #c47a3a",
-                    boxShadow: currentTurnSeat !== null && isMySeat(currentTurnSeat)
+                    boxShadow: (canDraw)
                       ? "0 0 20px rgba(245,166,35,0.6)"
                       : "none",
                   }}
@@ -488,64 +479,8 @@ export function GameBoard({
               `}</style>
             </div>
 
-            {/* PLAY CARD ZONE */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-7" />
-              <div
-                className="w-28 h-40 rounded-xl flex items-center justify-center relative overflow-hidden"
-                style={{
-                  border: lastPlayedCard
-                    ? `2px solid ${getCardConfig(lastPlayedCard.cardCode).color}88`
-                    : "2px dashed rgba(255,220,150,0.5)",
-                  background: lastPlayedCard
-                    ? `linear-gradient(160deg, ${getCardConfig(lastPlayedCard.cardCode).color}22, rgba(0,0,0,0.4))`
-                    : "rgba(0,0,0,0.15)",
-                  boxShadow: lastPlayedCard
-                    ? `0 0 16px ${getCardConfig(lastPlayedCard.cardCode).color}44`
-                    : undefined,
-                }}
-              >
-                {lastPlayedCard ? (
-                  <div className="flex flex-col items-center justify-center gap-1.5 p-2">
-                    <span className="text-5xl">
-                      {getCardConfig(lastPlayedCard.cardCode).emoji}
-                    </span>
-                    <span
-                      className="text-xs font-black tracking-wider text-center leading-none"
-                      style={{
-                        color: getCardConfig(lastPlayedCard.cardCode).color,
-                      }}
-                    >
-                      {getCardConfig(lastPlayedCard.cardCode).label}
-                    </span>
-                    <span
-                      className="text-[9px] text-center"
-                      style={{ color: "rgba(255,240,200,0.5)" }}
-                    >
-                      {lastPlayedCard.playedByDisplayName}
-                    </span>
-                  </div>
-                ) : (
-                  <span
-                    className="text-sm text-center leading-tight px-2"
-                    style={{ color: "rgba(255,240,200,0.4)" }}
-                  >
-                    PLAY
-                    <br />
-                    CARD
-                  </span>
-                )}
-              </div>
-              <span
-                className="text-xs tracking-widest uppercase font-bold"
-                style={{
-                  color: "rgba(255,240,200,0.6)",
-                  textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-                }}
-              >
-                PLAY CARD
-              </span>
-            </div>
+            {/* PLAY CARD ZONE — Holographic Reveal (Style D) */}
+            <CardPlayZone lastPlayedCard={lastPlayedCard ?? null} players={roomData.players} />
           </div>
         )}
       </div>

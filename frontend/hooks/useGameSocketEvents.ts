@@ -22,6 +22,12 @@ interface CardEffectResult {
 }
 import { GamePhase, EKBombState, PendingActionState, NopeState } from "./useGameState";
 import { FavorState, ComboState } from "./useGameActions";
+import type { DrawAnimState } from "@/components/game/DrawCardAnimation";
+import type { AttackAnimState } from "@/components/game/AttackCardAnimation";
+import type { TargetedAttackAnimState } from "@/components/game/TargetedAttackAnimation";
+import type { NopeAnimState } from "@/components/game/NopeCardAnimation";
+import type { ShuffleAnimState } from "@/components/game/ShuffleCardAnimation";
+import type { DefuseEffectState } from "@/components/game/DefuseEffect";
 
 // ── Toast notification ─────────────────────────────────────
 function showToast(message: string, duration = 3500) {
@@ -67,18 +73,33 @@ export interface GameStateSetters {
   setComboState: React.Dispatch<React.SetStateAction<ComboState | null>>;
   setPendingAction: React.Dispatch<React.SetStateAction<PendingActionState | null>>;
   setNopeState: React.Dispatch<React.SetStateAction<NopeState | null>>;
-  setLastPlayedCard: React.Dispatch<React.SetStateAction<{ cardCode: string; playedByDisplayName: string } | null>>;
+  setLastPlayedCard: (card: { cardCode: string; playedByDisplayName: string; noAnimate?: boolean } | null) => void;
   setCurrentTurnPlayerId: React.Dispatch<React.SetStateAction<string | null>>;
   setDeckCount: React.Dispatch<React.SetStateAction<number | null>>;
+  setServerRemainingTime: React.Dispatch<React.SetStateAction<number | null>>;
   setTurnNumber: React.Dispatch<React.SetStateAction<number>>;
   setPendingAttacks: React.Dispatch<React.SetStateAction<number>>;
   setDirection: React.Dispatch<React.SetStateAction<number>>;
   setIkOnTop: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsDrawLocked: React.Dispatch<React.SetStateAction<boolean>>;
+  setDrawAnimState: React.Dispatch<React.SetStateAction<DrawAnimState | null>>;
+  // ── Attack animation ────────────────────────────────────────────────────
+  setAttackAnimState: React.Dispatch<React.SetStateAction<AttackAnimState | null>>;
+  // ── Targeted Attack animation ─────────────────────────────────────────────
+  setTaAnimState: React.Dispatch<React.SetStateAction<TargetedAttackAnimState | null>>;
+  // ── Nope animation ────────────────────────────────────────────────────────
+  setNopeAnimState: React.Dispatch<React.SetStateAction<NopeAnimState | null>>;
+  // ── Shuffle animation ─────────────────────────────────────────────────────
+  setShuffleAnimState: React.Dispatch<React.SetStateAction<ShuffleAnimState | null>>;
+  // ── Defuse effect ─────────────────────────────────────────────────────────
+  setDefuseEffectState: React.Dispatch<React.SetStateAction<DefuseEffectState | null>>;
   roomDataRef: React.MutableRefObject<RoomData | null>;
   currentTurnPlayerIdRef: React.MutableRefObject<string | null>;
   pendingNextTurnRef: React.MutableRefObject<string | null>;
   gamePhaseRef: React.MutableRefObject<GamePhase>;
   onCardPlayedRef: React.MutableRefObject<(() => void) | null>;
+  afterDrawAnimRef: React.MutableRefObject<(() => void) | null>;
+  afterHellfireRef: React.MutableRefObject<(() => void) | null>;
 }
 
 export function useGameSocketEvents(
@@ -92,9 +113,30 @@ export function useGameSocketEvents(
     // AI Rule 5.1: DRY - Get token once per event cycle
     const myPlayerToken = typeof window !== "undefined" ? localStorage.getItem("player_token") : null;
 
+    // ── ref เก็บการ์ดที่ pending อยู่ (เพื่อ restore หลัง Nope animation จบ) ──
+    const pendingCardRef = { current: null as { cardCode: string; playedByDisplayName: string } | null };
+
     // ── roomUpdated ──
     const handleRoomUpdated = (updatedRoom: RoomData) => {
       console.log("🔄 Room Updated:", updatedRoom);
+
+      const oldRoom = setters.roomDataRef.current;
+      if (oldRoom && oldRoom.room_id === updatedRoom.room_id) {
+        const previousPlayers = oldRoom.players || [];
+        const newPlayers = updatedRoom.players || [];
+
+        const freshlyJoined = newPlayers.filter(np =>
+          !previousPlayers.some(op => op.player_token === np.player_token)
+        );
+
+        freshlyJoined.forEach(p => {
+          if (p.player_token !== myPlayerToken && updatedRoom.status === "WAITING") {
+            setters.setGameLogs((prev) => [...prev, `👋 ${p.display_name} ได้เข้าร่วมเกม!`]);
+            showToast(`👋 ${p.display_name} ได้เข้าร่วมเกม!`, 3500);
+          }
+        });
+      }
+
       setters.setRoomData(updatedRoom);
       if (updatedRoom.status === "WAITING") {
         setters.setGamePhase("WAITING");
@@ -106,12 +148,13 @@ export function useGameSocketEvents(
     };
 
     // ── gameStarted ──
-    const handleGameStarted = (data: GameStartedPayload & { deck_count?: number }) => {
+    const handleGameStarted = (data: GameStartedPayload & { deck_count?: number; remaining_time?: number }) => {
       console.log("🎮 Game Started:", data);
       if (data?.room) setters.setRoomData(data.room);
       if (data?.session_id) setters.setSessionId(data.session_id);
       if (data?.first_turn_player_id) setters.setCurrentTurnPlayerId(data.first_turn_player_id);
       if (data?.deck_count !== undefined) setters.setDeckCount(data.deck_count);
+      if (data?.remaining_time !== undefined) setters.setServerRemainingTime(data.remaining_time);
       setters.setGamePhase("PLAYING");
       setters.setGameLogs(["🎮 เกมเริ่มต้นแล้ว!"]);
       setters.setDirection(1); // reset direction on new game
@@ -166,38 +209,95 @@ export function useGameSocketEvents(
         const isIK = data.drawnCard === "IK";
         const isIKFaceUp = !!data.isIKFaceUp;
 
+        // ── Immediately clear any stale Nope window ──
+        // EK/IK cannot be Noped. Clear the pending action and Nope state immediately
+        // so the Nope card stops glowing, even before the draw animation completes.
+        setters.setPendingAction(null);
+        setters.setNopeState(null);
+        // If gamePhase was NOPE_WINDOW from a previous card play, reset it so the
+        // Nope banner disappears right away. Bomb phase will re-set it to EK_DRAWN / IK_REVEAL.
+        setters.setGamePhase("PLAYING");
+
+        // log ให้ทุกคนเห็น
         if (isIK) {
-          // IK ทุก case → set IK_REVEAL ก่อนให้ทุกคนเห็น
-          // หลัง reveal จบ GameBoard จะ transition ไป IK_INSERT หรือ EK_DRAWN ต่อ
-          setters.setIkOnTop(false); // IK ถูกจั่วออกจากกองแล้ว → ไม่อยู่บนสุดอีกต่อไป
-          setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
-          setters.setGamePhase("IK_REVEAL");
+          setters.setIkOnTop(false);
           const logMsg = isIKFaceUp
             ? `💥 ${displayName} จั่วได้ Imploding Kitten (หงายหน้า) — ตายทันที!`
             : `🐱 ${displayName} จั่วได้ Imploding Kitten! (คว่ำหน้า)`;
-          setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+          setters.setGameLogs((prev) => [...prev, logMsg]);
         } else {
-          // Normal EK
-          setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
-          setters.setGamePhase("EK_DRAWN");
-          setters.setGameLogs((prev) => [...prev.slice(-19), `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
+          setters.setGameLogs((prev) => [...prev, `💣 ${displayName} จั่วได้ Exploding Kitten!`]);
         }
-      } else if (data?.success) {
+
+        const myPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+        const isMe = myPlayer?.player_id === data.player_id;
+
+        // bomb phase callback (runs after animation, or immediately if not me)
+        const applyBombPhase = () => {
+          if (isIK) {
+            setters.setEkBombState({ drawnCard: "IK", hasDefuse: !isIKFaceUp });
+            setters.setGamePhase("IK_REVEAL");
+          } else {
+            setters.setEkBombState({ drawnCard: data.drawnCard ?? "EK", hasDefuse: data.hasDefuse ?? false });
+            setters.setGamePhase("EK_DRAWN");
+          }
+        };
+
+        if (isMe && data.drawnCard) {
+          // เฉพาะคนจั่ว: เล่น draw animation ก่อน แล้ว defer bomb phase
+          setters.afterDrawAnimRef.current = applyBombPhase;
+          setters.setDrawAnimState({
+            drawerName: displayName,
+            drawnCard: data.drawnCard,
+            isMe: true,
+            avatarSeat: drawnPlayer?.seat_number ?? null,
+          });
+        } else {
+          // คนอื่น: ไม่โชว์แอนิเมชัน แต่ต้องประวิงเวลาเพื่อให้ UI Sync กับคนจั่ว ป้องกันบั๊กตาซ้อนกัน
+          setTimeout(applyBombPhase, 1600);
+        }
+
+      } else if (data?.action === "TURN_ADVANCED" || data?.success) {
         const isFromBottom = data.source === "bottom";
         const logMsg = data.isExplodingKitten
           ? data.eliminated ? `💥 ${displayName} ระเบิด!` : `🛡️ ${displayName} defuse ได้!`
           : data.isAutoDraw ? `⏱️ ${displayName} จั่วไพ่อัตโนมัติ (หมดเวลา)`
             : isFromBottom ? `⬇️ ${displayName} จั่วไพ่จากล่างกอง`
               : `🃏 ${displayName} จั่วไพ่`;
-        setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
-      }
+        setters.setGameLogs((prev) => [...prev, logMsg]);
 
-      if (data?.nextTurn) {
-        setters.setGamePhase("PLAYING");
-        setters.setEkBombState(null);
-        setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
-        if (data.nextTurn.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
-        setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+        // ฟังก์ชันสำหรับส่ง turn ให้คนถัดไปเมื่อจั่วไพ่ปกติ
+        const applyNextTurn = () => {
+          if (data?.nextTurn && data?.action !== "DREW_EXPLODING_KITTEN") {
+            setters.setGamePhase("PLAYING");
+            setters.setEkBombState(null);
+            setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+            if (data.nextTurn.turn_number !== undefined) setters.setTurnNumber(data.nextTurn.turn_number);
+            setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
+          }
+        };
+
+        // ล็อกไม่ให้ใครกดจั่วได้จนกว่าแอนิเมชันของคนตรงหน้าจะจบ
+        setters.setIsDrawLocked(true);
+        setTimeout(() => setters.setIsDrawLocked(false), 1600);
+
+        // เปลี่ยนเป้าเทิร์นทันทีเพื่อให้ฝั่งคนอื่นรู้แน่ชัดว่าเป็นตาเขา (แต่ยังกดยังไม่ได้)
+        applyNextTurn();
+
+        // draw animation เฉพาะคนจั่ว
+        if (data?.drawnCard && data?.player_id && !data.isAutoDraw) {
+          const myPlayer2 = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+          const isMe2 = myPlayer2?.player_id === data.player_id;
+
+          if (isMe2) {
+            setters.setDrawAnimState({
+              drawerName: displayName,
+              drawnCard: data.drawnCard,
+              isMe: true,
+              avatarSeat: drawnPlayer?.seat_number ?? null,
+            });
+          }
+        }
       }
     };
 
@@ -223,7 +323,7 @@ export function useGameSocketEvents(
       const logMsg = data.ikOnTop
         ? `🐱 Imploding Kitten ถูกใส่กลับกอง ⚠️ อยู่บนสุด! Deck แสดง IK — ระวัง!`
         : `🐱 Imploding Kitten ถูกใส่กลับกอง (หงายหน้าขึ้น แต่ไม่ได้อยู่บนสุด)`;
-      setters.setGameLogs((prev) => [...prev.slice(-19), logMsg]);
+      setters.setGameLogs((prev) => [...prev, logMsg]);
 
       if (data.ikOnTop) {
         showToast("⚠️ Imploding Kitten อยู่บนสุดกอง! ระวัง!", 4000);
@@ -243,7 +343,7 @@ export function useGameSocketEvents(
           }),
         );
       }
-      if (data?.success) {
+      if (data) {
         setters.setGamePhase("PLAYING");
         setters.setPendingAction(null);
         setters.setNopeState(null);
@@ -252,8 +352,17 @@ export function useGameSocketEvents(
         const displayName = data.playedByDisplayName || playedPlayer?.display_name || "ผู้เล่น";
         const logMsg = data.message || `${displayName} เล่นไพ่ ${data.cardCode}`;
 
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🎴 ${logMsg}`]);
-        setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+        setters.setGameLogs((prev) => [...prev, `🎴 ${logMsg}`]);
+
+        // ── Restore play zone: ถ้า Nope ลง lastPlayedCard จะเป็น NP อยู่
+        // → restore กลับเป็นการ์ดเดิมที่ pending (จาก pendingCardRef) แบบไม่ animate
+        // ถ้าไม่มี pending (ไม่ผ่าน actionPending) ให้ set จาก cardPlayed โดยตรง พร้อม animate
+        if (pendingCardRef.current) {
+          setters.setLastPlayedCard({ ...pendingCardRef.current, noAnimate: true });
+          pendingCardRef.current = null;
+        } else {
+          setters.setLastPlayedCard({ cardCode: data.cardCode, playedByDisplayName: displayName });
+        }
 
         const skipTurnCards = ["AT", "SK", "TA", "RV"];
         const normalizedPlayed = data.cardCode?.replace(/^GVE_/, "");
@@ -276,6 +385,11 @@ export function useGameSocketEvents(
           setters.setIkOnTop(data.effect.ikOnTop);
         }
 
+        // ── Shuffle animation ──────────────────────────────────────────────────
+        if (normalizedPlayed === "SH" || normalizedPlayed === "GVE_SH") {
+          setters.setShuffleAnimState({ playedByDisplayName: displayName });
+        }
+
         if (data.effect?.type === "ALTER_THE_FUTURE" && data.effect.topCards && data.effect.topCards.length > 0) {
           setters.setSeeTheFutureCards(data.effect.topCards);
           setters.setGamePhase("ALTER_FUTURE");
@@ -291,8 +405,36 @@ export function useGameSocketEvents(
         if (data.effect?.type === "FAVOR") {
           const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
           if (me?.player_id === data.playedBy) {
-            setters.setGameLogs((prev) => [...prev.slice(-19), `🤝 รอให้ผู้เล่นอื่นเลือกการ์ดให้คุณ...`]);
+            setters.setGameLogs((prev) => [...prev, `🤝 รอให้ผู้เล่นอื่นเลือกการ์ดให้คุณ...`]);
           }
+        }
+
+        // ── Attack animation (AT หรือ GVE_AT) ────────────────────────────────
+        if (normalizedPlayed === "AT") {
+          const nextPlayer = setters.roomDataRef.current?.players?.find(
+            (p: Player) => p.player_id === data.nextTurn?.player_id
+          );
+          setters.setAttackAnimState({
+            playedByDisplayName: displayName,
+            targetDisplayName: nextPlayer?.display_name,
+            targetAvatarUrl: nextPlayer?.profile_picture ?? null,
+            targetSeat: nextPlayer?.seat_number ?? null,
+            pendingAttacks: data.nextTurn?.pending_attacks,
+          });
+        }
+
+        // ── Targeted Attack animation (TA หรือ GVE_TA) ──────────────────────
+        if (normalizedPlayed === "TA") {
+          const nextPlayer = setters.roomDataRef.current?.players?.find(
+            (p: Player) => p.player_id === data.nextTurn?.player_id
+          );
+          setters.setTaAnimState({
+            playedByDisplayName: displayName,
+            targetDisplayName: nextPlayer?.display_name,
+            targetAvatarUrl: nextPlayer?.profile_picture ?? null,
+            targetSeat: nextPlayer?.seat_number ?? null,
+            pendingAttacks: data.nextTurn?.pending_attacks,
+          });
         }
       }
     };
@@ -330,7 +472,7 @@ export function useGameSocketEvents(
       if (me?.player_id === data.requesterPlayerId) {
         setters.setMyCards((prev) => [...prev, data.cardCode]);
       }
-      setters.setGameLogs((prev) => [...prev.slice(-19), `🤝 Favor เสร็จแล้ว!`]);
+      setters.setGameLogs((prev) => [...prev, `🤝 Favor เสร็จแล้ว!`]);
     };
 
     // ── cardDefused ──
@@ -363,6 +505,11 @@ export function useGameSocketEvents(
       const defusingPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === defuserPlayerId);
       const displayName = defusingPlayer?.display_name ?? "ผู้เล่น";
       setters.setGameLogs((prev) => [...prev.slice(-19), `🛡️ ${displayName} กู้ระเบิดสำเร็จ!`]);
+
+      // ── Defuse effect (เฉพาะคนที่ defuse เท่านั้น) ─────────────────────────
+      if (isMe) {
+        setters.setDefuseEffectState({ defuserDisplayName: displayName });
+      }
     };
 
     // ── ekInserted ──
@@ -375,13 +522,21 @@ export function useGameSocketEvents(
       if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
       setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
       setters.setGameLogs((prev) => [...prev.slice(-19), `💣 Exploding Kitten ถูกใส่กลับคืนกอง!`]);
+
     };
 
     // ── playerEliminated ──
-    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
+    const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; ikOnTop?: boolean; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("💀 Player Eliminated:", data);
-      setters.setEkBombState(null);
-      setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+
+      // defer clearing bomb state so hellfire/implosion animation plays first
+      const applyEliminated = () => {
+        setters.setEkBombState(null);
+        setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
+        if (data.ikOnTop !== undefined) setters.setIkOnTop(data.ikOnTop);
+        else setters.setIkOnTop(false);
+      };
+      setters.afterHellfireRef.current = applyEliminated;
 
       const eliminatedId = data?.eliminatedPlayer?.player_id
         ?? (data.isAfkKick ? data.afkPlayerId : null)
@@ -404,7 +559,7 @@ export function useGameSocketEvents(
 
       if (data.action === "GAME_OVER" && data?.winner) {
         setters.setWinner(data.winner);
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🏆 ${data.winner!.display_name} ชนะการแข่งขัน!`]);
+        setters.setGameLogs((prev) => [...prev, `🏆 ${data.winner!.display_name} ชนะการแข่งขัน!`]);
       }
 
       if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
@@ -415,16 +570,30 @@ export function useGameSocketEvents(
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
 
       if (data.isLeftRoom) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🚪 ${displayName} ตัดการเชื่อมต่อและออกจากเกม!`]);
+        setters.setGameLogs((prev) => [...prev, `🚪 ${displayName} ตัดการเชื่อมต่อและออกจากเกม!`]);
       } else if (data.isAfkKick) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `⏱️ ${displayName} ถูกคิกเพราะ AFK!`]);
+        setters.setGameLogs((prev) => [...prev, `⏱️ ${displayName} ถูกคิกเพราะ AFK!`]);
       } else {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `💥 ${displayName} ระเบิด!`]);
+        setters.setGameLogs((prev) => [...prev, `💥 ${displayName} ระเบิด!`]);
       }
     };
 
     // ── comboPlayed ──
-    const handleComboPlayed = (data: { action: string; success: boolean; comboType: "TWO_CARD" | "THREE_CARD"; stolenCard?: string; wasVoid: boolean; robbedFromDisplayName: string; robbedFromPlayerId: string; thiefHand?: string[]; targetHand?: string[]; nextTurn?: { player_id: string; display_name: string; turn_number: number }; }) => {
+    const handleComboPlayed = (data: {
+      action: string;
+      success: boolean;
+      comboType: "TWO_CARD" | "THREE_CARD";
+      stolenCard?: string;
+      wasVoid: boolean;
+      robbedFromDisplayName: string;
+      robbedFromPlayerId: string;
+      thiefHand?: string[];
+      targetHand?: string[];
+      nextTurn?: { player_id: string; display_name: string; turn_number: number };
+      playedBy?: string;
+      playedByDisplayName?: string;
+      comboCards?: string[];
+    }) => {
       console.log("🐱 Combo Played:", data);
 
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
@@ -448,13 +617,19 @@ export function useGameSocketEvents(
         })
       );
 
-      const myDisplayName = me?.display_name ?? "คุณ";
+      // ── แสดงการ์ดที่กองเล่นไพ่ + trigger animation ──
+      const thiefName = data.playedByDisplayName
+        ?? setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === data.playedBy)?.display_name
+        ?? "ผู้เล่น";
+      const comboCardCode = data.comboCards?.[0] ?? "CAT_TACO";
+      setters.setLastPlayedCard({ cardCode: comboCardCode, playedByDisplayName: thiefName });
+
+      // ── Log ──
+      const isThreeCard = data.comboType === "THREE_CARD";
       if (data.wasVoid) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo 3 ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
-      } else if (data.stolenCard && me) {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 ${myDisplayName} ขโมยการ์ดจาก ${data.robbedFromDisplayName} สำเร็จ!`]);
+        setters.setGameLogs((prev) => [...prev, `🐱 ${thiefName} Combo ${isThreeCard ? "3" : "2"} ใบ — ${data.robbedFromDisplayName} ไม่มีการ์ดที่ต้องการ (โมฆะ)`]);
       } else {
-        setters.setGameLogs((prev) => [...prev.slice(-19), `🐱 Combo — ขโมยการ์ดจาก ${data.robbedFromDisplayName}`]);
+        setters.setGameLogs((prev) => [...prev, `🐱 ${thiefName} Combo ${isThreeCard ? "3" : "2"} ใบ — ขโมยการ์ดจาก ${data.robbedFromDisplayName}!`]);
       }
 
       setters.setGamePhase("PLAYING");
@@ -479,6 +654,14 @@ export function useGameSocketEvents(
         );
       }
 
+      // ── แสดง animation ทันทีที่การ์ดลง (ก่อนนับ 3 วิ Nope Window) ──
+      const playedCardCode = data.comboCards?.[0] ?? data.cardCode;
+      if (playedCardCode) {
+        const pendingCard = { cardCode: playedCardCode, playedByDisplayName: data.playedByDisplayName };
+        pendingCardRef.current = pendingCard;
+        setters.setLastPlayedCard(pendingCard);
+      }
+
       setters.setPendingAction({
         playedBy: data.playedBy,
         playedByDisplayName: data.playedByDisplayName,
@@ -499,6 +682,12 @@ export function useGameSocketEvents(
         lastPlayedByDisplayName: data.playedByDisplayName,
       });
 
+      // ── แสดง Nope card บน play zone พร้อม animation ──
+      setters.setLastPlayedCard({
+        cardCode: "NP",
+        playedByDisplayName: data.playedByDisplayName,
+      });
+
       const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
       if (me?.player_id !== data.playedBy) {
         setters.setCardHands((prev) =>
@@ -511,21 +700,43 @@ export function useGameSocketEvents(
         );
       }
       setters.setGameLogs((prev) => [...prev.slice(-19), `🚫 ${data.playedByDisplayName} เล่น Nope! (${data.isCancel ? "ยกเลิก" : "ผ่าน"})`]);
+
+      // ── Nope animation ─────────────────────────────────────────────────────
+      setters.setNopeAnimState({
+        playedByDisplayName: data.playedByDisplayName,
+        isCancel: data.isCancel,
+        nopeCount: data.nopeCount,
+      });
     };
 
     // ── actionCancelled ──
-    const handleActionCancelled = (data: { action: "ACTION_CANCELLED" }) => {
+    const handleActionCancelled = (data: {
+      action: "ACTION_CANCELLED";
+      cardCode?: string;
+      comboCards?: string[];
+      playedBy?: string;
+      playedByDisplayName?: string;
+    }) => {
       console.log("❌ Action Cancelled:", data);
-      showToast("❌ Action was Noped!", 3000);
       setters.setGamePhase("PLAYING");
       setters.setPendingAction(null);
       setters.setNopeState(null);
+
+      // Build a descriptive log so players know what happened (prevents "freeze" confusion)
+      const cardLabel = data.comboCards
+        ? `Combo (${data.comboCards.length} ใบ)`
+        : data.cardCode ?? "การ์ด";
+      const who = data.playedByDisplayName ?? "ผู้เล่น";
+      setters.setGameLogs((prev) => [
+        ...prev,
+        `🚫 ${who} ถูก Nope! — ${cardLabel} ถูกยกเลิก`,
+      ]);
     };
 
     const handleDeckConfigChanged = (data: DeckConfigChangedPayload) => {
       console.log("⚙️ Deck Config Changed:", data);
       showToast("⚙️ Deck config changed");
-      setters.setGameLogs((prev) => [...prev.slice(-19), `⚙️ Deck config changed`]);
+      setters.setGameLogs((prev) => [...prev, `⚙️ Deck config changed`]);
     };
 
     // ── alterTheFutureCommitted ──
@@ -533,7 +744,7 @@ export function useGameSocketEvents(
       console.log("✨ Alter the Future Committed:", data);
       setters.setSeeTheFutureCards([]);
       setters.setGamePhase("PLAYING");
-      setters.setGameLogs((prev) => [...prev.slice(-19), `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
+      setters.setGameLogs((prev) => [...prev, `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
     };
 
     // ── playerDisconnected ──
@@ -541,9 +752,45 @@ export function useGameSocketEvents(
       console.log("🔌 Player Disconnected:", data);
       const player = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === data.playerToken);
       if (player && player.role !== "SPECTATOR" && player.is_alive !== false) {
-         setters.setGameLogs((prev) => [...prev.slice(-19), `🔌 ${player.display_name} สัญญาณขาดหาย... กำลังรอการเชื่อมต่อใหม่ (60 วิ)`]);
-         showToast(`🔌 ${player.display_name} สัญญาณขาดหาย...`, 4000);
+        setters.setGameLogs((prev) => [...prev, `🔌 ${player.display_name} สัญญาณขาดหาย... กำลังรอการเชื่อมต่อใหม่ (60 วิ)`]);
+        showToast(`🔌 ${player.display_name} สัญญาณขาดหาย...`, 4000);
       }
+    };
+
+    // ── playerReconnected ──
+    const handlePlayerReconnected = (data: { playerToken: string; displayName: string }) => {
+      console.log("🔌 Player Reconnected:", data);
+      setters.setGameLogs((prev) => [...prev, `🔌 ${data.displayName} กลับเข้ามาในเกมแล้ว!`]);
+      showToast(`🔌 ${data.displayName} กลับเข้ามาในเกมแล้ว!`, 4000);
+    };
+
+    // ── hostMigrated ── 
+    const handleHostMigrated = (data: { newHostToken: string; newHostDisplayName: string }) => {
+      console.log("👑 Host Migrated:", data);
+      setters.setRoomData((prev) => {
+        if (!prev) return prev;
+        return { ...prev, host_token: data.newHostToken };
+      });
+      setters.setGameLogs((prev) => [...prev, `👑 ${data.newHostDisplayName} เป็นหัวหน้าห้องคนใหม่`]);
+      showToast(`👑 ${data.newHostDisplayName} เป็นหัวหน้าห้องคนใหม่`, 4000);
+    };
+
+    // ── handCountsUpdated — sync card counts for all players ──
+    const handleHandCountsUpdated = (data: { handCounts: Record<string, number> }) => {
+      setters.setCardHands((prev) =>
+        prev.map((hand) => {
+          const newCount = data.handCounts[hand.player_id];
+          if (newCount !== undefined && newCount !== hand.card_count) {
+            return { ...hand, card_count: newCount };
+          }
+          return hand;
+        })
+      );
+    };
+
+    // ── privateHandSync — server sends our actual hand after combo/favor ──
+    const handlePrivateHandSync = (data: { cards: string[]; card_count: number }) => {
+      setters.setMyCards(data.cards);
     };
 
     socket.on("roomUpdated", handleRoomUpdated);
@@ -565,6 +812,10 @@ export function useGameSocketEvents(
     socket.on("actionCancelled", handleActionCancelled);
     socket.on("alterTheFutureCommitted", handleAlterTheFutureCommitted);
     socket.on("playerDisconnected", handlePlayerDisconnected);
+    socket.on("playerReconnected", handlePlayerReconnected);
+    socket.on("handCountsUpdated", handleHandCountsUpdated);
+    socket.on("privateHandSync", handlePrivateHandSync);
+    socket.on("hostMigrated", handleHostMigrated);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdated);
@@ -586,6 +837,10 @@ export function useGameSocketEvents(
       socket.off("actionCancelled", handleActionCancelled);
       socket.off("alterTheFutureCommitted", handleAlterTheFutureCommitted);
       socket.off("playerDisconnected", handlePlayerDisconnected);
+      socket.off("playerReconnected", handlePlayerReconnected);
+      socket.off("handCountsUpdated", handleHandCountsUpdated);
+      socket.off("privateHandSync", handlePrivateHandSync);
+      socket.off("hostMigrated", handleHostMigrated);
     };
   }, [socket, roomId, setters]);
 }

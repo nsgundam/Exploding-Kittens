@@ -126,7 +126,7 @@ export const useGameActions = (
    * emitCombo — emit socket หลังเลือก target แล้ว (และ demandedCard สำหรับ 3-card)
    */
   const emitCombo = useCallback(
-    (comboCards: string[], targetPlayerToken: string, demandedCard?: string) => {
+    (comboCards: string[], targetPlayerToken: string, demandedCard?: string, targetCardIndex?: number) => {
       if (!socket) return;
       const playerToken = localStorage.getItem("player_token");
 
@@ -149,6 +149,7 @@ export const useGameActions = (
         comboCards,
         targetPlayerToken,
         demandedCard,
+        targetCardIndex,
       });
     },
     [socket, roomId, setMyCards, setComboState, setGamePhase]
