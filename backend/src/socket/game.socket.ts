@@ -438,7 +438,7 @@ export const registerGameSocket = (io: Server): void => {
         const result = await gameService.commitAlterTheFuture(roomId, playerToken, newOrder);
         // Only the player knows the actual new order; others just get notified it was committed
         socket.emit("alterTheFutureCommitted", result);
-        socket.to(roomId).emit("alterTheFutureCommitted", { success: true, action: "ALTER_THE_FUTURE_COMMITTED" });
+        socket.to(roomId).emit("alterTheFutureCommitted", { success: true, action: "ALTER_THE_FUTURE_COMMITTED", ikOnTop: result.ikOnTop });
       } catch (err: unknown) {
         socket.emit("errorMessage", getErrorMessage(err));
       }

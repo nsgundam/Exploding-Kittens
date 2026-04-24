@@ -180,6 +180,7 @@ export async function handleImplodingKitten(
       action: ActionType.DREW_EXPLODING_KITTEN,
       drawnCard,
       hasDefuse: false,
+      isIK: true,
       isIKFaceUp: true,
     };
   }
@@ -190,6 +191,7 @@ export async function handleImplodingKitten(
     action: ActionType.DREW_EXPLODING_KITTEN,
     drawnCard,
     hasDefuse: true,
+    isIK: true,
     isIKFaceUp: false,
   };
 }
@@ -637,7 +639,7 @@ export async function commitAlterTheFuture(
   roomId: string,
   playerToken: string,
   newOrder: string[],
-): Promise<{ success: boolean; action: string }> {
+): Promise<{ success: boolean; action: string; ikOnTop: boolean }> {
   return await prisma.$transaction(async (tx) => {
     const session = await tx.gameSession.findFirst({
       where: { room_id: roomId, status: GameSessionStatus.IN_PROGRESS },
@@ -688,7 +690,10 @@ export async function commitAlterTheFuture(
       },
     });
 
-    return { success: true, action: "ALTER_THE_FUTURE_COMMITTED" };
+    // คำนวณ ikOnTop จาก newDeck ที่เพิ่งอัปเดต (top card = index สุดท้าย)
+    const ikOnTop = (deckState.ik_face_up === true) && newDeck.length > 0 && newDeck[newDeck.length - 1] === "IK";
+
+    return { success: true, action: "ALTER_THE_FUTURE_COMMITTED", ikOnTop };
   });
 }
 

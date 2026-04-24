@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Card } from "./Card";
 import { IKImplosionVoid } from "./IKImplosionVoid";
 import { EKHellfirePillar } from "./EKHellfirePillar";
@@ -28,19 +28,46 @@ export function EKBombSequence({
   const [showImplosion, setShowImplosion] = useState(false);
   const [showHellfirePillar, setShowHellfirePillar] = useState(false);
 
+  // ── ref เก็บ callbacks เพื่อไม่ให้ useEffect re-run เมื่อ parent re-render ──
+  const onExplodeRef = useRef(onExplode);
+  const isIKFaceUpRef = useRef(isIKFaceUp);
+  // ── ref ป้องกัน double-fire (timer หมด + กดปุ่มพร้อมกัน) ──
+  const firedRef = useRef(false);
+
+  // อัพเดท ref ทุกครั้งที่ prop เปลี่ยน โดยไม่ trigger useEffect
+  useEffect(() => { onExplodeRef.current = onExplode; }, [onExplode]);
+  useEffect(() => { isIKFaceUpRef.current = isIKFaceUp; }, [isIKFaceUp]);
+
+  // reset firedRef และ state เมื่อ bomb phase เริ่มใหม่
   useEffect(() => {
+    if (active && isMyBomb) {
+      firedRef.current = false;
+      setTimeLeft(10);
+      setShowImplosion(false);
+      setShowHellfirePillar(false);
+    }
+  }, [active, isMyBomb]);
+
+  useEffect(() => {
+    // dependency array มีแค่ active, isMyBomb — ไม่ใส่ onExplode/isIKFaceUp
+    // เพราะใช้ ref แทน ป้องกัน timer reset เมื่อ parent re-render
     if (!active || !isMyBomb) return;
 
     const fuseInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(fuseInterval);
-          if (isIKFaceUp) {
-            setShowImplosion(true);
-          } else {
-            // EK ทุกกรณี (มีหรือไม่มี defuse) → hellfire animation ก่อน แล้วค่อย onExplode
-            setShowHellfirePillar(true);
-          }
+          // side effect ต้องทำนอก setState updater ใช้ setTimeout(0)
+          setTimeout(() => {
+            if (firedRef.current) return; // ป้องกัน double-fire
+            firedRef.current = true;
+            onExplodeRef.current(); // emit eliminatePlayer
+            if (isIKFaceUpRef.current) {
+              setShowImplosion(true);
+            } else {
+              setShowHellfirePillar(true);
+            }
+          }, 0);
           return 0;
         }
         return prev - 1;
@@ -49,9 +76,8 @@ export function EKBombSequence({
 
     return () => {
       clearInterval(fuseInterval);
-      setTimeLeft(10);
     };
-  }, [active, isMyBomb, isIKFaceUp, hasDefuse, onExplode]);
+  }, [active, isMyBomb]);
 
   // bombAnimations lives outside guard so it survives active=false after socket fires
   const bombAnimations = (
@@ -60,8 +86,20 @@ export function EKBombSequence({
         active={showImplosion}
         onDone={() => {
           setShowImplosion(false);
-          if (afterHellfireRef?.current) { afterHellfireRef.current(); afterHellfireRef.current = null; }
-          else onExplode();
+          if (afterHellfireRef?.current) {
+            afterHellfireRef.current();
+            afterHellfireRef.current = null;
+          } else {
+            // server response ยังไม่มา — poll รอสั้นๆ (network ช้า)
+            const poll = setInterval(() => {
+              if (afterHellfireRef?.current) {
+                clearInterval(poll);
+                afterHellfireRef.current();
+                afterHellfireRef.current = null;
+              }
+            }, 100);
+            setTimeout(() => clearInterval(poll), 5000);
+          }
         }}
       />
       <EKHellfirePillar
@@ -89,19 +127,20 @@ export function EKBombSequence({
 
   if (!active || !isMyBomb) return bombAnimations;
 
-  // IK: เล่น implosion animation ก่อน แล้วค่อย onExplode
+  // IK: emit eliminatePlayer ก่อน แล้วเล่น implosion animation
   const handleIKExplode = () => {
-    if (showImplosion) return;
+    if (firedRef.current || showImplosion) return;
+    firedRef.current = true;
+    onExplode();
     setShowImplosion(true);
   };
 
   // EK: emit eliminatePlayer ทันที แล้วเล่น hellfire animation พร้อมกัน
-  // server จะตอบ playerEliminated → afterHellfireRef.current = applyEliminated
-  // animation onDone จะ call afterHellfireRef.current เพื่อจบ phase
   const handleEKExplode = () => {
-    if (showHellfirePillar) return;
-    onExplode(); // emit eliminatePlayer ก่อน
-    setShowHellfirePillar(true); // เริ่ม animation พร้อมกัน
+    if (firedRef.current || showHellfirePillar) return;
+    firedRef.current = true;
+    onExplode();
+    setShowHellfirePillar(true);
   };
 
   // ── IK face-up UI (สีม่วง) ──────────────────────────────────
@@ -211,7 +250,7 @@ export function EKBombSequence({
           {/* Explode button */}
           <button
             onClick={handleIKExplode}
-            disabled={showImplosion}
+            disabled={firedRef.current || showImplosion}
             className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
               background: "linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)",
@@ -235,7 +274,6 @@ export function EKBombSequence({
       <div
         className="fixed inset-0 bg-red-950/90 flex flex-col items-center justify-center z-3000 animate-fade-in backdrop-blur-md"
         style={{ display: showHellfirePillar ? "none" : undefined }}>
-
 
         {/* Background radial gradient pulsing effect */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-red-600/30 via-transparent to-transparent animate-pulse-custom pointer-events-none" />
@@ -280,7 +318,8 @@ export function EKBombSequence({
               {hasDefuse ? (
                 <button
                   onClick={onDefuse}
-                  className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                  disabled={firedRef.current}
+                  className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <span>🛡️</span> ใช้ DEFUSE!
                 </button>
@@ -292,7 +331,7 @@ export function EKBombSequence({
 
               <button
                 onClick={handleEKExplode}
-                disabled={showHellfirePillar}
+                disabled={firedRef.current || showHellfirePillar}
                 className="flex-1 max-w-62.5 bg-linear-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span>💀</span> ยอมแพ้

@@ -32,9 +32,13 @@ interface AlterTheFutureModalProps {
   cards: string[];       // top 3 cards [index0 = top of deck]
   isOpen: boolean;
   onConfirm: (newOrder: string[]) => void;
+  /** true ถ้า IK กำลัง face-up อยู่ในกอง (ใช้คำนวณ ikOnTop realtime) */
+  ikFaceUp?: boolean;
+  /** callback เมื่อ order เปลี่ยน — ส่ง ikOnTop ให้ parent อัปเดต deck display */
+  onOrderChange?: (newOrder: string[], ikOnTop: boolean) => void;
 }
 
-export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFutureModalProps) {
+export function AlterTheFutureModal({ cards, isOpen, onConfirm, ikFaceUp = false, onOrderChange }: AlterTheFutureModalProps) {
   const [order, setOrder] = useState<string[]>(cards);
   const dragIndex = useRef<number | null>(null);
   const dragOverIndex = useRef<number | null>(null);
@@ -43,6 +47,16 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
   React.useEffect(() => {
     if (isOpen) setOrder(cards);
   }, [isOpen, cards]);
+
+  /** คำนวณว่า IK อยู่บนสุดหรือเปล่าจาก order ปัจจุบัน
+   * order[0] = ใบบนสุด (จั่วได้ก่อน) */
+  const calcIkOnTop = (o: string[]) => ikFaceUp && o.length > 0 && o[0] === "IK";
+
+  /** อัปเดต order และแจ้ง parent realtime */
+  const applyOrder = (next: string[]) => {
+    setOrder(next);
+    onOrderChange?.(next, calcIkOnTop(next));
+  };
 
   // ── Drag handlers ──────────────────────────────────────────
   const handleDragStart = (index: number) => {
@@ -56,7 +70,7 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
     const dragged = next.splice(dragIndex.current, 1)[0]!;
     next.splice(index, 0, dragged);
     dragIndex.current = index;
-    setOrder(next);
+    applyOrder(next);
   };
 
   const handleDragEnd = () => {
@@ -78,7 +92,7 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
         const tmp = next[selectedIndex.current]!;
         next[selectedIndex.current] = next[index]!;
         next[index] = tmp;
-        setOrder(next);
+        applyOrder(next);
       }
       selectedIndex.current = null;
       setSelectedIdx(null);
@@ -88,6 +102,9 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
   if (!isOpen || cards.length === 0) return null;
 
   const positionLabel = ["บนสุด", "ที่ 2", "ที่ 3"];
+
+  // ikOnTop realtime: IK อยู่ position บนสุด (index 0) และ ikFaceUp
+  const ikOnTopNow = calcIkOnTop(order);
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[2000] backdrop-blur-sm animate-fade-in">
@@ -106,6 +123,21 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
             ลาก หรือ แตะ 2 ใบเพื่อสลับตำแหน่ง
           </p>
         </div>
+
+        {/* IK on top warning — แสดง realtime */}
+        {ikOnTopNow && (
+          <div
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
+            style={{
+              background: "rgba(139,92,246,0.18)",
+              border: "1.5px solid rgba(168,85,247,0.6)",
+              color: "#d8b4fe",
+            }}
+          >
+            <span>⚠️</span>
+            <span>Imploding Kitten อยู่บนสุด — ผู้เล่นถัดไปจะจั่วโดนทันที!</span>
+          </div>
+        )}
 
         {/* Cards */}
         <div className="flex justify-center gap-6 my-2 w-full select-none">
@@ -128,10 +160,12 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
                 className={`text-xs font-bold px-2 py-1 rounded transition-colors ${
                   selectedIdx === index
                     ? "bg-purple-500 text-white"
-                    : "bg-purple-500/15 text-purple-400"
+                    : index === 0 && ikOnTopNow
+                      ? "bg-red-700/80 text-red-200"
+                      : "bg-purple-500/15 text-purple-400"
                 }`}
               >
-                {positionLabel[index]}
+                {positionLabel[index]}{index === 0 && ikOnTopNow ? " ⚠️" : ""}
               </span>
 
               {/* Card with highlight ring if selected */}
@@ -139,7 +173,9 @@ export function AlterTheFutureModal({ cards, isOpen, onConfirm }: AlterTheFuture
                 className={`rounded-xl transition-all duration-150 ${
                   selectedIdx === index
                     ? "ring-4 ring-purple-400 ring-offset-2 ring-offset-zinc-900"
-                    : ""
+                    : index === 0 && ikOnTopNow
+                      ? "ring-2 ring-red-500/60 ring-offset-1 ring-offset-zinc-900"
+                      : ""
                 }`}
               >
                 {cardCode === "IK" ? (

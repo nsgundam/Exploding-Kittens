@@ -242,6 +242,7 @@ export function GameBoard({
       <AlterTheFutureModal
         isOpen={gamePhase === "ALTER_FUTURE"}
         cards={seeTheFutureCards}
+        ikFaceUp={seeTheFutureCards.includes("IK")}
         onConfirm={(newOrder) => commitAlterTheFuture?.(newOrder)}
       />
 
