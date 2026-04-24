@@ -24,9 +24,8 @@ export function EKBombSequence({
   isIKFaceUp = false,
   afterHellfireRef,
 }: EKBombSequenceProps) {
-  const [timeLeft, setTimeLeft] = useState(10);
-  const [showImplosion, setShowImplosion] = useState(false);
-  const [showHellfirePillar, setShowHellfirePillar] = useState(false);
+  const [bombState, setBombState] = useState({ timeLeft: 10, showImplosion: false, showHellfirePillar: false });
+  const { timeLeft, showImplosion, showHellfirePillar } = bombState;
 
   // ── ref เก็บ callbacks เพื่อไม่ให้ useEffect re-run เมื่อ parent re-render ──
   const onExplodeRef = useRef(onExplode);
@@ -42,9 +41,7 @@ export function EKBombSequence({
   useEffect(() => {
     if (active && isMyBomb) {
       firedRef.current = false;
-      setTimeLeft(10);
-      setShowImplosion(false);
-      setShowHellfirePillar(false);
+      setBombState({ timeLeft: 10, showImplosion: false, showHellfirePillar: false });
     }
   }, [active, isMyBomb]);
 
@@ -54,8 +51,8 @@ export function EKBombSequence({
     if (!active || !isMyBomb) return;
 
     const fuseInterval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
+      setBombState((prev) => {
+        if (prev.timeLeft <= 1) {
           clearInterval(fuseInterval);
           // side effect ต้องทำนอก setState updater ใช้ setTimeout(0)
           setTimeout(() => {
@@ -63,14 +60,14 @@ export function EKBombSequence({
             firedRef.current = true;
             onExplodeRef.current(); // emit eliminatePlayer
             if (isIKFaceUpRef.current) {
-              setShowImplosion(true);
+              setBombState((s) => ({ ...s, showImplosion: true }));
             } else {
-              setShowHellfirePillar(true);
+              setBombState((s) => ({ ...s, showHellfirePillar: true }));
             }
           }, 0);
-          return 0;
+          return { ...prev, timeLeft: 0 };
         }
-        return prev - 1;
+        return { ...prev, timeLeft: prev.timeLeft - 1 };
       });
     }, 1000);
 
@@ -85,7 +82,7 @@ export function EKBombSequence({
       <IKImplosionVoid
         active={showImplosion}
         onDone={() => {
-          setShowImplosion(false);
+          setBombState((s) => ({ ...s, showImplosion: false }));
           if (afterHellfireRef?.current) {
             afterHellfireRef.current();
             afterHellfireRef.current = null;
@@ -105,7 +102,7 @@ export function EKBombSequence({
       <EKHellfirePillar
         active={showHellfirePillar}
         onDone={() => {
-          setShowHellfirePillar(false);
+          setBombState((s) => ({ ...s, showHellfirePillar: false }));
           if (afterHellfireRef?.current) {
             afterHellfireRef.current();
             afterHellfireRef.current = null;
@@ -132,7 +129,7 @@ export function EKBombSequence({
     if (firedRef.current || showImplosion) return;
     firedRef.current = true;
     onExplode();
-    setShowImplosion(true);
+    setBombState((s) => ({ ...s, showImplosion: true }));
   };
 
   // EK: emit eliminatePlayer ทันที แล้วเล่น hellfire animation พร้อมกัน
@@ -140,7 +137,7 @@ export function EKBombSequence({
     if (firedRef.current || showHellfirePillar) return;
     firedRef.current = true;
     onExplode();
-    setShowHellfirePillar(true);
+    setBombState((s) => ({ ...s, showHellfirePillar: true }));
   };
 
   // ── IK face-up UI (สีม่วง) ──────────────────────────────────
