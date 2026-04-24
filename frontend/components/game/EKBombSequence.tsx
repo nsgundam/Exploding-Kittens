@@ -33,7 +33,6 @@ export function EKBombSequence({
   const isIKFaceUpRef = useRef(isIKFaceUp);
   // ── ref ป้องกัน double-fire (timer หมด + กดปุ่มพร้อมกัน) ──
   const firedRef = useRef(false);
-  const [fired, setFired] = useState(false);
 
   // อัพเดท ref ทุกครั้งที่ prop เปลี่ยน โดยไม่ trigger useEffect
   useEffect(() => { onExplodeRef.current = onExplode; }, [onExplode]);
@@ -43,7 +42,6 @@ export function EKBombSequence({
   useEffect(() => {
     if (active && isMyBomb) {
       firedRef.current = false;
-      setFired(false);
       setTimeLeft(10);
       setShowImplosion(false);
       setShowHellfirePillar(false);
@@ -63,7 +61,6 @@ export function EKBombSequence({
           setTimeout(() => {
             if (firedRef.current) return; // ป้องกัน double-fire
             firedRef.current = true;
-            setFired(true);
             onExplodeRef.current(); // emit eliminatePlayer
             if (isIKFaceUpRef.current) {
               setShowImplosion(true);
@@ -134,7 +131,6 @@ export function EKBombSequence({
   const handleIKExplode = () => {
     if (firedRef.current || showImplosion) return;
     firedRef.current = true;
-    setFired(true);
     onExplode();
     setShowImplosion(true);
   };
@@ -143,7 +139,6 @@ export function EKBombSequence({
   const handleEKExplode = () => {
     if (firedRef.current || showHellfirePillar) return;
     firedRef.current = true;
-    setFired(true);
     onExplode();
     setShowHellfirePillar(true);
   };
@@ -255,7 +250,7 @@ export function EKBombSequence({
           {/* Explode button */}
           <button
             onClick={handleIKExplode}
-            disabled={fired || showImplosion}
+            disabled={showImplosion}
             className="w-full py-4 rounded-2xl font-black text-white text-lg tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
               background: "linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)",
@@ -323,7 +318,7 @@ export function EKBombSequence({
               {hasDefuse ? (
                 <button
                   onClick={onDefuse}
-                  disabled={fired}
+                  disabled={showImplosion || showHellfirePillar}
                   className="flex-1 max-w-62.5 bg-linear-to-br from-green-500 to-emerald-700 hover:from-green-400 hover:to-emerald-600 border-2 border-green-300 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <span>🛡️</span> ใช้ DEFUSE!
@@ -336,7 +331,7 @@ export function EKBombSequence({
 
               <button
                 onClick={handleEKExplode}
-                disabled={fired || showHellfirePillar}
+                disabled={showHellfirePillar}
                 className="flex-1 max-w-62.5 bg-linear-to-br from-red-600 to-rose-900 hover:from-red-500 hover:to-rose-800 border-2 border-red-400 text-white font-bungee py-4 px-6 rounded-2xl text-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span>💀</span> ยอมแพ้
