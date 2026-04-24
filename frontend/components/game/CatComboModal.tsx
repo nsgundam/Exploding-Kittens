@@ -54,19 +54,25 @@ export function CatComboModal({
 
   // shuffledIndices: ลำดับที่แสดงบน UI (สุ่มแล้ว) → map กลับเป็น index จริงในมือ
   // สร้างใหม่ทุกครั้งที่เลือก target เพื่อป้องกัน position inference
-  const [shuffledIndices, setShuffledIndices] = useState<number[]>(() => {
-    if (startAtDemandStep && preselectedTarget) {
-      const target = players.find(p => p.player_token === preselectedTarget);
-      const count = target?.hand_count ?? 0;
-      const indices = Array.from({ length: count }, (_, i) => i);
-      for (let i = indices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j]!, indices[i]!];
-      }
-      return indices;
+  const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+
+  // makeShuffled runs inside effects/handlers only, never during render
+  const makeShuffled = (count: number): number[] => {
+    const indices = Array.from({ length: count }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j]!, indices[i]!];
     }
-    return [];
-  });
+    return indices;
+  };
+
+  React.useEffect(() => {
+    if (isOpen && startAtDemandStep && preselectedTarget) {
+      const target = players.find(p => p.player_token === preselectedTarget);
+      setShuffledIndices(makeShuffled(target?.hand_count ?? 0));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preselectedTarget]);
 
   // กรองการ์ดที่สามารถขโมยได้ตาม deck version และ expansions
   // ห้ามขโมย EK, DF, IK เสมอ
@@ -116,13 +122,7 @@ export function CatComboModal({
     setSelectedTarget(player);
     // สุ่มลำดับการ�Aสดงการ์ดหลังทุกครั้งที่เลือก target
     // เพื่อป้องกัน position inference (#1 มักเป็น Defuse)
-    const count = player.hand_count ?? 0;
-    const indices = Array.from({ length: count }, (_, i) => i);
-    for (let i = indices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [indices[i], indices[j]] = [indices[j]!, indices[i]!];
-    }
-    setShuffledIndices(indices);
+    setShuffledIndices(makeShuffled(player.hand_count ?? 0));
     setSelectedCardIndex(null);
     setStep("demand_card");
   };
