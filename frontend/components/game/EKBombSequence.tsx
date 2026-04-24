@@ -37,13 +37,6 @@ export function EKBombSequence({
   useEffect(() => { onExplodeRef.current = onExplode; }, [onExplode]);
   useEffect(() => { isIKFaceUpRef.current = isIKFaceUp; }, [isIKFaceUp]);
 
-  // reset firedRef และ state เมื่อ bomb phase เริ่มใหม่
-  useEffect(() => {
-    if (active && isMyBomb) {
-      firedRef.current = false;
-      setBombState({ timeLeft: 10, showImplosion: false, showHellfirePillar: false });
-    }
-  }, [active, isMyBomb]);
 
   useEffect(() => {
     // dependency array มีแค่ active, isMyBomb — ไม่ใส่ onExplode/isIKFaceUp
