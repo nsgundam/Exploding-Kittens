@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 interface IKRevealModalProps {
   isOpen: boolean;
@@ -18,6 +18,9 @@ export function IKRevealModal({
   onRevealDone,
 }: IKRevealModalProps) {
   const [progress, setProgress] = useState(0);
+  // ใช้ ref เพื่อไม่ให้ useEffect re-run เมื่อ parent re-render สร้าง onRevealDone ใหม่
+  const onRevealDoneRef = useRef(onRevealDone);
+  useEffect(() => { onRevealDoneRef.current = onRevealDone; }, [onRevealDone]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -31,7 +34,7 @@ export function IKRevealModal({
       setProgress(pct);
       if (pct >= 100) {
         clearInterval(interval);
-        onRevealDone();
+        onRevealDoneRef.current();
       }
     }, 50);
 
@@ -39,7 +42,7 @@ export function IKRevealModal({
       clearInterval(interval);
       setProgress(0);
     };
-  }, [isOpen, onRevealDone]);
+  }, [isOpen]); // ไม่ใส่ onRevealDone ใน deps — ใช้ ref แทน
 
   if (!isOpen) return null;
 

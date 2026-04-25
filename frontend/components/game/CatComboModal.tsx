@@ -52,6 +52,28 @@ export function CatComboModal({
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [filterText, setFilterText] = useState("");
 
+  // shuffledIndices: ลำดับที่แสดงบน UI (สุ่มแล้ว) → map กลับเป็น index จริงในมือ
+  // สร้างใหม่ทุกครั้งที่เลือก target เพื่อป้องกัน position inference
+  const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+
+  // makeShuffled runs inside effects/handlers only, never during render
+  const makeShuffled = (count: number): number[] => {
+    const indices = Array.from({ length: count }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j]!, indices[i]!];
+    }
+    return indices;
+  };
+
+  React.useEffect(() => {
+    if (isOpen && startAtDemandStep && preselectedTarget) {
+      const target = players.find(p => p.player_token === preselectedTarget);
+      setShuffledIndices(makeShuffled(target?.hand_count ?? 0));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preselectedTarget]);
+
   // กรองการ์ดที่สามารถขโมยได้ตาม deck version และ expansions
   // ห้ามขโมย EK, DF, IK เสมอ
   const hasImploding = expansions.includes("imploding_kittens");
@@ -98,7 +120,10 @@ export function CatComboModal({
 
   const handleSelectTarget = (player: Player) => {
     setSelectedTarget(player);
-    // Both 2-card and 3-card go to the "demand_card" step now
+    // สุ่มลำดับการ�Aสดงการ์ดหลังทุกครั้งที่เลือก target
+    // เพื่อป้องกัน position inference (#1 มักเป็น Defuse)
+    setShuffledIndices(makeShuffled(player.hand_count ?? 0));
+    setSelectedCardIndex(null);
     setStep("demand_card");
   };
 
@@ -330,18 +355,18 @@ export function CatComboModal({
             {/* Content for Step 2 based on Combo Size */}
             {!isThreeCard ? (
               <div className="flex flex-wrap justify-center gap-3 w-full py-4 max-h-[220px] overflow-y-auto">
-                {Array.from({ length: selectedTarget.hand_count ?? 0 }).map((_, idx) => (
+                {shuffledIndices.map((realIdx, displayPos) => (
                   <button
-                    key={idx}
-                    onClick={() => setSelectedCardIndex(idx)}
+                    key={displayPos}
+                    onClick={() => setSelectedCardIndex(realIdx)}
                     className="relative rounded-xl transition-all flex flex-col items-center justify-center shadow-lg"
                     style={{
                       width: "60px",
                       height: "90px",
-                      background: selectedCardIndex === idx ? `linear-gradient(135deg, ${cardConfig.color}, ${cardConfig.color}88)` : "linear-gradient(135deg, #1e0a3c, #3b156a)",
-                      border: "2px solid " + (selectedCardIndex === idx ? "#fff" : "rgba(255,255,255,0.2)"),
-                      transform: selectedCardIndex === idx ? "scale(1.1) translateY(-4px)" : "scale(1)",
-                      boxShadow: selectedCardIndex === idx ? `0 10px 20px ${cardConfig.color}66` : "0 4px 10px rgba(0,0,0,0.5)",
+                      background: selectedCardIndex === realIdx ? `linear-gradient(135deg, ${cardConfig.color}, ${cardConfig.color}88)` : "linear-gradient(135deg, #1e0a3c, #3b156a)",
+                      border: "2px solid " + (selectedCardIndex === realIdx ? "#fff" : "rgba(255,255,255,0.2)"),
+                      transform: selectedCardIndex === realIdx ? "scale(1.1) translateY(-4px)" : "scale(1)",
+                      boxShadow: selectedCardIndex === realIdx ? `0 10px 20px ${cardConfig.color}66` : "0 4px 10px rgba(0,0,0,0.5)",
                     }}
                   >
                     <div
@@ -352,7 +377,7 @@ export function CatComboModal({
                       }}
                     />
                     <span className="text-xl opacity-60">🐱</span>
-                    <span className="text-[10px] mt-1 font-black" style={{ color: "rgba(255,255,255,0.5)" }}>#{idx + 1}</span>
+                    <span className="text-[10px] mt-1 font-black" style={{ color: "rgba(255,255,255,0.5)" }}>#{displayPos + 1}</span>
                   </button>
                 ))}
               </div>

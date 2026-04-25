@@ -180,6 +180,8 @@ export function useGameSocketEvents(
       hand?: { cards: string[] };
       source?: string;
       ikOnTop?: boolean;
+      isIK?: boolean;
+      isIKFaceUp?: boolean;
       nextTurn?: { player_id: string; display_name: string; turn_number: number; pending_attacks?: number };
     }) => {
       console.log("🃏 Card Drawn:", data);
@@ -219,7 +221,10 @@ export function useGameSocketEvents(
         setters.setGamePhase("PLAYING");
 
         // log ให้ทุกคนเห็น
-        if (isIK) {
+        // หมายเหตุ: คนอื่น (ไม่ใช่คนจั่ว) จะไม่มี drawnCard ส่งมา
+        // ดังนั้นต้องใช้ data.isIK (field ที่ server ส่งให้ทุกคน) เป็น source of truth
+        const isIKForLog = isIK || !!data.isIK;
+        if (isIKForLog) {
           setters.setIkOnTop(false);
           const logMsg = isIKFaceUp
             ? `💥 ${displayName} จั่วได้ Imploding Kitten (หงายหน้า) — ตายทันที!`
@@ -529,18 +534,35 @@ export function useGameSocketEvents(
     const handlePlayerEliminated = (data: PlayerEliminatedPayload & { isAfkKick?: boolean; isLeftRoom?: boolean; afkPlayerId?: string; ikOnTop?: boolean; nextTurn?: { player_id: string; display_name?: string; turn_number?: number; pending_attacks?: number } }) => {
       console.log("💀 Player Eliminated:", data);
 
-      // defer clearing bomb state so hellfire/implosion animation plays first
+      const eliminatedId = data?.eliminatedPlayer?.player_id
+        ?? (data.isAfkKick ? data.afkPlayerId : null)
+        ?? setters.currentTurnPlayerIdRef.current;
+
+      // ตรวจว่า event นี้เป็นของเรา (คนระเบิด) หรือเปล่า
+      const me = setters.roomDataRef.current?.players?.find((p: Player) => p.player_token === myPlayerToken);
+      const isMyBomb = !!(me && eliminatedId && me.player_id === eliminatedId);
+
+      // applyEliminated — update turn + phase หลัง animation จบ (หรือทันทีถ้าไม่มี animation)
       const applyEliminated = () => {
         setters.setEkBombState(null);
         setters.setGamePhase(data.action === "GAME_OVER" ? "GAME_OVER" : "PLAYING");
         if (data.ikOnTop !== undefined) setters.setIkOnTop(data.ikOnTop);
         else setters.setIkOnTop(false);
+        if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
+        if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
+        setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
       };
-      setters.afterHellfireRef.current = applyEliminated;
 
-      const eliminatedId = data?.eliminatedPlayer?.player_id
-        ?? (data.isAfkKick ? data.afkPlayerId : null)
-        ?? setters.currentTurnPlayerIdRef.current;
+      if (data.isAfkKick || data.isLeftRoom) {
+        // AFK / LeftRoom ไม่มี animation — apply ทันที
+        applyEliminated();
+      } else if (isMyBomb) {
+        // คนระเบิด: รอ hellfire/implosion animation เรียก afterHellfireRef ก่อน
+        setters.afterHellfireRef.current = applyEliminated;
+      } else {
+        // คนอื่น: ไม่มี bomb animation ฝั่งตัวเอง — delay sync กับ animation ของคนระเบิด (~1.6s)
+        setTimeout(applyEliminated, 1600);
+      }
 
       if (eliminatedId) {
         if (!data.isAfkKick && !data.isLeftRoom) {
@@ -561,10 +583,6 @@ export function useGameSocketEvents(
         setters.setWinner(data.winner);
         setters.setGameLogs((prev) => [...prev, `🏆 ${data.winner!.display_name} ชนะการแข่งขัน!`]);
       }
-
-      if (data?.nextTurn?.player_id) setters.setCurrentTurnPlayerId(data.nextTurn.player_id);
-      if (data?.nextTurn?.turn_number) setters.setTurnNumber(data.nextTurn.turn_number);
-      setters.setPendingAttacks(data.nextTurn?.pending_attacks ?? 0);
 
       const eliminatedPlayer = setters.roomDataRef.current?.players?.find((p: Player) => p.player_id === eliminatedId);
       const displayName = eliminatedPlayer?.display_name ?? "ผู้เล่น";
@@ -740,10 +758,11 @@ export function useGameSocketEvents(
     };
 
     // ── alterTheFutureCommitted ──
-    const handleAlterTheFutureCommitted = (data: { success: boolean; action: string }) => {
+    const handleAlterTheFutureCommitted = (data: { success: boolean; action: string; ikOnTop?: boolean }) => {
       console.log("✨ Alter the Future Committed:", data);
       setters.setSeeTheFutureCards([]);
       setters.setGamePhase("PLAYING");
+      if (data.ikOnTop !== undefined) setters.setIkOnTop(data.ikOnTop);
       setters.setGameLogs((prev) => [...prev, `✨ ลำดับไพ่ถูกเปลี่ยนแล้ว!`]);
     };
 
