@@ -132,6 +132,7 @@ export interface ExplodingKittenDrawnResult {
   drawnCard: string;
   hasDefuse: boolean;
   deck_count?: number;
+  isIK?: boolean;       // true = Imploding Kitten (ส่งให้ทุกคนแม้ drawnCard ถูก strip)
   isIKFaceUp?: boolean; // true = IK หงายหน้า → ตายทันที, false/undefined = EK ปกติ หรือ IK คว่ำหน้า
 }
 

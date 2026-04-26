@@ -179,6 +179,7 @@ export function GameBoard({
 
       {/* ── MODALS & SEQUENCES ── */}
       <EKBombSequence
+        key={ekBombState ? `bomb-${ekBombState.drawnCard}` : "bomb-idle"}
         active={gamePhase === "EK_DRAWN" && !!ekBombState}
         drawnCard={ekBombState?.drawnCard || "EK"}
         hasDefuse={ekBombState?.hasDefuse || false}
@@ -242,6 +243,7 @@ export function GameBoard({
       <AlterTheFutureModal
         isOpen={gamePhase === "ALTER_FUTURE"}
         cards={seeTheFutureCards}
+        ikFaceUp={seeTheFutureCards.includes("IK")}
         onConfirm={(newOrder) => commitAlterTheFuture?.(newOrder)}
       />
 

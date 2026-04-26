@@ -16,7 +16,7 @@ interface NopeCardAnimationProps {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const TOTAL_MS = 1600;
+const TOTAL_MS = 1000;
 const W = 560;
 const H = 300;
 
