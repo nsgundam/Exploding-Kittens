@@ -4,11 +4,10 @@ export const AVATAR_STYLES = [
   "adventurer",
   "avataaars",
   "bottts",
-  "fun-emoji",
   "lorelei",
   "notionists",
-  "personas",
-  "pixel-art",
+  "bottts-neutral",
+  "dylan"
 ] as const;
 
 const DICEBEAR_PREFIX = "dicebear";

@@ -32,7 +32,7 @@ const mapApiRoomToUi = (r: ApiRoom): LobbyRoom => {
   };
 };
 
-type FilterTab = "All" | "Original" | "Good";
+type FilterTab = "All" | "Add-on";
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -73,8 +73,7 @@ export default function LobbyPage() {
     
     const matchTab =
       activeTab === "All" ||
-      (activeTab === "Original" && room.cardVersion === "Original") ||
-      (activeTab === "Good" && room.cardVersion === "Good vs. Evil");
+      (activeTab === "Add-on" && room.addon === true);
     const q = searchQuery.toLowerCase();
     const matchSearch =
       !q ||
@@ -200,8 +199,7 @@ export default function LobbyPage() {
 
   const tabs: { label: string; value: FilterTab }[] = [
     { label: "All", value: "All" },
-    { label: "Original", value: "Original" },
-    // { label: "Good", value: "Good" },
+    { label: "Add-on", value: "Add-on" },
   ];
 
   return (
